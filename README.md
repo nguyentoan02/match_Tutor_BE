@@ -110,11 +110,50 @@ src/
 
 Các API routes được tiền tố bằng `/api`. Ví dụ:
 
--   `POST /api/user`: Tạo người dùng mới.
--   `GET /api/user`: Lấy danh sách tất cả người dùng.
--   `GET /api/user/:id`: Lấy thông tin người dùng theo ID.
--   `PUT /api/user/:id`: Cập nhật thông tin người dùng.
--   `DELETE /api/user/:id`: Xóa người dùng.
+### API Mẫu
+
+#### Tạo người dùng mới
+
+-   **URL**: `POST http://localhost:5000/api/user`
+-   **Body**:
+    ```json
+    {
+        "name": "John Doe",
+        "email": "john.doe@example.com",
+        "password": "securepassword"
+    }
+    ```
+
+#### Lấy danh sách tất cả người dùng
+
+-   **URL**: `GET /api/user`
+
+#### Lấy thông tin người dùng theo ID
+
+-   **URL**: `GET /api/user/:id`
+-   **Ví dụ**: `GET /api/user/64b7f9c2e4b0a5d3c8e9f123`
+
+#### Lấy thông tin người dùng theo email
+
+-   **URL**: `GET /api/user/email/:email`
+-   **Ví dụ**: `GET /api/user/email/john.doe@example.com`
+
+#### Cập nhật thông tin người dùng
+
+-   **URL**: `PUT /api/user/:id`
+-   **Ví dụ**: `PUT /api/user/64b7f9c2e4b0a5d3c8e9f123`
+-   **Body**:
+    ```json
+    {
+        "name": "John Updated",
+        "email": "john.updated@example.com"
+    }
+    ```
+
+#### Xóa người dùng
+
+-   **URL**: `DELETE /api/user/:id`
+-   **Ví dụ**: `DELETE /api/user/64b7f9c2e4b0a5d3c8e9f123`
 
 ## Ghi chú
 
