@@ -110,11 +110,11 @@ src/
 
 Các API routes được tiền tố bằng `/api`. Ví dụ:
 
--   `POST /api/users`: Tạo người dùng mới.
--   `GET /api/users`: Lấy danh sách tất cả người dùng.
--   `GET /api/users/:id`: Lấy thông tin người dùng theo ID.
--   `PUT /api/users/:id`: Cập nhật thông tin người dùng.
--   `DELETE /api/users/:id`: Xóa người dùng.
+-   `POST /api/user`: Tạo người dùng mới.
+-   `GET /api/user`: Lấy danh sách tất cả người dùng.
+-   `GET /api/user/:id`: Lấy thông tin người dùng theo ID.
+-   `PUT /api/user/:id`: Cập nhật thông tin người dùng.
+-   `DELETE /api/user/:id`: Xóa người dùng.
 
 ## Ghi chú
 
