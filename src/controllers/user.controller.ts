@@ -1,97 +1,61 @@
 import { Request, Response, NextFunction } from "express";
 import userService from "../services/user.service";
-import { SuccessResponse, OK, CREATED } from "../utils/success.response";
+import { OK } from "../utils/success.response";
+import User from "../models/user.model";
 import {
-    CreateUserBody,
-    UpdateUserBody,
-    UpdateUserParams,
-    GetUserByIdParams,
-    GetUserByEmailParams,
-    DeleteUserParams,
-} from "../schemas/user.schema";
+   ForbiddenError,
+   NotFoundError,
+   UnauthorizedError,
+} from "../utils/error.response";
 
-export class UserController {
-    // Create user
-    async createUser(req: Request, res: Response, next: NextFunction) {
-        try {
-            const userData: CreateUserBody = req.body;
-            const user = await userService.createUser(userData);
+class UserController {
+   // GET /api/user/me
+   async getMe(req: Request, res: Response, next: NextFunction) {
+      try {
+         const currentUser = req.user;
+         if (!currentUser || !currentUser._id) {
+            throw new UnauthorizedError("Not authenticated");
+         }
 
-            return new CREATED({
-                message: "User created successfully",
-                metadata: user,
-            }).send(res);
-        } catch (error) {
-            next(error);
-        }
-    }
+         const user = await userService.getById(currentUser._id.toString());
+         if (!user) {
+            throw new NotFoundError("User not found");
+         }
 
-    // Get all users
-    async getAllUsers(req: Request, res: Response, next: NextFunction) {
-        try {
-            const users = await userService.getAllUsers();
+         new OK({
+            message: "User profile retrieved",
+            metadata: { user },
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
 
-            return SuccessResponse.ok(
-                res,
-                users,
-                "Users retrieved successfully"
-            );
-        } catch (error) {
-            next(error);
-        }
-    }
+   // PUT /api/user/me
+   async updateMe(req: Request, res: Response, next: NextFunction) {
+      try {
+         const currentUser = req.user;
+         if (!currentUser || !currentUser._id) {
+            throw new UnauthorizedError("Not authenticated");
+         }
 
-    // Get user by ID
-    async getUserById(req: Request, res: Response, next: NextFunction) {
-        try {
-            const { id }: GetUserByIdParams = req.params as any;
-            const user = await userService.getUserById(id);
+         const updates = req.body || {};
+         const file = req.file;
 
-            return new OK({
-                message: "User retrieved successfully",
-                metadata: user,
-            }).send(res);
-        } catch (error) {
-            next(error);
-        }
-    }
+         const updated = await userService.updateProfile(
+            currentUser._id.toString(),
+            updates,
+            file
+         );
 
-    // Get user by email
-    async getUserByEmail(req: Request, res: Response, next: NextFunction) {
-        try {
-            const { email }: GetUserByEmailParams = req.params as any;
-            const user = await userService.getUserByEmail(email);
-
-            return SuccessResponse.ok(res, user, "User retrieved successfully");
-        } catch (error) {
-            next(error);
-        }
-    }
-
-    // Update user
-    async updateUser(req: Request, res: Response, next: NextFunction) {
-        try {
-            const { id }: UpdateUserParams = req.params as any;
-            const updateData: UpdateUserBody = req.body;
-            const user = await userService.updateUser(id, updateData);
-
-            return SuccessResponse.ok(res, user, "User updated successfully");
-        } catch (error) {
-            next(error);
-        }
-    }
-
-    // Delete user
-    async deleteUser(req: Request, res: Response, next: NextFunction) {
-        try {
-            const { id }: DeleteUserParams = req.params as any;
-            await userService.deleteUser(id);
-
-            return SuccessResponse.noContent(res);
-        } catch (error) {
-            next(error);
-        }
-    }
+         new OK({
+            message: "Profile updated successfully",
+            metadata: { user: updated },
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
 }
 
 export default new UserController();
