@@ -1,8 +1,8 @@
 import { Request, Response, NextFunction } from "express";
 import authService from "../services/auth.service";
 import { UnauthorizedError, ForbiddenError } from "../utils/error.response";
-import { Role } from "../types/role.enum";
-import type { IUser } from "../types/user";
+import { IUser } from "../types/types/user";
+import { Role } from "../types/enums/role.enum";
 
 /**
  * Gán kiểu mở rộng cho Request để dễ dùng trong controller
@@ -55,7 +55,7 @@ export const authenticate = async (
  * Ví dụ sử dụng:
  * router.get("/admin-only", authenticate, authorize(Role.ADMIN), handler);
  */
-export const authorize = (...allowedRoles: Role[]) => {
+export const isRole = (...allowedRoles: Role[]) => {
    return (req: Request, res: Response, next: NextFunction) => {
       try {
          const user = req.user;
