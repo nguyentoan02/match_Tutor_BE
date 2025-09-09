@@ -2,14 +2,12 @@ import express from "express";
 import cors from "cors";
 import morgan from "morgan";
 import helmet from "helmet";
-import dotenv from "dotenv";
 
 import { connectDB } from "./config/db";
 
 import { errorHandler } from "./middlewares/error.middleware";
 import routeRegistry from "./routes/routeRegistry";
 
-dotenv.config();
 connectDB();
 
 const app = express();
