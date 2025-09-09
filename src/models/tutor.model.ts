@@ -20,13 +20,26 @@ const TutorSchema: Schema<ITutor> = new Schema(
             institution: { type: String },
             degree: { type: String },
             fieldOfStudy: { type: String },
-            startYear: { type: Number },
-            endYear: { type: Number },
+            // store full dates for study period
+            startDate: { type: Date },
+            endDate: { type: Date },
+            // short description and extra notes
             description: { type: String },
+            notes: { type: String },
+            // multiple image links for certificates/transcripts
+            imageUrls: [{ type: String }],
             _id: false,
          },
       ],
-      certifications: [{ type: String }],
+      //ten, mo ta voi anh, de t them
+      certifications: [
+         {
+            name: { type: String },
+            description: { type: String },
+            imageUrls: [{ type: String }],
+            _id: false,
+         },
+      ],
       experienceYears: { type: Number, min: 0 },
       hourlyRate: { type: Number, min: 0 },
       bio: { type: String },
@@ -38,7 +51,7 @@ const TutorSchema: Schema<ITutor> = new Schema(
       },
       availability: [
          {
-            dayOfWeek: { type: Number, min: 0, max: 6 },
+            dayOfWeek: { type: Number, min: 0, max: 7 },
             slots: [{ type: String, enum: TIME_SLOT_VALUES, default: [] }],
             _id: false,
          },

@@ -9,9 +9,20 @@ export interface IEducation {
    institution?: string;
    degree?: string; // e.g. "B.Sc.", "M.A.", "High School"
    fieldOfStudy?: string; // ngành học
-   startYear?: number;
-   endYear?: number;
-   description?: string; // ghi chú thêm (học bổng, xếp loại...)
+   // use full dates for start/end of study (day/month/year)
+   startDate?: Date;
+   endDate?: Date;
+   // short and extended description / notes
+   description?: string;
+   notes?: string;
+   // image URLs for certificates / transcripts / supporting docs
+   imageUrls?: string[];
+}
+
+export interface ICertification {
+   name?: string; // certificate title
+   description?: string; // short description or note
+   imageUrls?: string[]; // urls to cert images
 }
 
 export interface ITutor extends Document {
@@ -20,7 +31,7 @@ export interface ITutor extends Document {
    // standardized teaching levels (Grade 1..12, University)
    levels?: Level[];
    education?: IEducation[];
-   certifications?: string[];
+   certifications?: ICertification[];
    experienceYears?: number;
    hourlyRate?: number;
    bio?: string;
