@@ -21,9 +21,11 @@ class StudentController {
                     .json({ message: "Student profile already exists" });
             }
             const studentProfileData: CreateStudentProfileBody = req.body;
+            const file = req.file;
             const createdProfile = await studentProfileService.createProfile(
                 currentUser._id.toString(),
-                studentProfileData
+                studentProfileData,
+                file
             );
             new OK({
                 message: "Student profile created successfully",
@@ -74,10 +76,13 @@ class StudentController {
                 });
             }
             const updateData = req.body;
+            const file = req.file; // Lấy file từ middleware upload
             const updatedProfile = await studentProfileService.updateProfile(
                 currentUser._id.toString(),
-                updateData
+                updateData,
+                file
             );
+
             new OK({
                 message: "Student profile updated successfully",
                 metadata: updatedProfile,
