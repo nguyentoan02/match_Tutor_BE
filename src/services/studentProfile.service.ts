@@ -166,7 +166,7 @@ class StudentProfileService {
             .findOne({ userId: userId })
             .populate({
                 path: "userId",
-                select: "_id role name email isBanned isVerifiedEmail avatarUrl gender phone",
+                select: "_id role name email isBanned isVerifiedEmail avatarUrl gender phone address",
             });
         return { student: studentProfile as IStudent | null };
     }
