@@ -21,6 +21,7 @@ const availabilitySchema = z.object({
 // CREATE schema
 export const createStudentProfileSchema = z.object({
     body: z.object({
+        name: z.string().max(50, "Name must be at most 50 characters"),
         phone: z.string().regex(/^\d{10}$/, "Phone must be exactly 10 digits"),
         avatarUrl: z.string().url("Avatar must be a valid URL").optional(),
         gender: z.enum(GENDER_VALUES, { error: "Gender is required" }),
@@ -43,18 +44,15 @@ export const createStudentProfileSchema = z.object({
 export const updateStudentProfileSchema = z.object({
     body: z.object({
         name: z.string().max(50, "Name must be at most 50 characters"),
-        phone: z
-            .string()
-            .regex(/^\d{10}$/)
-            .optional(),
-        avatarUrl: z.string().url().optional(),
-        gender: z.enum(GENDER_VALUES).optional(),
-        address: addressSchema.optional(),
-        subjectsInterested: z.array(z.enum(SUBJECT_VALUES)).min(1).optional(),
-        gradeLevel: z.enum(LEVEL_VALUES).optional(),
+        phone: z.string().regex(/^\d{10}$/),
+        avatarUrl: z.string().url(),
+        gender: z.enum(GENDER_VALUES),
+        address: addressSchema,
+        subjectsInterested: z.array(z.enum(SUBJECT_VALUES)).min(1),
+        gradeLevel: z.enum(LEVEL_VALUES),
         bio: z.string().min(1),
-        learningGoals: z.string().min(1).optional(),
-        availability: z.array(availabilitySchema).min(1).optional(),
+        learningGoals: z.string().min(1),
+        availability: z.array(availabilitySchema).min(1),
     }),
 });
 
