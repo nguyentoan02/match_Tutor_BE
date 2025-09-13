@@ -211,3 +211,6 @@ export const updateTutorProfileSchema = z.object({
         ).optional().default({ phone: "", email: "" }),
     }),
 });
+
+export type CreateTutorInput = z.infer<typeof createTutorSchema>["body"];
+export type UpdateTutorInput = z.infer<typeof updateTutorSchema>["body"];
