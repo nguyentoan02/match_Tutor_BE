@@ -212,5 +212,5 @@ export const updateTutorProfileSchema = z.object({
     }),
 });
 
-export type CreateTutorInput = z.infer<typeof createTutorSchema>["body"];
-export type UpdateTutorInput = z.infer<typeof updateTutorSchema>["body"];
+export type CreateTutorInput = z.infer<typeof createTutorProfileSchema>["body"];
+export type UpdateTutorInput = z.infer<typeof updateTutorProfileSchema>["body"];
