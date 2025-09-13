@@ -20,14 +20,11 @@ const TutorSchema: Schema<ITutor> = new Schema(
             institution: { type: String },
             degree: { type: String },
             fieldOfStudy: { type: String },
-            // store full dates for study period
+            // store full dates for study period   
             startDate: { type: Date },
             endDate: { type: Date },
-            // short description and extra notes
+            // short description
             description: { type: String },
-            notes: { type: String },
-            // multiple image links for certificates/transcripts
-            imageUrls: [{ type: String }],
             _id: false,
          },
       ],

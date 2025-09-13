@@ -14,9 +14,6 @@ export interface IEducation {
    endDate?: Date;
    // short and extended description / notes
    description?: string;
-   notes?: string;
-   // image URLs for certificates / transcripts / supporting docs
-   imageUrls?: string[];
 }
 
 export interface ICertification {
