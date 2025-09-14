@@ -8,18 +8,39 @@ import userService from "./user.service";
 
 export class TutorService {
     // Get all tutors (approved and unapproved)
-    async getAllTutors(isApproved?: boolean): Promise<ITutor[]> {
+    async getAllTutors(
+        isApproved?: boolean,
+        page: number = 1,
+        limit: number = 6
+    ): Promise<{ data: ITutor[]; pagination: any }> {
         const filter: FilterQuery<ITutor> = {};
+        const skip = (page - 1) * limit;
 
         // Add approval filter if provided
         if (isApproved !== undefined) {
             filter.isApproved = isApproved;
         }
 
-        return await Tutor.find(filter)
+        const tutors = await Tutor.find(filter)
             .populate('userId', 'name email avatarUrl phone gender address')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
             .lean();
+
+        const total = await Tutor.countDocuments(filter);
+
+        return {
+            data: tutors,
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit),
+            },
+        };
     }
+
     // Get one tutor by tutor ID
     async getTutorById(tutorId: string): Promise<ITutor> {
         const tutor = await Tutor.findById(tutorId)

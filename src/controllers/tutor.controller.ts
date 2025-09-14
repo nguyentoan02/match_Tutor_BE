@@ -7,14 +7,16 @@ import { UnauthorizedError } from "../utils/error.response";
 export class TutorController {
     // Get all tutors
     async getAllTutors(req: Request, res: Response) {
-        const tutors = await tutorService.getAllTutors(true); // Chỉ lấy tutor đã được duyệt
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 6;
+
+        const result = await tutorService.getAllTutors(true, page, limit); // Chỉ lấy tutor đã được duyệt
 
         new SuccessResponse({
-            message: "All tutors retrieved successfully",
-            metadata: tutors
+            message: "Approved tutors retrieved successfully",
+            metadata: result
         }).send(res);
     }
-
     // Get one tutor by ID
     async getTutorById(req: Request, res: Response) {
         const { id } = req.params;
