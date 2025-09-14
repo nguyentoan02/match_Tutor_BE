@@ -120,7 +120,6 @@ export class TutorService {
         if (data.hourlyRate !== undefined) tutor.hourlyRate = data.hourlyRate;
         if (data.bio !== undefined) tutor.bio = data.bio;
         if (data.classType !== undefined) tutor.classType = data.classType as any;
-        if (data.isApproved !== undefined) tutor.isApproved = data.isApproved;
 
         // 🔹 Education
         if (data.education !== undefined) {

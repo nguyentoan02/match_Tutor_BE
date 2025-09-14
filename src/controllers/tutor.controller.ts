@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { SuccessResponse } from "../utils/success.response";
 import tutorService from "../services/tutor.service";
 import { CreateTutorInput, UpdateTutorInput } from "../schemas/tutor.schema";
+import { UnauthorizedError } from "../utils/error.response";
 
 export class TutorController {
     // Get all tutors
@@ -37,8 +38,11 @@ export class TutorController {
 
     // Get tutor by user ID (for current user's tutor profile)
     async getMyTutorProfile(req: Request, res: Response) {
-        const userId = req.user?._id;
-        const tutor = await tutorService.getTutorByUserId(String(userId));
+        const currentUser = req.user;
+        if (!currentUser || !currentUser._id) {
+            throw new UnauthorizedError("Not authenticated");
+        }
+        const tutor = await tutorService.getTutorByUserId(String(currentUser._id));
 
         if (!tutor) {
             return res.status(404).json({ message: "Tutor profile not found" });
@@ -51,8 +55,10 @@ export class TutorController {
     }
 
     async createTutorProfile(req: Request, res: Response) {
-        const userId = req.user?._id;
-        if (!userId) throw new Error("Unauthorized");
+        const currentUser = req.user;
+        if (!currentUser || !currentUser._id) {
+            throw new UnauthorizedError("Not authenticated");
+        }
 
         const parsedData = TutorController.parseFormData(req.body);
 
@@ -81,7 +87,7 @@ export class TutorController {
         }
 
         const newTutor = await tutorService.createTutorProfile(
-            String(userId),
+            String(currentUser._id),
             parsedData as CreateTutorInput,
             avatarFile,
             certificationFiles
@@ -103,8 +109,8 @@ export class TutorController {
             ? (req.files as any).avatar[0]
             : undefined;
 
-        const certificationFiles = req.files && (req.files as any).certifications
-            ? (req.files as any).certifications
+        const certificationFiles = req.files && (req.files as any).certificationImages
+            ? (req.files as any).certificationImages
             : [];
 
         const updatedTutor = await tutorService.updateTutorProfile(

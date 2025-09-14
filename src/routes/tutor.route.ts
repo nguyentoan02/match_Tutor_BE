@@ -36,7 +36,7 @@ router.patch(
     isRole(Role.TUTOR),
     uploadFields([
         { name: "avatar", maxCount: 1 },
-        { name: "certifications", maxCount: 10 },
+        { name: "certificationImages", maxCount: 10 },
     ]),
     validate(updateTutorProfileSchema),
     tutorController.updateTutorProfile

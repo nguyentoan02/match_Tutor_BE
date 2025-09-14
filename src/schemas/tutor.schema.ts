@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { SUBJECT_VALUES, LEVEL_VALUES, CLASS_TYPE_VALUES, TIME_SLOT_VALUES } from "../types/enums";
+import { SUBJECT_VALUES, LEVEL_VALUES, CLASS_TYPE_VALUES, TIME_SLOT_VALUES, GENDER_VALUES } from "../types/enums";
 import { ClassType } from "../types/enums/classType.enum";
 
 // Helper function to parse JSON strings from FormData
@@ -61,7 +61,8 @@ const ClassTypeEnum = z.enum(CLASS_TYPE_VALUES as [string, ...string[]]);
 // Create Tutor Profile Schema for FormData
 export const createTutorProfileSchema = z.object({
     body: z.object({
-        // Add .default([]) to ALL required arrays
+        avatarUrl: z.string().url("Avatar must be a valid URL").optional(),
+        gender: z.enum(GENDER_VALUES, { error: "Gender is required" }),
         subjects: parseJsonString(
             z.array(SubjectEnum)
                 .min(1, "At least one subject is required")
@@ -106,18 +107,17 @@ export const createTutorProfileSchema = z.object({
         certifications: parseJsonString(
             z.array(certificationSchema)
                 .max(10, "Maximum 10 certifications allowed")
-        ).optional().default([]),
+        ).default([]),
 
         availability: parseJsonString(
             z.array(availabilitySchema)
                 .max(12, "Maximum 12 availability entries allowed")
-        ).optional().default([]),
+        ).default([]),
 
         languages: parseJsonString(z.array(z.string())).optional().default([]),
 
         // Other optional fields with defaults
         fullName: z.string().min(2, "Name must be at least 2 characters").optional().default(""),
-        gender: z.enum(["MALE", "FEMALE", "OTHER"]).optional(),
         address: parseJsonString(
             z.object({
                 city: z.string().optional().default(""),
@@ -128,17 +128,18 @@ export const createTutorProfileSchema = z.object({
         ).optional().default({ city: "", street: "", lat: undefined, lng: undefined }),
         contact: parseJsonString(
             z.object({
-                phone: z.string().optional().default(""),
-                email: z.string().email().optional().default(""),
+                phone: z.string().regex(/^\d{10}$/, "Phone must be exactly 10 digits"),
+                email: z.string().email(),
             })
-        ).optional().default({ phone: "", email: "" }),
+        ).default({ phone: "", email: "" }),
     }),
 });
 
 // Create Tutor Profile Schema for FormData
 export const updateTutorProfileSchema = z.object({
     body: z.object({
-        // Add .default([]) to ALL required arrays
+        avatarUrl: z.string().url("Avatar must be a valid URL").optional(),
+        gender: z.enum(GENDER_VALUES, { error: "Gender is required" }),
         subjects: parseJsonString(
             z.array(SubjectEnum)
                 .min(1, "At least one subject is required")
@@ -183,18 +184,17 @@ export const updateTutorProfileSchema = z.object({
         certifications: parseJsonString(
             z.array(certificationSchema)
                 .max(10, "Maximum 10 certifications allowed")
-        ).optional().default([]),
+        ).default([]),
 
         availability: parseJsonString(
             z.array(availabilitySchema)
                 .max(12, "Maximum 12 availability entries allowed")
-        ).optional().default([]),
+        ).default([]),
 
         languages: parseJsonString(z.array(z.string())).optional().default([]),
 
         // Other optional fields with defaults
         fullName: z.string().min(2, "Name must be at least 2 characters").optional().default(""),
-        gender: z.enum(["MALE", "FEMALE", "OTHER"]).optional(),
         address: parseJsonString(
             z.object({
                 city: z.string().optional().default(""),
@@ -205,10 +205,10 @@ export const updateTutorProfileSchema = z.object({
         ).optional().default({ city: "", street: "", lat: undefined, lng: undefined }),
         contact: parseJsonString(
             z.object({
-                phone: z.string().optional().default(""),
-                email: z.string().email().optional().default(""),
+                phone: z.string().regex(/^\d{10}$/, "Phone must be exactly 10 digits"),
+                email: z.string().email(),
             })
-        ).optional().default({ phone: "", email: "" }),
+        ).default({ phone: "", email: "" }),
     }),
 });
 
