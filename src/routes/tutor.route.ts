@@ -5,19 +5,15 @@ import { authenticate, isRole } from "../middlewares/auth.middleware";
 import { validate } from "../middlewares/validation.middleware";
 import { uploadFields } from "../middlewares/upload.middleware";
 import { Role } from "../types/enums";
+import { parseJsonFields } from "../middlewares/jsonfields.moddleware";
 
 const router = express.Router();
 
-router.get("/approved", tutorController.getApprovedTutors);
 router.get("/me",
     authenticate,
     isRole(Role.TUTOR),
     tutorController.getMyTutorProfile
 );
-router.get("/:id", tutorController.getTutorById);
-router.get("/",
-    // authenticate, isRole(Role.ADMIN),
-    tutorController.getAllTutors);
 router.post(
     "/profile",
     authenticate,
@@ -26,11 +22,12 @@ router.post(
         { name: "avatar", maxCount: 1 },
         { name: "certificationImages", maxCount: 10 },
     ]),
+    parseJsonFields,
     validate(createTutorProfileSchema),
     tutorController.createTutorProfile
 );
 
-router.patch(
+router.put(
     "/profile",
     authenticate,
     isRole(Role.TUTOR),
@@ -38,9 +35,15 @@ router.patch(
         { name: "avatar", maxCount: 1 },
         { name: "certificationImages", maxCount: 10 },
     ]),
+    parseJsonFields,
     validate(updateTutorProfileSchema),
     tutorController.updateTutorProfile
 );
+
+router.get("/:id", tutorController.getTutorById);
+router.get("/",
+    tutorController.getAllTutors);
+
 
 router.delete(
     "/certifications/:certificationIndex/images/:imageIndex",

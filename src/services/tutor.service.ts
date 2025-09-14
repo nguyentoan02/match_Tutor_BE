@@ -1,4 +1,4 @@
-import { Types } from "mongoose";
+import { FilterQuery, Types } from "mongoose";
 import Tutor from "../models/tutor.model";
 import { CreateTutorInput, UpdateTutorInput } from "../schemas/tutor.schema";
 import { NotFoundError } from "../utils/error.response";
@@ -8,19 +8,18 @@ import userService from "./user.service";
 
 export class TutorService {
     // Get all tutors (approved and unapproved)
-    async getAllTutors(): Promise<ITutor[]> {
-        return await Tutor.find()
+    async getAllTutors(isApproved?: boolean): Promise<ITutor[]> {
+        const filter: FilterQuery<ITutor> = {};
+
+        // Add approval filter if provided
+        if (isApproved !== undefined) {
+            filter.isApproved = isApproved;
+        }
+
+        return await Tutor.find(filter)
             .populate('userId', 'name email avatarUrl phone gender address')
             .lean();
     }
-
-    // Get only approved tutors
-    async getApprovedTutors(): Promise<ITutor[]> {
-        return await Tutor.find({ isApproved: true })
-            .populate('userId', 'name email avatarUrl phone gender address')
-            .lean();
-    }
-
     // Get one tutor by tutor ID
     async getTutorById(tutorId: string): Promise<ITutor> {
         const tutor = await Tutor.findById(tutorId)
@@ -55,7 +54,7 @@ export class TutorService {
         // 🔹 1. Update user profile (basic fields + avatar)
         await userService.updateProfile(userId, {
             name: (data as any).name,
-            phone: (data as any).contact.phone,
+            phone: (data as any).phone,
             gender: (data as any).gender,
             address: (data as any).address,
         }, avatarFile);
@@ -108,7 +107,7 @@ export class TutorService {
         // 🔹 1. Sync user profile (avatar + basic fields)
         await userService.updateProfile(userId, {
             name: (data as any).name,
-            phone: (data as any).contact.phone,
+            phone: (data as any).phone,
             gender: (data as any).gender,
             address: (data as any).address,
         }, avatarFile);

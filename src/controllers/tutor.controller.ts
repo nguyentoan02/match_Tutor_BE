@@ -7,20 +7,10 @@ import { UnauthorizedError } from "../utils/error.response";
 export class TutorController {
     // Get all tutors
     async getAllTutors(req: Request, res: Response) {
-        const tutors = await tutorService.getAllTutors();
+        const tutors = await tutorService.getAllTutors(true); // Chỉ lấy tutor đã được duyệt
 
         new SuccessResponse({
             message: "All tutors retrieved successfully",
-            metadata: tutors
-        }).send(res);
-    }
-
-    // Get only approved tutors
-    async getApprovedTutors(req: Request, res: Response) {
-        const tutors = await tutorService.getApprovedTutors();
-
-        new SuccessResponse({
-            message: "Approved tutors retrieved successfully",
             metadata: tutors
         }).send(res);
     }
@@ -60,7 +50,6 @@ export class TutorController {
             throw new UnauthorizedError("Not authenticated");
         }
 
-        const parsedData = TutorController.parseFormData(req.body);
 
         const avatarFile = req.files && (req.files as any).avatar
             ? (req.files as any).avatar[0]
@@ -70,25 +59,10 @@ export class TutorController {
             ? (req.files as any).certificationImages
             : [];
 
-        // Ensure required fields are present and not undefined
-        const requiredFields = [
-            "subjects",
-            "levels",
-            "experienceYears",
-            "hourlyRate",
-            "bio",
-            "classType",
-            "education"
-        ] as const;
-        for (const field of requiredFields) {
-            if (parsedData[field as keyof typeof parsedData] === undefined) {
-                return res.status(400).json({ message: `Missing required field: ${field}` });
-            }
-        }
 
         const newTutor = await tutorService.createTutorProfile(
             String(currentUser._id),
-            parsedData as CreateTutorInput,
+            req.body as CreateTutorInput,
             avatarFile,
             certificationFiles
         );
@@ -103,7 +77,6 @@ export class TutorController {
         const userId = req.user?._id;
         if (!userId) throw new Error("Unauthorized");
 
-        const parsedData = TutorController.parseFormData(req.body);
 
         const avatarFile = req.files && (req.files as any).avatar
             ? (req.files as any).avatar[0]
@@ -115,7 +88,7 @@ export class TutorController {
 
         const updatedTutor = await tutorService.updateTutorProfile(
             String(userId),
-            parsedData,
+            req.body,
             certificationFiles,
             avatarFile
         );
@@ -147,46 +120,6 @@ export class TutorController {
         }).send(res);
     }
 
-    private static parseFormData(data: any): UpdateTutorInput {
-        const parsed: any = { ...data };
-
-        // Parse education if it's a string
-        if (typeof parsed.education === 'string') {
-            try {
-                parsed.education = JSON.parse(parsed.education);
-            } catch (error) {
-                // Keep original if parsing fails
-            }
-        }
-
-        // Parse certifications if it's a string
-        if (typeof parsed.certifications === 'string') {
-            try {
-                parsed.certifications = JSON.parse(parsed.certifications);
-            } catch (error) {
-                // Keep original if parsing fails
-            }
-        }
-
-        // Parse availability if it's a string
-        if (typeof parsed.availability === 'string') {
-            try {
-                parsed.availability = JSON.parse(parsed.availability);
-            } catch (error) {
-                // Keep original if parsing fails
-            }
-        }
-
-        // Parse numeric fields
-        if (parsed.experienceYears !== undefined) {
-            parsed.experienceYears = parseInt(parsed.experienceYears);
-        }
-        if (parsed.hourlyRate !== undefined) {
-            parsed.hourlyRate = parseFloat(parsed.hourlyRate);
-        }
-
-        return parsed;
-    }
 }
 
 export default new TutorController();
