@@ -71,7 +71,7 @@ export const createTutorProfileSchema = z.object({
 
         bio: z.string()
             .min(50, "Bio must be at least 50 characters")
-            .max(1000, "Bio must not exceed 1000 characters")
+            .max(2000, "Bio must not exceed 2000 characters")
             .trim()
             .default(""),
 
@@ -139,7 +139,7 @@ export const updateTutorProfileSchema = z.object({
 
         bio: z.string()
             .min(50, "Bio must be at least 50 characters")
-            .max(1000, "Bio must not exceed 1000 characters")
+            .max(2000, "Bio must not exceed 2000 characters")
             .trim()
             .default(""),
 
