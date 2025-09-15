@@ -2,20 +2,25 @@ import mongoose, { Schema } from "mongoose";
 import { IParent } from "../types/types/parent";
 import { RELATIONSHIP_VALUES } from "../types/enums/relationship.enum";
 import { getVietnamTime } from "../utils/date.util";
+import {
+   ParentPermission,
+   PARENT_PERMISSION_VALUES,
+} from "../types/enums/parentPermission.enum";
 
 const ParentSchema: Schema<IParent> = new Schema(
    {
       userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
-      fullName: { type: String, required: true },
-      phone: { type: String },
-      avatarUrl: { type: String },
+
+      // Quyền dành cho parent — mặc định chỉ được xem lịch
+      permissions: {
+         type: [String],
+         enum: PARENT_PERMISSION_VALUES,
+         default: [ParentPermission.VIEW_SCHEDULE],
+      },
       children: [
          {
             studentId: { type: Schema.Types.ObjectId, ref: "Student" },
             relationship: { type: String, enum: RELATIONSHIP_VALUES },
-            canConfirmSession: { type: Boolean, default: false },
-            canMakePayment: { type: Boolean, default: false },
-            notes: { type: String },
             _id: false,
          },
       ],
