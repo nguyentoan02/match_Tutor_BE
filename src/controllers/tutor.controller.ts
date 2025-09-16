@@ -52,7 +52,6 @@ export class TutorController {
             throw new UnauthorizedError("Not authenticated");
         }
 
-
         const avatarFile = req.files && (req.files as any).avatar
             ? (req.files as any).avatar[0]
             : undefined;
@@ -61,10 +60,15 @@ export class TutorController {
             ? (req.files as any).certificationImages
             : [];
 
+        // Extract mapping from body
+        const imageCertMapping = (req.body as any).imageCertMapping;
 
         const newTutor = await tutorService.createTutorProfile(
             String(currentUser._id),
-            req.body as CreateTutorInput,
+            {
+                ...req.body,
+                imageCertMapping // Pass mapping to service
+            },
             avatarFile,
             certificationFiles
         );
@@ -88,9 +92,14 @@ export class TutorController {
             ? (req.files as any).certificationImages
             : [];
 
+        const imageCertMapping = (req.body as any).imageCertMapping;
+
         const updatedTutor = await tutorService.updateTutorProfile(
             String(userId),
-            req.body,
+            {
+                ...req.body,
+                imageCertMapping,
+            },
             certificationFiles,
             avatarFile
         );

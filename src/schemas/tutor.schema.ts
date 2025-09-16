@@ -99,7 +99,7 @@ export const createTutorProfileSchema = z.object({
                 lng: z.number().optional(),
             }),
         phone: z.string().regex(/^\d{10}$/, "Phone must be exactly 10 digits"),
-        email: z.string().email().optional(),
+
     }),
 });
 
@@ -168,7 +168,11 @@ export const updateTutorProfileSchema = z.object({
                 lng: z.number().optional(),
             }),
         phone: z.string().regex(/^\d{10}$/, "Phone must be exactly 10 digits"),
-        email: z.string().email().optional(),
+        imageCertMapping: z.array(z.object({
+            certIndex: z.number().min(0),
+            fileIndex: z.number().min(0),
+        })).default([]),
+
     }),
 });
 
