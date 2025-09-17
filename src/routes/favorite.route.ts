@@ -22,7 +22,8 @@ router.post(
 router.delete(
    "/deleteFavoriteTutor",
    authenticate,
-   validate(favoriteTutorBodySchema)
+   validate(favoriteTutorBodySchema),
+   favouriteTutorController.removeFavoriteTutor
 );
 
 export default router;
