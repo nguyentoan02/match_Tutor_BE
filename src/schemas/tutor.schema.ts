@@ -18,9 +18,14 @@ const educationSchema = z.object({
 });
 
 const certificationSchema = z.object({
+    _id: z.string().optional(),
+    tempId: z.string().optional(),
     name: z.string().min(1, "Certification name is required").max(100, "Name too long"),
     description: z.string().max(300, "Description too long").optional(),
-    imageUrls: z.array(z.string().url("Invalid image URL")).max(10, "Maximum 10 images allowed").default([]),
+    imageUrls: z.array(z.string().url("Invalid image URL"))
+        .max(10, "Maximum 10 images allowed")
+        .optional()
+        .default([]),
 });
 
 const availabilitySchema = z.object({
@@ -53,36 +58,32 @@ export const createTutorProfileSchema = z.object({
         education:
             z.array(educationSchema)
                 .min(1, "At least one education entry is required")
-                .max(5, "Maximum 5 education entries allowed")
-                .default([]),
+                .max(5, "Maximum 5 education entries allowed"),
 
         // Add defaults to number fields too
         experienceYears:
             z.number()
                 .min(0, "Experience years cannot be negative")
-                .max(50, "Experience years too high")
-                .default(0),
+                .max(50, "Experience years too high"),
 
         hourlyRate:
             z.number()
                 .min(0, "Hourly rate cannot be negative")
-                .max(1000, "Hourly rate too high")
+                .max(2000000, "Hourly rate too high")
                 .default(0),
 
         bio: z.string()
             .min(50, "Bio must be at least 50 characters")
-            .max(2000, "Bio must not exceed 2000 characters")
-            .trim()
-            .default(""),
+            .trim(),
 
-        classType: ClassTypeEnum.default(ClassType.ONLINE),
+        classType: z.array(ClassTypeEnum)
+            .min(1, "At least one class type is required"),
 
         // Optional fields with defaults
         certifications:
             z.array(certificationSchema)
                 .min(1, "At least one certification entry is required")
-                .max(10, "Maximum 10 certifications allowed")
-                .default([]),
+                .max(10, "Maximum 10 certifications allowed"),
 
         availability:
             z.array(availabilitySchema)
@@ -93,8 +94,8 @@ export const createTutorProfileSchema = z.object({
         name: z.string().min(2, "Name must be at least 2 characters").max(50, "Name must not exceed 50 characters"),
         address:
             z.object({
-                city: z.string().default(""),
-                street: z.string().default(""),
+                city: z.string(),
+                street: z.string().min(5, "Street must be at least 5 characters").max(100, "Street too long"),
                 lat: z.number().optional(),
                 lng: z.number().optional(),
             }),
@@ -121,8 +122,7 @@ export const updateTutorProfileSchema = z.object({
         education:
             z.array(educationSchema)
                 .min(1, "At least one education entry is required")
-                .max(5, "Maximum 5 education entries allowed")
-                .default([]),
+                .max(5, "Maximum 5 education entries allowed"),
 
         // Add defaults to number fields too
         experienceYears:
@@ -143,20 +143,18 @@ export const updateTutorProfileSchema = z.object({
             .trim()
             .default(""),
 
-        classType: ClassTypeEnum.default(ClassType.ONLINE),
+        classType: z.array(ClassTypeEnum).min(1, "At least one class type is required"),
 
         // Optional fields with defaults
         certifications:
             z.array(certificationSchema)
                 .min(1, "At least one certification entry is required")
-                .max(10, "Maximum 10 certifications allowed")
-                .default([]),
+                .max(10, "Maximum 10 certifications allowed"),
 
         availability:
             z.array(availabilitySchema)
                 .min(1, "At least one availability entry is required")
-                .max(12, "Maximum 12 availability entries allowed")
-                .default([]),
+                .max(12, "Maximum 12 availability entries allowed"),
 
         // Other optional fields with defaults
         name: z.string().min(2, "Name must be at least 2 characters").max(50, "Name must not exceed 50 characters"),
@@ -168,11 +166,15 @@ export const updateTutorProfileSchema = z.object({
                 lng: z.number().optional(),
             }),
         phone: z.string().regex(/^\d{10}$/, "Phone must be exactly 10 digits"),
-        imageCertMapping: z.array(z.object({
-            certIndex: z.number().min(0),
-            fileIndex: z.number().min(0),
-        })).default([]),
-
+        imageCertMapping: z.array(
+            z.object({
+                certId: z.string().optional(),
+                tempCertId: z.string().optional(),
+                fileIndex: z.number().min(0).optional(),  // optional now
+                imageIndex: z.number().min(0).optional(), // optional now
+                action: z.enum(["add", "remove"])
+            })
+        ).default([]).optional(),
     }),
 });
 

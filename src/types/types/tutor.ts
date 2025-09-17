@@ -19,7 +19,8 @@ export interface IEducation {
 export interface ICertification {
    name?: string; // certificate title
    description?: string; // short description or note
-   imageUrls?: string[]; // urls to cert images
+   imageUrls?: string[]; // urls to cert image
+   _id?: string | Types.ObjectId; // Allow both string and ObjectId
 }
 
 export interface ITutor extends Document {
@@ -37,7 +38,7 @@ export interface ITutor extends Document {
       slots?: TimeSlot[];
    }[];
    // classType indicates teaching mode shown in UI (online / in_person)
-   classType?: ClassType | string;
+   classType?: ClassType[] | string[];
    isApproved?: boolean;
    ratings?: IRating;
    createdAt?: Date;

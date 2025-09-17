@@ -8,6 +8,7 @@ const JSON_FIELDS = [
     "availability",
     "address",
     "imageCertMapping",
+    "classType"
 ];
 const NUMBER_FIELDS = ["experienceYears", "hourlyRate"];
 

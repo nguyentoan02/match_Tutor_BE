@@ -2,9 +2,10 @@ import { FilterQuery, Types } from "mongoose";
 import Tutor from "../models/tutor.model";
 import { CreateTutorInput, UpdateTutorInput } from "../schemas/tutor.schema";
 import { NotFoundError } from "../utils/error.response";
-import { ITutor } from "../types/types/tutor";
+import { ICertification, ITutor } from "../types/types/tutor";
 import cloudinary from "../config/cloudinary";
 import userService from "./user.service";
+import { Level, Subject, TimeSlot } from "../types/enums";
 
 export class TutorService {
     // Get all tutors (approved and unapproved)
@@ -160,7 +161,7 @@ export class TutorService {
 
     async updateTutorProfile(
         userId: string,
-        data: Partial<UpdateTutorInput> & { imageCertMapping?: any }, // Add mapping type
+        data: Partial<UpdateTutorInput> & { imageCertMapping?: any },
         certificationFiles?: Express.Multer.File[],
         avatarFile?: Express.Multer.File
     ): Promise<ITutor> {
@@ -170,7 +171,7 @@ export class TutorService {
             throw new NotFoundError("Tutor profile not found");
         }
 
-        // 🔹 1. Sync user profile (avatar + basic fields)
+        // 🔹 1. Sync user profile
         await userService.updateProfile(userId, {
             name: (data as any).name,
             phone: (data as any).phone,
@@ -178,80 +179,159 @@ export class TutorService {
             address: (data as any).address,
         }, avatarFile);
 
-        // console.log("Files received:", certificationFiles ? certificationFiles.map(f => f.originalname) : []);
-        // console.log("Mapping received:", data.imageCertMapping);
+        // 🔹 2. Update all tutor fields except certifications (handled separately)
+        if (data.subjects) {
+            tutor.subjects = data.subjects.map(s => s as Subject);
+        }
+        if (data.levels) {
+            tutor.levels = data.levels.map(l => l as Level);
+        }
+        if (data.classType) tutor.classType = data.classType;
+        if (data.education) tutor.education = data.education;
+        if (data.experienceYears !== undefined) tutor.experienceYears = data.experienceYears;
+        if (data.hourlyRate !== undefined) tutor.hourlyRate = data.hourlyRate;
+        if (data.bio) tutor.bio = data.bio;
+        if (data.classType) tutor.classType = data.classType;
+        if (data.availability) {
+            tutor.availability = data.availability.map(day => ({
+                dayOfWeek: day.dayOfWeek,
+                slots: day.slots?.map(slot => slot as TimeSlot) || []
+            }));
+        }
 
-        if (data.certifications !== undefined) {
-            let updatedCertifications = [...(tutor.certifications || [])];
+        // Start with empty array and rebuild completely
+        let updatedCertifications: ICertification[] = [];
 
-            // Update text fields for CURRENT certifications only
-            data.certifications.forEach((newCert: any, index: number) => {
-                if (updatedCertifications[index]) {
-                    updatedCertifications[index] = {
-                        ...updatedCertifications[index],
-                        name: newCert.name,
-                        description: newCert.description
-                    };
+        // Map to track temporary IDs to actual certifications
+        const tempIdToCertMap: { [key: string]: ICertification } = {};
+
+        // Rebuild certifications array from scratch
+        if (Array.isArray(data.certifications)) {
+            data.certifications.forEach((newCert, index) => {
+                if (newCert._id) {
+                    // Find existing certification in the original tutor data
+                    const existingCert = tutor.certifications?.find(c =>
+                        c._id && c._id.toString() === newCert._id
+                    );
+
+                    if (existingCert) {
+                        // Update existing certification
+                        updatedCertifications.push({
+                            _id: existingCert._id, // Keep original ID
+                            name: newCert.name,
+                            description: newCert.description,
+                            imageUrls: [...(existingCert.imageUrls || [])] // Copy existing images
+                        });
+                    } else {
+                        // Create new certification with the provided ID (shouldn't happen normally)
+                        updatedCertifications.push({
+                            _id: new Types.ObjectId(newCert._id),
+                            name: newCert.name,
+                            description: newCert.description,
+                            imageUrls: []
+                        });
+                    }
                 } else {
-                    updatedCertifications[index] = {
+                    // Add new certification with temporary ID tracking
+                    const newCertObj: ICertification = {
+                        _id: new Types.ObjectId(),
                         name: newCert.name,
                         description: newCert.description,
                         imageUrls: []
                     };
+
+                    updatedCertifications.push(newCertObj);
+
+                    // Store mapping from temporary ID (if provided) to actual certification
+                    if (newCert.tempId) {
+                        tempIdToCertMap[newCert.tempId] = newCertObj;
+                    }
+
+                    // Also map by index as fallback
+                    tempIdToCertMap[`index_${index}`] = newCertObj;
                 }
             });
+        }
 
-            // Handle file uploads with SAFE mapping
-            if (certificationFiles && certificationFiles.length > 0) {
-                const uploadedImageUrls = await this.uploadCertificationImages(certificationFiles);
+        // Handle image uploads and mapping
+        if (certificationFiles && certificationFiles.length > 0) {
+            const uploadedImageUrls = await this.uploadCertificationImages(certificationFiles);
 
-                // Parse mapping with error handling
-                let mapping: Array<{ certIndex: number; fileIndex: number }> = [];
-                try {
-                    mapping = typeof data.imageCertMapping === 'string'
-                        ? JSON.parse(data.imageCertMapping)
-                        : data.imageCertMapping || [];
-                } catch (error) {
-                    console.error('Error parsing imageCertMapping:', error);
+            let mapping: Array<{
+                certId?: string;
+                tempCertId?: string;
+                fileIndex?: number;
+                imageIndex?: number;
+                action: "add" | "remove";
+            }> = [];
+
+            try {
+                mapping = typeof data.imageCertMapping === "string"
+                    ? JSON.parse(data.imageCertMapping)
+                    : data.imageCertMapping || [];
+            } catch (error) {
+                console.error("Error parsing imageCertMapping:", error);
+            }
+
+            console.log("Processing image mapping:", mapping);
+            console.log("Available certifications:", updatedCertifications.map(c => ({
+                _id: c._id?.toString(),
+                name: c.name
+            })));
+
+            mapping.forEach((map) => {
+                let cert: ICertification | undefined;
+
+                // First try to find by existing certId
+                if (map.certId) {
+                    cert = updatedCertifications.find(c =>
+                        c._id && c._id.toString() === map.certId
+                    );
+                    console.log(`Looking for certId ${map.certId}:`, cert ? "FOUND" : "NOT FOUND");
                 }
 
-                // 🔹 SAFETY CHECK: Validate mapping before applying
-                const validMapping = mapping.filter(map => {
-                    // Check if certification index exists in FINAL array
-                    const certExists = map.certIndex >= 0 && map.certIndex < updatedCertifications.length;
+                // If not found, try to find by temporary certId for new certifications
+                if (!cert && map.tempCertId) {
+                    cert = tempIdToCertMap[map.tempCertId];
+                    console.log(`Looking for tempCertId ${map.tempCertId}:`, cert ? "FOUND" : "NOT FOUND");
+                }
 
-                    // Check if file index exists in uploaded files
-                    const fileExists = map.fileIndex >= 0 && map.fileIndex < uploadedImageUrls.length;
+                if (!cert) {
+                    console.warn("Could not find certification for mapping:", map);
+                    return;
+                }
 
-                    if (!certExists) {
-                        console.warn(`Mapping error: Certification index ${map.certIndex} does not exist`);
-                    }
-                    if (!fileExists) {
-                        console.warn(`Mapping error: File index ${map.fileIndex} does not exist`);
-                    }
+                if (!Array.isArray(cert.imageUrls)) {
+                    cert.imageUrls = [];
+                }
 
-                    return certExists && fileExists;
-                });
+                switch (map.action) {
+                    case "add":
+                        if (map.fileIndex !== undefined && uploadedImageUrls[map.fileIndex]) {
+                            cert.imageUrls.push(uploadedImageUrls[map.fileIndex]);
+                            console.log(`Added image to cert ${cert.name}: ${uploadedImageUrls[map.fileIndex]}`);
+                        }
+                        break;
 
-                // Apply only valid mapping
-                validMapping.forEach((map) => {
-                    const { certIndex, fileIndex } = map;
-                    if (
-                        uploadedImageUrls[fileIndex] &&
-                        updatedCertifications[certIndex] &&
-                        Array.isArray(updatedCertifications[certIndex].imageUrls)
-                    ) {
-                        updatedCertifications[certIndex].imageUrls.push(uploadedImageUrls[fileIndex]);
-                    }
-                });
-            }
+                    case "remove":
+                        if (map.imageIndex !== undefined && cert.imageUrls[map.imageIndex] !== undefined) {
+                            const removedUrl = cert.imageUrls[map.imageIndex];
+                            cert.imageUrls.splice(map.imageIndex, 1);
+                            console.log(`Removed image from cert ${cert.name}: ${removedUrl}`);
+                        }
+                        break;
+                }
+            });
+        }
 
-            // If data.certifications has fewer items than updatedCertifications, truncate the array
-            if (data.certifications.length < updatedCertifications.length) {
-                updatedCertifications = updatedCertifications.slice(0, data.certifications.length);
-            }
-
-            tutor.certifications = updatedCertifications as any;
+        // Update certifications field
+        if (Array.isArray(data.certifications)) {
+            // Convert ObjectId to string for consistency with the interface
+            const processedCerts = updatedCertifications.map(cert => ({
+                ...cert,
+                _id: cert._id ? cert._id.toString() : undefined
+            }));
+            tutor.certifications = processedCerts as any;
         }
 
         await tutor.save();
@@ -260,7 +340,6 @@ export class TutorService {
             .populate("userId", "email name avatarUrl phone gender")
             .lean() as ITutor;
     }
-
     private async uploadCertificationImages(files: Express.Multer.File[]): Promise<string[]> {
         const uploadPromises = files.map(async (file) => {
             try {
