@@ -9,9 +9,12 @@ export const studentFavoriteObject = (
 ): IAllStudentFavoriteTutor | null => {
    if (!arr.length) return null;
 
-   const studentId = new Types.ObjectId(arr[0].studentId);
+   const studentId =
+      typeof arr[0].studentId === "object" && "toString" in arr[0].studentId
+         ? arr[0].studentId
+         : new Types.ObjectId(arr[0].studentId);
 
-   const tutors = arr.map((item) => new Types.ObjectId(item.tutorId));
+   const tutors = arr.map((item) => item.tutorId);
 
    return {
       studentId,

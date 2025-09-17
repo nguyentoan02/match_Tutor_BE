@@ -44,11 +44,7 @@ const TutorSchema: Schema<ITutor> = new Schema(
       hourlyRate: { type: Number, min: 0 },
       bio: { type: String },
       // teaching mode shown on tutor profile (default online)
-      classType: {
-         type: String,
-         enum: CLASS_TYPE_VALUES,
-         default: ClassType.ONLINE,
-      },
+      classType: [{ type: String, enum: CLASS_TYPE_VALUES, required: true }],
       availability: [
          {
             dayOfWeek: { type: Number, min: 0, max: 7 },

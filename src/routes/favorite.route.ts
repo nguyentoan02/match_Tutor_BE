@@ -2,7 +2,10 @@ import { Router } from "express";
 import { authenticate } from "../middlewares/auth.middleware";
 import favouriteTutorController from "../controllers/favouriteTutor.controller";
 import { validate } from "../middlewares/validation.middleware";
-import { favoriteTutorBodySchema } from "../schemas/favoriteTutor.schema";
+import {
+   favoriteTutorBodySchema,
+   favoriteTutorParamSchema,
+} from "../schemas/favoriteTutor.schema";
 
 const router = Router();
 
@@ -24,6 +27,13 @@ router.delete(
    authenticate,
    validate(favoriteTutorBodySchema),
    favouriteTutorController.removeFavoriteTutor
+);
+
+router.get(
+   "/checkFavoriteTutor",
+   authenticate,
+   validate(favoriteTutorParamSchema),
+   favouriteTutorController.checkTutorFavoriteStatus
 );
 
 export default router;

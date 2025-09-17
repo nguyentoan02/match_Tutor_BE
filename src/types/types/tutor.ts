@@ -40,7 +40,7 @@ export interface ITutor extends Document {
       slots?: TimeSlot[];
    }[];
    // classType indicates teaching mode shown in UI (online / in_person)
-   classType?: ClassType | string;
+   classType?: ClassType[] | string[];
    isApproved?: boolean;
    ratings?: IRating;
    createdAt?: Date;

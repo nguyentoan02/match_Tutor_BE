@@ -1,9 +1,7 @@
 import { NextFunction, Request, Response } from "express";
-import { NotFoundError, UnauthorizedError } from "../utils/error.response";
+import { BadRequestError, UnauthorizedError } from "../utils/error.response";
 import favoriteTutorService from "../services/favoriteTutor.service";
 import { OK } from "../utils/success.response";
-import { IUser } from "../types/types/user";
-import { favoriteTutorBody } from "../schemas/favoriteTutor.schema";
 
 class FavoriteTutor {
    async getMyFavoriteTutor(req: Request, res: Response, next: NextFunction) {
@@ -47,6 +45,24 @@ class FavoriteTutor {
          message: "removed favorite tutor",
          metadata: removedFav,
       }).send(res);
+   }
+
+   async checkTutorFavoriteStatus(req: Request, res: Response) {
+      const currentUser = req.user;
+      if (!currentUser || !currentUser._id) {
+         throw new UnauthorizedError("Not authenticated");
+      }
+      const { tutorId } = req.query;
+      if (!tutorId) {
+         throw new BadRequestError("please enter your tutorId param");
+      }
+      const checked = await favoriteTutorService.checkFav(
+         currentUser._id.toString(),
+         tutorId.toString()
+      );
+      new OK({ message: "checked favorite status", metadata: checked }).send(
+         res
+      );
    }
 }
 

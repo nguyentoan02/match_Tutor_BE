@@ -9,7 +9,16 @@ import { BadRequestError, NotFoundError } from "../utils/error.response";
 
 export class FavoriteTutorService {
    async getStudentFavorite(userId: string): Promise<IAllStudentFavoriteTutor> {
-      const favorite = await favoriteTutorModel.find({ studentId: userId });
+      const favorite = await favoriteTutorModel
+         .find({ studentId: userId })
+         .populate({
+            path: "tutorId",
+            select: "userId experienceYears availability subjects classType",
+            populate: {
+               path: "userId",
+               select: "name email gender avatarUrl",
+            },
+         });
       if (favorite.length === 0) {
          throw new NotFoundError(
             "you haven't add any tutor to your favorite list"
@@ -60,6 +69,14 @@ export class FavoriteTutorService {
          tutorId: tutorId,
       });
       return deleteTutor as IFavoriteTutor;
+   }
+
+   async checkFav(userId: string, tutorId: string): Promise<boolean> {
+      const existFav = await favoriteTutorModel.exists({
+         studentId: userId,
+         tutorId: tutorId,
+      });
+      return existFav ? true : false;
    }
 }
 

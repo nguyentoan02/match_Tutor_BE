@@ -8,4 +8,15 @@ export const favoriteTutorBodySchema = z.object({
    }),
 });
 
+export const favoriteTutorParamSchema = z.object({
+   query: z.object({
+      tutorId: z.string().regex(/^[0-9a-fA-F]{24}$/, {
+         message: "favoriteTutorId must be a valid MongoDB ObjectId",
+      }),
+   }),
+});
+
 export type favoriteTutorBody = z.infer<typeof favoriteTutorBodySchema>["body"];
+export type favoriteTutorParam = z.infer<
+   typeof favoriteTutorParamSchema
+>["query"];
