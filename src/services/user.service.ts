@@ -68,9 +68,8 @@ export class UserService {
             let uploadResult: any = null;
             // multer memoryStorage provides buffer
             if ((file as any).buffer) {
-               const base64 = `data:${
-                  file.mimetype
-               };base64,${file.buffer.toString("base64")}`;
+               const base64 = `data:${file.mimetype
+                  };base64,${file.buffer.toString("base64")}`;
                uploadResult = await cloudinary.uploader.upload(base64, {
                   folder: "avatars",
                   resource_type: "image",

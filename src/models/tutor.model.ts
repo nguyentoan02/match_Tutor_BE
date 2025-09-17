@@ -20,14 +20,11 @@ const TutorSchema: Schema<ITutor> = new Schema(
             institution: { type: String },
             degree: { type: String },
             fieldOfStudy: { type: String },
-            // store full dates for study period
+            // store full dates for study period   
             startDate: { type: Date },
             endDate: { type: Date },
-            // short description and extra notes
+            // short description
             description: { type: String },
-            notes: { type: String },
-            // multiple image links for certificates/transcripts
-            imageUrls: [{ type: String }],
             _id: false,
          },
       ],
@@ -37,18 +34,13 @@ const TutorSchema: Schema<ITutor> = new Schema(
             name: { type: String },
             description: { type: String },
             imageUrls: [{ type: String }],
-            _id: false,
          },
       ],
       experienceYears: { type: Number, min: 0 },
       hourlyRate: { type: Number, min: 0 },
       bio: { type: String },
       // teaching mode shown on tutor profile (default online)
-      classType: {
-         type: String,
-         enum: CLASS_TYPE_VALUES,
-         default: ClassType.ONLINE,
-      },
+      classType: [{ type: String, enum: CLASS_TYPE_VALUES, required: true }],
       availability: [
          {
             dayOfWeek: { type: Number, min: 0, max: 7 },
