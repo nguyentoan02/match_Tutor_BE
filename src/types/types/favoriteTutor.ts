@@ -12,3 +12,8 @@ export interface IAllStudentFavoriteTutor {
    studentId: Types.ObjectId;
    tutors?: Types.ObjectId[];
 }
+
+export interface ICheckFavoriteTutorStatus {
+   tutorId: Types.ObjectId | null | string;
+   isFav: boolean;
+}
