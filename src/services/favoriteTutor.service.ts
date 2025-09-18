@@ -1,7 +1,9 @@
+import { Types } from "mongoose";
 import favoriteTutorModel from "../models/favoriteTutor.model";
 import tutorModel from "../models/tutor.model";
 import {
    IAllStudentFavoriteTutor,
+   ICheckFavoriteTutorStatus,
    IFavoriteTutor,
 } from "../types/types/favoriteTutor";
 import { studentFavoriteObject } from "../utils/arrayCombiner.util";
@@ -13,16 +15,15 @@ export class FavoriteTutorService {
          .find({ studentId: userId })
          .populate({
             path: "tutorId",
-            select: "userId experienceYears availability subjects classType",
+            select:
+               "userId experienceYears availability subjects classType ratings hourlyRate",
             populate: {
                path: "userId",
                select: "name email gender avatarUrl",
             },
          });
       if (favorite.length === 0) {
-         throw new NotFoundError(
-            "you haven't add any tutor to your favorite list"
-         );
+         return { studentId: new Types.ObjectId(userId), tutors: [] };
       }
       const payload = studentFavoriteObject(favorite);
       return payload as IAllStudentFavoriteTutor;
@@ -71,12 +72,17 @@ export class FavoriteTutorService {
       return deleteTutor as IFavoriteTutor;
    }
 
-   async checkFav(userId: string, tutorId: string): Promise<boolean> {
-      const existFav = await favoriteTutorModel.exists({
+   async checkFav(
+      userId: string,
+      tutorId: string
+   ): Promise<ICheckFavoriteTutorStatus> {
+      const existFav = await favoriteTutorModel.findOne({
          studentId: userId,
          tutorId: tutorId,
       });
-      return existFav ? true : false;
+      return existFav
+         ? { tutorId: existFav.tutorId, isFav: true }
+         : { tutorId: tutorId, isFav: false };
    }
 }
 
