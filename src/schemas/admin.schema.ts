@@ -49,9 +49,97 @@ export const getUserBanHistorySchema = z.object({
    }),
 });
 
+// Schema for getting banned tutors
+export const getBannedTutorsSchema = z.object({
+   query: z.object({
+      page: z
+         .string()
+         .regex(/^\d+$/, "Page must be a number")
+         .transform((val) => parseInt(val, 10))
+         .refine((val) => val > 0, "Page must be greater than 0")
+         .optional()
+         .default(1),
+      limit: z
+         .string()
+         .regex(/^\d+$/, "Limit must be a number")
+         .transform((val) => parseInt(val, 10))
+         .refine((val) => val > 0 && val <= 100, "Limit must be between 1 and 100")
+         .optional()
+         .default(10),
+      search: z.string().optional(),
+   }),
+});
+
+// Schema for getting active tutors
+export const getActiveTutorsSchema = z.object({
+   query: z.object({
+      page: z
+         .string()
+         .regex(/^\d+$/, "Page must be a number")
+         .transform((val) => parseInt(val, 10))
+         .refine((val) => val > 0, "Page must be greater than 0")
+         .optional()
+         .default(1),
+      limit: z
+         .string()
+         .regex(/^\d+$/, "Limit must be a number")
+         .transform((val) => parseInt(val, 10))
+         .refine((val) => val > 0 && val <= 100, "Limit must be between 1 and 100")
+         .optional()
+         .default(10),
+      search: z.string().optional(),
+   }),
+});
+
+// Schema for getting banned students
+export const getBannedStudentsSchema = z.object({
+   query: z.object({
+      page: z
+         .string()
+         .regex(/^\d+$/, "Page must be a number")
+         .transform((val) => parseInt(val, 10))
+         .refine((val) => val > 0, "Page must be greater than 0")
+         .optional()
+         .default(1),
+      limit: z
+         .string()
+         .regex(/^\d+$/, "Limit must be a number")
+         .transform((val) => parseInt(val, 10))
+         .refine((val) => val > 0 && val <= 100, "Limit must be between 1 and 100")
+         .optional()
+         .default(10),
+      search: z.string().optional(),
+   }),
+});
+
+// Schema for getting active students
+export const getActiveStudentsSchema = z.object({
+   query: z.object({
+      page: z
+         .string()
+         .regex(/^\d+$/, "Page must be a number")
+         .transform((val) => parseInt(val, 10))
+         .refine((val) => val > 0, "Page must be greater than 0")
+         .optional()
+         .default(1),
+      limit: z
+         .string()
+         .regex(/^\d+$/, "Limit must be a number")
+         .transform((val) => parseInt(val, 10))
+         .refine((val) => val > 0 && val <= 100, "Limit must be between 1 and 100")
+         .optional()
+         .default(10),
+      search: z.string().optional(),
+   }),
+});
+
 // Export types for TypeScript
 export type BanUserParams = z.infer<typeof banUserSchema>["params"];
 export type BanUserBody = z.infer<typeof banUserSchema>["body"];
 export type UnbanUserParams = z.infer<typeof unbanUserSchema>["params"];
 export type GetBannedUsersQuery = z.infer<typeof getBannedUsersSchema>["query"];
 export type GetUserBanHistoryParams = z.infer<typeof getUserBanHistorySchema>["params"];
+export type GetBannedTutorsQuery = z.infer<typeof getBannedTutorsSchema>["query"];
+export type GetActiveTutorsQuery = z.infer<typeof getActiveTutorsSchema>["query"];
+export type GetBannedStudentsQuery = z.infer<typeof getBannedStudentsSchema>["query"];
+export type GetActiveStudentsQuery = z.infer<typeof getActiveStudentsSchema>["query"];

@@ -11,7 +11,11 @@ import {
    BanUserBody, 
    UnbanUserParams, 
    GetBannedUsersQuery,
-   GetUserBanHistoryParams 
+   GetUserBanHistoryParams,
+   GetBannedTutorsQuery,
+   GetActiveTutorsQuery,
+   GetBannedStudentsQuery,
+   GetActiveStudentsQuery
 } from "../schemas/admin.schema";
 
 class AdminController {
@@ -71,14 +75,22 @@ class AdminController {
    }
 
    // GET /api/admin/user/banned - Get banned users list (Admin only)
-   async getBannedUsers(req: Request<{}, {}, {}, GetBannedUsersQuery>, res: Response, next: NextFunction) {
+   async getBannedUsers(req: Request, res: Response, next: NextFunction) {
       try {
          const currentUser = req.user;
          if (!currentUser || !currentUser._id) {
             throw new UnauthorizedError("Not authenticated");
          }
 
-         const result = await adminService.getBannedUsers(req.query);
+         const page = parseInt(req.query.page as string || "1", 10);
+         const limit = parseInt(req.query.limit as string || "10", 10);
+         const search = req.query.search as string;
+
+         const result = await adminService.getBannedUsers({
+            page,
+            limit,
+            search,
+         });
 
          new OK({
             message: "Banned users retrieved successfully",
@@ -132,6 +144,82 @@ class AdminController {
 
          new OK({
             message: "Users retrieved successfully",
+            metadata: result,
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   // GET /api/admin/tutors/banned - Get banned tutors (Admin only)
+   async getBannedTutors(req: Request, res: Response, next: NextFunction) {
+      try {
+         const currentUser = req.user;
+         if (!currentUser || !currentUser._id) {
+            throw new UnauthorizedError("Not authenticated");
+         }
+
+         const result = await adminService.getBannedTutors(req.query as unknown as GetBannedTutorsQuery);
+
+         new OK({
+            message: "Banned tutors retrieved successfully",
+            metadata: result,
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   // GET /api/admin/tutors/active - Get active tutors (Admin only)
+   async getActiveTutors(req: Request, res: Response, next: NextFunction) {
+      try {
+         const currentUser = req.user;
+         if (!currentUser || !currentUser._id) {
+            throw new UnauthorizedError("Not authenticated");
+         }
+
+         const result = await adminService.getActiveTutors(req.query as unknown as GetActiveTutorsQuery);
+
+         new OK({
+            message: "Active tutors retrieved successfully",
+            metadata: result,
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   // GET /api/admin/students/banned - Get banned students (Admin only)
+   async getBannedStudents(req: Request, res: Response, next: NextFunction) {
+      try {
+         const currentUser = req.user;
+         if (!currentUser || !currentUser._id) {
+            throw new UnauthorizedError("Not authenticated");
+         }
+
+         const result = await adminService.getBannedStudents(req.query as unknown as GetBannedStudentsQuery);
+
+         new OK({
+            message: "Banned students retrieved successfully",
+            metadata: result,
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   // GET /api/admin/students/active - Get active students (Admin only)
+   async getActiveStudents(req: Request, res: Response, next: NextFunction) {
+      try {
+         const currentUser = req.user;
+         if (!currentUser || !currentUser._id) {
+            throw new UnauthorizedError("Not authenticated");
+         }
+
+         const result = await adminService.getActiveStudents(req.query as unknown as GetActiveStudentsQuery);
+
+         new OK({
+            message: "Active students retrieved successfully",
             metadata: result,
          }).send(res);
       } catch (err) {

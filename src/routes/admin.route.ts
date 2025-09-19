@@ -5,7 +5,11 @@ import {
    banUserSchema, 
    unbanUserSchema, 
    getBannedUsersSchema,
-   getUserBanHistorySchema 
+   getUserBanHistorySchema,
+   getBannedTutorsSchema,
+   getActiveTutorsSchema,
+   getBannedStudentsSchema,
+   getActiveStudentsSchema
 } from "../schemas/admin.schema";
 import { authenticate, isRole } from "../middlewares/auth.middleware";
 import { Role } from "../types/enums/role.enum";
@@ -49,6 +53,34 @@ router.get(
 router.get(
    "/users",
    adminController.getAllUsers
+);
+
+// Get banned tutors
+router.get(
+   "/tutors/banned",
+   validate(getBannedTutorsSchema),
+   adminController.getBannedTutors
+);
+
+// Get active tutors
+router.get(
+   "/tutors/active",
+   validate(getActiveTutorsSchema),
+   adminController.getActiveTutors
+);
+
+// Get banned students
+router.get(
+   "/students/banned",
+   validate(getBannedStudentsSchema),
+   adminController.getBannedStudents
+);
+
+// Get active students
+router.get(
+   "/students/active",
+   validate(getActiveStudentsSchema),
+   adminController.getActiveStudents
 );
 
 export default router;
