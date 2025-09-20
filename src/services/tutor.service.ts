@@ -273,11 +273,11 @@ export class TutorService {
                 console.error("Error parsing imageCertMapping:", error);
             }
 
-            console.log("Processing image mapping:", mapping);
-            console.log("Available certifications:", updatedCertifications.map(c => ({
-                _id: c._id?.toString(),
-                name: c.name
-            })));
+            // console.log("Processing image mapping:", mapping);
+            // console.log("Available certifications:", updatedCertifications.map(c => ({
+            //     _id: c._id?.toString(),
+            //     name: c.name
+            // })));
 
             mapping.forEach((map) => {
                 let cert: ICertification | undefined;
@@ -293,11 +293,11 @@ export class TutorService {
                 // If not found, try to find by temporary certId for new certifications
                 if (!cert && map.tempCertId) {
                     cert = tempIdToCertMap[map.tempCertId];
-                    console.log(`Looking for tempCertId ${map.tempCertId}:`, cert ? "FOUND" : "NOT FOUND");
+                    // console.log(`Looking for tempCertId ${map.tempCertId}:`, cert ? "FOUND" : "NOT FOUND");
                 }
 
                 if (!cert) {
-                    console.warn("Could not find certification for mapping:", map);
+                    // console.warn("Could not find certification for mapping:", map);
                     return;
                 }
 

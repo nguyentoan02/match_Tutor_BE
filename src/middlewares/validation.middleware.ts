@@ -14,12 +14,6 @@ import { BadRequestError } from "../utils/error.response";
 export const validate = (schema: ZodType<any>) => {
     return async (req: Request, res: Response, next: NextFunction) => {
 
-        console.log("📥 Incoming request data for validation:");
-        console.log("➡️ Body:", req.body);
-        console.log("➡️ Query:", req.query);
-        console.log("➡️ Params:", req.params);
-        console.log("➡️ Headers:", req.headers);
-
         try {
             // Parse và validate dữ liệu từ request
             const validatedData = await schema.parseAsync({
