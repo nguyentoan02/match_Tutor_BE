@@ -5,7 +5,7 @@ import { authenticate, isRole } from "../middlewares/auth.middleware";
 import { validate } from "../middlewares/validation.middleware";
 import { uploadFields } from "../middlewares/upload.middleware";
 import { Role } from "../types/enums";
-import { parseJsonFields } from "../middlewares/jsonfields.moddleware";
+import { parseJsonFields } from "../middlewares/tutor/jsonfields.moddleware";
 
 const router = express.Router();
 
