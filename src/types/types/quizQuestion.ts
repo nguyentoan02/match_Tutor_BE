@@ -3,12 +3,24 @@ import { QuestionTypeEnum } from "../enums/quiz.enum";
 
 export interface IQuizQuestion extends Document {
    quizId: Types.ObjectId;
-   questionText?: string;
+   order?: number;
    questionType?: QuestionTypeEnum;
-   options?: string[]; // for multiple_choice
+
+   // Multiple choice
+   questionText?: string;
+   options?: string[];
    correctAnswer?: string;
-   frontText?: string; // for flashcard
-   backText?: string; // for flashcard
+
+   // Short answer
+   acceptedAnswers?: string[];
+   caseSensitive?: boolean;
+
+   // Flashcard
+   frontText?: string;
+   backText?: string;
+
+   // Common
+   explanation?: string;
    points?: number;
    createdAt?: Date;
    updatedAt?: Date;

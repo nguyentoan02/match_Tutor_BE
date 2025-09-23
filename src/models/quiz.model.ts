@@ -1,19 +1,14 @@
 import mongoose, { Schema } from "mongoose";
 import { IQuiz } from "../types/types/quiz";
 import { getVietnamTime } from "../utils/date.util";
-import {
-   QUIZ_MODE_VALUES,
-   CARD_ORDER_VALUES,
-   QuizModeEnum,
-   CardOrderEnum,
-} from "../types/enums/quiz.enum";
+import { QUIZ_MODE_VALUES, QuizModeEnum } from "../types/enums/quiz.enum";
 
 const QuizSchema: Schema<IQuiz> = new Schema(
    {
       sessionId: {
          type: Schema.Types.ObjectId,
          ref: "Session",
-         required: true,
+         required: false,
       },
       title: { type: String, required: true },
       description: { type: String },
@@ -22,12 +17,16 @@ const QuizSchema: Schema<IQuiz> = new Schema(
          enum: QUIZ_MODE_VALUES,
          default: QuizModeEnum.STUDY,
       },
-      cardOrder: {
-         type: String,
-         enum: CARD_ORDER_VALUES,
-         default: CardOrderEnum.FRONT,
+      // Thêm settings để kiểm soát hành vi quiz
+      settings: {
+         shuffleQuestions: { type: Boolean, default: false },
+         showCorrectAnswersAfterSubmit: { type: Boolean, default: true },
+         timeLimitMinutes: { type: Number, default: null },
       },
+      // Thông tin tạo và phân loại
       createdBy: { type: Schema.Types.ObjectId, ref: "User" },
+      tags: [{ type: String }],
+      totalQuestions: { type: Number, default: 0 },
    },
    {
       timestamps: {

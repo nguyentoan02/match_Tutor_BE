@@ -13,14 +13,22 @@ const QuizSubmissionSchema: Schema<IQuizSubmission> = new Schema(
       answers: [
          {
             questionId: { type: Schema.Types.ObjectId, ref: "QuizQuestion" },
-            answer: { type: String },
-            isCorrect: { type: Boolean },
-            obtainedPoints: { type: Number },
+            // answer có thể là string (cho short answer),
+            // số (index cho multiple choice)
+            // hoặc dữ liệu khác tùy loại câu hỏi
+            answer: { type: Schema.Types.Mixed },
+            isCorrect: { type: Boolean, default: false },
+            obtainedPoints: { type: Number, default: 0 },
             _id: false,
          },
       ],
-      score: { type: Number },
+      score: { type: Number, default: 0 },
       submittedAt: { type: Date, default: getVietnamTime },
+      // Thông tin về mode và settings tại thời điểm làm quiz
+      quizSnapshot: {
+         quizMode: { type: String },
+         settings: { type: Schema.Types.Mixed },
+      },
       gradedBy: { type: Schema.Types.ObjectId, ref: "User" },
       gradedAt: { type: Date },
    },
