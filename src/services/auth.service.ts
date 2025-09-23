@@ -163,6 +163,11 @@ export class AuthService {
       if (!user.isVerifiedEmail) {
          throw new UnauthorizedError("Please verify your email first");
       }
+
+      if (user.isBanned) {
+         throw new UnauthorizedError("Your account has been suspended. Please contact support for assistance.");
+      }
+
       const token = this.createToken(user);
       user.password = undefined;
       return { token, user };
@@ -193,6 +198,10 @@ export class AuthService {
          }).save();
       }
 
+      if (user.isBanned) {
+         throw new UnauthorizedError("Your account has been suspended. Please contact support for assistance.");
+      }
+
       const token = this.createToken(user);
       const userResponse = user.toObject();
       delete userResponse.password;
@@ -215,6 +224,11 @@ export class AuthService {
          if (!user) {
             throw new UnauthorizedError("User not found");
          }
+         
+         if (user.isBanned) {
+            throw new UnauthorizedError("Your account has been suspended. Please contact support for assistance.");
+         }
+         
          return { token, user };
       } catch (err) {
          throw new UnauthorizedError("Invalid or expired token");
