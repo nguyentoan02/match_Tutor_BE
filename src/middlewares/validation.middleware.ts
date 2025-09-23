@@ -13,7 +13,6 @@ import { BadRequestError } from "../utils/error.response";
 
 export const validate = (schema: ZodType<any>) => {
     return async (req: Request, res: Response, next: NextFunction) => {
-
         try {
             // Parse và validate dữ liệu từ request
             const validatedData = await schema.parseAsync({
