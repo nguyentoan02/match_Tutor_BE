@@ -14,14 +14,14 @@ const educationSchema = z.object({
         .regex(/^\d{4}-\d{2}$/, "Valid end date required (YYYY-MM)")
         .optional()
         .transform((d) => d ? new Date(d + "-01") : undefined),
-    description: z.string().max(500, "Description too long").optional(),
+    description: z.string().max(500, "Description too long").min(10, "Description is required"),
 });
 
 const certificationSchema = z.object({
     _id: z.string().optional(),
     tempId: z.string().optional(),
     name: z.string().min(1, "Certification name is required").max(100, "Name too long"),
-    description: z.string().max(300, "Description too long").optional(),
+    description: z.string().min(10, "Description is required").max(300, "Description too long"),
     imageUrls: z.array(z.string().url("Invalid image URL"))
         .max(10, "Maximum 10 images allowed")
         .optional()
@@ -134,7 +134,7 @@ export const updateTutorProfileSchema = z.object({
         hourlyRate:
             z.number()
                 .min(0, "Hourly rate cannot be negative")
-                .max(1000, "Hourly rate too high")
+                .max(2000000, "Hourly rate too high")
                 .default(0),
 
         bio: z.string()
