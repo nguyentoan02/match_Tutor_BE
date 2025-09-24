@@ -8,7 +8,6 @@ export interface QuizSettings {
 }
 
 export interface IQuiz extends Document {
-   sessionId: Types.ObjectId;
    title: string;
    description?: string;
    quizMode?: QuizModeEnum;
@@ -18,4 +17,5 @@ export interface IQuiz extends Document {
    totalQuestions?: number;
    createdAt?: Date;
    updatedAt?: Date;
+   quizQuestions?: Types.ObjectId[];
 }

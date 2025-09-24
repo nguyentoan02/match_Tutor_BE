@@ -5,11 +5,14 @@ import { QUIZ_MODE_VALUES, QuizModeEnum } from "../types/enums/quiz.enum";
 
 const QuizSchema: Schema<IQuiz> = new Schema(
    {
-      sessionId: {
-         type: Schema.Types.ObjectId,
-         ref: "Session",
-         required: false,
-      },
+      // sessionId: {
+      //    type: Schema.Types.ObjectId,
+      //    ref: "Session",
+      //    required: false,
+      // },
+      // không cần trường này trong model này nữa vì trong session nó reference đến Quiz rồi
+      // bởi vì một bộ quiz có thể được reference tới nhiều session khác nhau
+      // khi xóa thì sẽ check là đã bỏ hết các quizz này ra khỏi các session chưa thì mới được xóa
       title: { type: String, required: true },
       description: { type: String },
       quizMode: {
@@ -19,7 +22,7 @@ const QuizSchema: Schema<IQuiz> = new Schema(
       },
       // Thêm settings để kiểm soát hành vi quiz
       settings: {
-         shuffleQuestions: { type: Boolean, default: false },
+         shuffleQuestions: { type: Boolean, default: false }, // flashcard chỉ được dùng cái này
          showCorrectAnswersAfterSubmit: { type: Boolean, default: true },
          timeLimitMinutes: { type: Number, default: null },
       },
