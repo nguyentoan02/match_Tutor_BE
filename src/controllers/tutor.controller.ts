@@ -46,6 +46,45 @@ export class TutorController {
         }).send(res);
     }
 
+    async searchTutors(req: Request, res: Response) {
+        const { keyword, subjects, levels, city, minRate, maxRate, minExperience, maxExperience, classType, availability, minRating, maxRating } = req.query;
+
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 6;
+
+        const filters: any = {};
+
+        if (subjects) filters.subjects = (subjects as string).split(",");
+        if (levels) filters.levels = (levels as string).split(",");
+        if (city) filters.city = city as string;
+        if (minRate) filters.minRate = parseFloat(minRate as string);
+        if (maxRate) filters.maxRate = parseFloat(maxRate as string);
+        if (minExperience) filters.minExperience = parseInt(minExperience as string);
+        if (maxExperience) filters.maxExperience = parseInt(maxExperience as string);
+        if (classType) filters.classType = (classType as string).split(",");
+        if (availability) {
+            try {
+                filters.availability = JSON.parse(availability as string);
+            } catch (e) {
+                return res.status(400).json({ message: "Invalid availability format. Must be JSON." });
+            }
+        }
+        if (minRating) filters.minRating = parseFloat(minRating as string);
+        if (maxRating) filters.maxRating = parseFloat(maxRating as string);
+
+        const result = await tutorService.searchTutors(
+            keyword as string,
+            filters,
+            page,
+            limit
+        );
+
+        new SuccessResponse({
+            message: "Tutors search results",
+            metadata: result,
+        }).send(res);
+    }
+
     async createTutorProfile(req: Request, res: Response) {
         const currentUser = req.user;
         if (!currentUser || !currentUser._id) {

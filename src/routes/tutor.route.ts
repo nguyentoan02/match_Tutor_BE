@@ -40,10 +40,12 @@ router.put(
     tutorController.updateTutorProfile
 );
 
+router.get("/search", tutorController.searchTutors);
+
 router.get("/:id", tutorController.getTutorById);
+
 router.get("/",
     tutorController.getAllTutors);
-
 
 router.delete(
     "/certifications/:certificationIndex/images/:imageIndex",
