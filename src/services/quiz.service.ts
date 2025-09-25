@@ -76,7 +76,9 @@ class QuizService {
    }
 
    async getQuizQuestionByQuiz(quizId: string): Promise<IQuizQuestionInfo> {
-      const quiz = await quizModel.findById(quizId);
+      const quiz = await quizModel
+         .findById(quizId)
+         .populate({ path: "createdBy", select: "name -_id role" });
       if (!quiz) throw new NotFoundError("can not found this quiz");
       const quizQuestions = await quizQuestionModel.find({ quizId: quizId });
       if (quizQuestions.length === 0) {
