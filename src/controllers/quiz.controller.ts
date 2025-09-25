@@ -44,8 +44,11 @@ class QuizController {
    }
 
    async QuizQuestions(req: Request, res: Response) {
-      const quizId: quizQuery = String((req.query as any).quizId ?? "");
-      const quizQuestions = await quizService.getQuizQuestionByQuiz(quizId);
+      const { quizId } = req.query;
+      if (!quizId) throw new BadRequestError("invalid quizId");
+      const quizQuestions = await quizService.getQuizQuestionByQuiz(
+         quizId.toString()
+      );
       new OK({
          message: "get quiz questions success",
          metadata: quizQuestions,

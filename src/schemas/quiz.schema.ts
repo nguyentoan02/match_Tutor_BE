@@ -40,9 +40,11 @@ export const createQuizBodySchema = z.object({
 });
 
 export const quizQuerySchema = z.object({
-   query: z
-      .string()
-      .regex(/^[a-fA-F0-9]{24}$/, "query must be a valid MongoDB ObjectId"),
+   query: z.object({
+      quizId: z.string().regex(/^[0-9a-fA-F]{24}$/, {
+         message: "tutorId must be a valid MongoDB ObjectId",
+      }),
+   }),
 });
 
 export const quizTutorIdQuerySchema = z.object({

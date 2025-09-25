@@ -1,5 +1,6 @@
 import { Document, Types } from "mongoose";
 import { QuestionTypeEnum } from "../enums/quiz.enum";
+import { IQuiz } from "./quiz";
 
 export interface IQuizQuestion extends Document {
    quizId: Types.ObjectId;
@@ -24,4 +25,9 @@ export interface IQuizQuestion extends Document {
    points?: number;
    createdAt?: Date;
    updatedAt?: Date;
+}
+
+export interface IQuizQuestionInfo {
+   quizInfo: IQuiz;
+   quizQuestions: IQuizQuestion[];
 }

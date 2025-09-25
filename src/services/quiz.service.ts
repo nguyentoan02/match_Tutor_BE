@@ -12,7 +12,7 @@ import {
    InternalServerError,
    NotFoundError,
 } from "../utils/error.response";
-import { IQuizQuestion } from "../types/types/quizQuestion";
+import { IQuizQuestion, IQuizQuestionInfo } from "../types/types/quizQuestion";
 import sessionModel from "../models/session.model";
 
 class QuizService {
@@ -75,14 +75,17 @@ class QuizService {
       return quizes as IQuiz[];
    }
 
-   async getQuizQuestionByQuiz(quizId: string): Promise<IQuizQuestion[]> {
+   async getQuizQuestionByQuiz(quizId: string): Promise<IQuizQuestionInfo> {
+      const quiz = await quizModel.findById(quizId);
+      if (!quiz) throw new NotFoundError("can not found this quiz");
       const quizQuestions = await quizQuestionModel.find({ quizId: quizId });
       if (quizQuestions.length === 0) {
-         new NotFoundError(
+         throw new NotFoundError(
             "this quiz dosen't have any question please add more"
          );
       }
-      return quizQuestions as IQuizQuestion[];
+      const payload: IQuizQuestionInfo = { quizInfo: quiz, quizQuestions };
+      return payload;
    }
 
    private async editQuiz(
