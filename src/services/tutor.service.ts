@@ -74,7 +74,7 @@ export class TutorService {
             maxExperience?: number;
             classType?: ClassType[];
             availability?: {
-                dayOfWeek?: number;
+                dayOfWeek?: number[];
                 slots?: TimeSlot[];
             };
             minRating?: number;
@@ -86,7 +86,7 @@ export class TutorService {
         const query: FilterQuery<ITutor> = { isApproved: true };
         const skip = (page - 1) * limit;
 
-        // 🔎 Keyword search
+        // Keyword search
         if (keyword && keyword.trim() !== "") {
             query.$or = [
                 { bio: { $regex: keyword, $options: "i" } },
@@ -95,55 +95,67 @@ export class TutorService {
             ];
         }
 
-        // 📚 Subjects
+        // Subjects
         if (filters?.subjects?.length) {
             query.subjects = { $in: filters.subjects };
         }
 
-        // 🎓 Levels
+        // Levels
         if (filters?.levels?.length) {
             query.levels = { $in: filters.levels };
         }
 
-        // 🏫 ClassType
+        // ClassType
         if (filters?.classType?.length) {
             query.classType = { $in: filters.classType };
         }
 
-        // 💼 Experience years
+        // Experience years
         if (filters?.minExperience !== undefined || filters?.maxExperience !== undefined) {
             query.experienceYears = {};
             if (filters.minExperience !== undefined) query.experienceYears.$gte = filters.minExperience;
             if (filters.maxExperience !== undefined) query.experienceYears.$lte = filters.maxExperience;
         }
 
-        // 💵 Hourly rate
+        // Hourly rate
         if (filters?.minRate !== undefined || filters?.maxRate !== undefined) {
             query.hourlyRate = {};
             if (filters.minRate !== undefined) query.hourlyRate.$gte = filters.minRate;
             if (filters.maxRate !== undefined) query.hourlyRate.$lte = filters.maxRate;
         }
 
-        // 📅 Availability
+        // Availability
         if (filters?.availability) {
-            query.availability = { $elemMatch: {} };
+            const elemMatch: any = {};
 
-            if (filters.availability.dayOfWeek !== undefined) {
-                query.availability.$elemMatch.dayOfWeek = filters.availability.dayOfWeek;
+            // Filter by dayOfWeek if provided
+            if (filters.availability.dayOfWeek?.length) {
+                elemMatch.dayOfWeek = { $in: filters.availability.dayOfWeek };
             }
+
+            // Filter by slots if provided
             if (filters.availability.slots?.length) {
-                query.availability.$elemMatch.slots = { $in: filters.availability.slots };
+                elemMatch.slots = { $in: filters.availability.slots };
+            }
+
+            // Only include tutors who have at least one slot if no specific slots filter
+            if (!filters.availability.slots?.length) {
+                elemMatch.slots = { $exists: true, $ne: [] };
+            }
+
+            if (Object.keys(elemMatch).length > 0) {
+                query.availability = { $elemMatch: elemMatch };
             }
         }
 
-        // ⭐ Rating
+        //  Rating
         if (filters?.minRating !== undefined || filters?.maxRating !== undefined) {
             query["rating.average"] = {};
             if (filters.minRating !== undefined) query["rating.average"].$gte = filters.minRating;
             if (filters.maxRating !== undefined) query["rating.average"].$lte = filters.maxRating;
         }
 
-        // 🚀 Use aggregation ONLY for city filter
+        // Use aggregation ONLY for city filter
         if (filters?.city) {
             const pipeline: any[] = [
                 { $match: query },
@@ -218,7 +230,6 @@ export class TutorService {
             };
         }
 
-        // ✅ Default: normal query if no city filter
         const tutors = await Tutor.find(query)
             .populate({
                 path: "userId",
