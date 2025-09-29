@@ -9,7 +9,10 @@ import {
    getBannedTutorsSchema,
    getActiveTutorsSchema,
    getBannedStudentsSchema,
-   getActiveStudentsSchema
+   getActiveStudentsSchema,
+   acceptTutorSchema,
+   rejectTutorSchema,
+   getPendingTutorsSchema
 } from "../schemas/admin.schema";
 import { authenticate, isRole } from "../middlewares/auth.middleware";
 import { Role } from "../types/enums/role.enum";
@@ -81,6 +84,41 @@ router.get(
    "/students/active",
    validate(getActiveStudentsSchema),
    adminController.getActiveStudents
+);
+
+// Tutor profile management routes
+// Accept tutor profile
+router.post(
+   "/tutor/:id/accept",
+   validate(acceptTutorSchema),
+   adminController.acceptTutor
+);
+
+// Reject tutor profile
+router.post(
+   "/tutor/:id/reject",
+   validate(rejectTutorSchema),
+   adminController.rejectTutor
+);
+
+// Get pending tutors
+router.get(
+   "/tutors/pending",
+   validate(getPendingTutorsSchema),
+   adminController.getPendingTutors
+);
+
+// Get tutor profile by ID
+router.get(
+   "/tutor/:id",
+   adminController.getTutorProfile
+);
+
+
+// Get tutors with userId and tutorId mapping
+router.get(
+   "/tutors/mapping",
+   adminController.getTutorsWithMapping
 );
 
 export default router;

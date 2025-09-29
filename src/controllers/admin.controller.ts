@@ -15,7 +15,11 @@ import {
    GetBannedTutorsQuery,
    GetActiveTutorsQuery,
    GetBannedStudentsQuery,
-   GetActiveStudentsQuery
+   GetActiveStudentsQuery,
+   AcceptTutorParams,
+   RejectTutorParams,
+   RejectTutorBody,
+   GetPendingTutorsQuery
 } from "../schemas/admin.schema";
 
 class AdminController {
@@ -220,6 +224,126 @@ class AdminController {
 
          new OK({
             message: "Active students retrieved successfully",
+            metadata: result,
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   // POST /api/admin/tutor/:id/accept - Accept tutor profile (Admin only)
+   async acceptTutor(req: Request<AcceptTutorParams>, res: Response, next: NextFunction) {
+      try {
+         const currentUser = req.user;
+         if (!currentUser || !currentUser._id) {
+            throw new UnauthorizedError("Not authenticated");
+         }
+
+         const { id: tutorId } = req.params;
+
+         const tutor = await adminService.acceptTutor(
+            tutorId,
+            currentUser._id.toString()
+         );
+
+         new OK({
+            message: "Tutor profile accepted successfully",
+            metadata: { tutor },
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   // POST /api/admin/tutor/:id/reject - Reject tutor profile (Admin only)
+   async rejectTutor(req: Request<RejectTutorParams, {}, RejectTutorBody>, res: Response, next: NextFunction) {
+      try {
+         const currentUser = req.user;
+         if (!currentUser || !currentUser._id) {
+            throw new UnauthorizedError("Not authenticated");
+         }
+
+         const { id: tutorId } = req.params;
+         const { reason } = req.body;
+
+         const tutor = await adminService.rejectTutor(
+            tutorId,
+            reason,
+            currentUser._id.toString()
+         );
+
+         new OK({
+            message: "Tutor profile rejected successfully",
+            metadata: { tutor },
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   // GET /api/admin/tutors/pending - Get pending tutors (Admin only)
+   async getPendingTutors(req: Request, res: Response, next: NextFunction) {
+      try {
+         const currentUser = req.user;
+         if (!currentUser || !currentUser._id) {
+            throw new UnauthorizedError("Not authenticated");
+         }
+
+         const result = await adminService.getPendingTutors(req.query as unknown as GetPendingTutorsQuery);
+
+         new OK({
+            message: "Pending tutors retrieved successfully",
+            metadata: result,
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   // GET /api/admin/tutor/:id - Get tutor profile by ID (Admin only)
+   async getTutorProfile(req: Request, res: Response, next: NextFunction) {
+      try {
+         const currentUser = req.user;
+         if (!currentUser || !currentUser._id) {
+            throw new UnauthorizedError("Not authenticated");
+         }
+
+         const { id: tutorId } = req.params;
+
+         const result = await adminService.getTutorProfile(tutorId);
+
+         new OK({
+            message: result.message,
+            metadata: result,
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+
+   // GET /api/admin/tutors/mapping - Get tutors with userId and tutorId mapping (Admin only)
+   async getTutorsWithMapping(req: Request, res: Response, next: NextFunction) {
+      try {
+         const currentUser = req.user;
+         if (!currentUser || !currentUser._id) {
+            throw new UnauthorizedError("Not authenticated");
+         }
+
+         const page = parseInt(req.query.page as string || "1", 10);
+         const limit = parseInt(req.query.limit as string || "10", 10);
+         const search = req.query.search as string;
+         const status = req.query.status as 'all' | 'pending' | 'approved' | 'banned' || 'all';
+
+         const result = await adminService.getTutorsWithMapping({
+            page,
+            limit,
+            search,
+            status
+         });
+
+         new OK({
+            message: "Tutors with mapping retrieved successfully",
             metadata: result,
          }).send(res);
       } catch (err) {

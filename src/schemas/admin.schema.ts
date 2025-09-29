@@ -133,6 +133,48 @@ export const getActiveStudentsSchema = z.object({
    }),
 });
 
+// Schema for accepting a tutor
+export const acceptTutorSchema = z.object({
+   params: z.object({
+      id: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid tutor ID format"),
+   }),
+});
+
+// Schema for rejecting a tutor
+export const rejectTutorSchema = z.object({
+   params: z.object({
+      id: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid tutor ID format"),
+   }),
+   body: z.object({
+      reason: z
+         .string()
+         .min(10, "Rejection reason must be at least 10 characters")
+         .max(500, "Rejection reason must not exceed 500 characters")
+         .trim(),
+   }),
+});
+
+// Schema for getting pending tutors
+export const getPendingTutorsSchema = z.object({
+   query: z.object({
+      page: z
+         .string()
+         .regex(/^\d+$/, "Page must be a number")
+         .transform((val) => parseInt(val, 10))
+         .refine((val) => val > 0, "Page must be greater than 0")
+         .optional()
+         .default(1),
+      limit: z
+         .string()
+         .regex(/^\d+$/, "Limit must be a number")
+         .transform((val) => parseInt(val, 10))
+         .refine((val) => val > 0 && val <= 100, "Limit must be between 1 and 100")
+         .optional()
+         .default(10),
+      search: z.string().optional(),
+   }),
+});
+
 // Export types for TypeScript
 export type BanUserParams = z.infer<typeof banUserSchema>["params"];
 export type BanUserBody = z.infer<typeof banUserSchema>["body"];
@@ -143,3 +185,7 @@ export type GetBannedTutorsQuery = z.infer<typeof getBannedTutorsSchema>["query"
 export type GetActiveTutorsQuery = z.infer<typeof getActiveTutorsSchema>["query"];
 export type GetBannedStudentsQuery = z.infer<typeof getBannedStudentsSchema>["query"];
 export type GetActiveStudentsQuery = z.infer<typeof getActiveStudentsSchema>["query"];
+export type AcceptTutorParams = z.infer<typeof acceptTutorSchema>["params"];
+export type RejectTutorParams = z.infer<typeof rejectTutorSchema>["params"];
+export type RejectTutorBody = z.infer<typeof rejectTutorSchema>["body"];
+export type GetPendingTutorsQuery = z.infer<typeof getPendingTutorsSchema>["query"];
