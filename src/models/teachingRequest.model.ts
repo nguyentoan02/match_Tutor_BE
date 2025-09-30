@@ -7,6 +7,8 @@ import {
    DecisionStatus,
 } from "../types/enums/teachingRequest.enum";
 import { getVietnamTime } from "../utils/date.util";
+import { SUBJECT_VALUES } from "../types/enums/subject.enum";
+import { LEVEL_VALUES } from "../types/enums/level.enum";
 
 const TeachingRequestSchema: Schema<ITeachingRequest> = new Schema(
    {
@@ -16,10 +18,12 @@ const TeachingRequestSchema: Schema<ITeachingRequest> = new Schema(
          required: true,
       },
       tutorId: { type: Schema.Types.ObjectId, ref: "Tutor" },
-      subject: { type: String, required: true },
-      level: { type: String, required: true },
+      subject: { type: String, enum: SUBJECT_VALUES, required: true },
+      level: { type: String, enum: LEVEL_VALUES, required: true },
+      hourlyRate: { type: Number, required: true },
       description: { type: String },
       totalSessionsPlanned: { type: Number, min: 0 },
+      trialSessionsCompleted: { type: Number, default: 0, min: 0 }, // Thêm trường này
       trialDecision: {
          student: {
             type: String,
@@ -38,6 +42,31 @@ const TeachingRequestSchema: Schema<ITeachingRequest> = new Schema(
          enum: TEACHING_REQUEST_STATUS_VALUES,
          default: TeachingRequestStatus.PENDING,
       },
+      // Cancellation decision: who requested, when, reason, admin metadata
+      cancellationDecision: {
+         student: {
+            type: String,
+            enum: DECISION_STATUS_VALUES,
+            default: DecisionStatus.PENDING,
+         },
+         tutor: {
+            type: String,
+            enum: DECISION_STATUS_VALUES,
+            default: DecisionStatus.PENDING,
+         },
+         requestedBy: {
+            type: String,
+            enum: ["student", "tutor"],
+         },
+         requestedAt: { type: Date },
+         reason: { type: String },
+         adminReviewRequired: { type: Boolean, default: false },
+         adminResolvedBy: { type: Schema.Types.ObjectId, ref: "User" },
+         adminResolvedAt: { type: Date },
+         adminNotes: { type: String },
+         _id: false,
+      },
+      // Complete pending: who proposed complete, confirmations timestamps, admin metadata
       complete_pending: {
          student: {
             type: String,
@@ -49,6 +78,18 @@ const TeachingRequestSchema: Schema<ITeachingRequest> = new Schema(
             enum: DECISION_STATUS_VALUES,
             default: DecisionStatus.PENDING,
          },
+         requestedBy: {
+            type: String,
+            enum: ["student", "tutor"],
+         },
+         requestedAt: { type: Date },
+         reason: { type: String },
+         studentConfirmedAt: { type: Date },
+         tutorConfirmedAt: { type: Date },
+         adminReviewRequired: { type: Boolean, default: false },
+         adminResolvedBy: { type: Schema.Types.ObjectId, ref: "User" },
+         adminResolvedAt: { type: Date },
+         adminNotes: { type: String },
          _id: false,
       },
       createdBy: { type: Schema.Types.ObjectId, ref: "User" },
