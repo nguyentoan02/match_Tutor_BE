@@ -1,20 +1,18 @@
 import mongoose, { Schema } from "mongoose";
 import { IQuiz } from "../types/types/quiz";
 import { getVietnamTime } from "../utils/date.util";
-import {
-   QUIZ_MODE_VALUES,
-   CARD_ORDER_VALUES,
-   QuizModeEnum,
-   CardOrderEnum,
-} from "../types/enums/quiz.enum";
+import { QUIZ_MODE_VALUES, QuizModeEnum } from "../types/enums/quiz.enum";
 
 const QuizSchema: Schema<IQuiz> = new Schema(
    {
-      sessionId: {
-         type: Schema.Types.ObjectId,
-         ref: "Session",
-         required: true,
-      },
+      // sessionId: {
+      //    type: Schema.Types.ObjectId,
+      //    ref: "Session",
+      //    required: false,
+      // },
+      // không cần trường này trong model này nữa vì trong session nó reference đến Quiz rồi
+      // bởi vì một bộ quiz có thể được reference tới nhiều session khác nhau
+      // khi xóa thì sẽ check là đã bỏ hết các quizz này ra khỏi các session chưa thì mới được xóa
       title: { type: String, required: true },
       description: { type: String },
       quizMode: {
@@ -22,12 +20,16 @@ const QuizSchema: Schema<IQuiz> = new Schema(
          enum: QUIZ_MODE_VALUES,
          default: QuizModeEnum.STUDY,
       },
-      cardOrder: {
-         type: String,
-         enum: CARD_ORDER_VALUES,
-         default: CardOrderEnum.FRONT,
+      // Thêm settings để kiểm soát hành vi quiz
+      settings: {
+         shuffleQuestions: { type: Boolean, default: false }, // flashcard chỉ được dùng cái này
+         showCorrectAnswersAfterSubmit: { type: Boolean, default: true },
+         timeLimitMinutes: { type: Number, default: null },
       },
+      // Thông tin tạo và phân loại
       createdBy: { type: Schema.Types.ObjectId, ref: "User" },
+      tags: [{ type: String }],
+      totalQuestions: { type: Number, default: 0 },
    },
    {
       timestamps: {

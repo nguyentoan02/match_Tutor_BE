@@ -1,6 +1,6 @@
 export enum QuizModeEnum {
    STUDY = "STUDY",
-   PRACTICE = "PRACTICE",
+   // PRACTICE = "PRACTICE",
    EXAM = "EXAM",
 }
 
