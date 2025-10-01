@@ -47,13 +47,14 @@ export class TutorController {
     }
 
     async searchTutors(req: Request, res: Response) {
-        const { keyword, subjects, levels, city, minRate, maxRate, minExperience, maxExperience, classType, availability, minRating, maxRating } = req.query;
+        const { keyword, name, subjects, levels, city, minRate, maxRate, minExperience, maxExperience, classType, availability, minRating, maxRating } = req.query;
 
         const page = parseInt(req.query.page as string) || 1;
         const limit = parseInt(req.query.limit as string) || 6;
 
         const filters: any = {};
 
+        if (name) filters.name = name as string;
         if (subjects) filters.subjects = (subjects as string).split(",");
         if (levels) filters.levels = (levels as string).split(",");
         if (city) filters.city = city as string;
