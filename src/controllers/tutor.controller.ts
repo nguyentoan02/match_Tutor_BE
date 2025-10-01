@@ -45,7 +45,7 @@ export class TutorController {
             metadata: tutor
         }).send(res);
     }
-
+    //hello search
     async searchTutors(req: Request, res: Response) {
         const { keyword, name, subjects, levels, city, minRate, maxRate, minExperience, maxExperience, classType, availability, minRating, maxRating } = req.query;
 
