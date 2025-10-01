@@ -65,6 +65,7 @@ export class TutorService {
     async searchTutors(
         keyword: string,
         filters: {
+            name?: string;
             subjects?: string[];
             levels?: string[];
             city?: string;
@@ -93,6 +94,11 @@ export class TutorService {
                 { "certifications.name": { $regex: keyword, $options: "i" } },
                 { "certifications.description": { $regex: keyword, $options: "i" } },
             ];
+        }
+
+        // Name
+        if (filters?.name) {
+            query.name = { $regex: filters.name, $options: "i" };
         }
 
         // Subjects
