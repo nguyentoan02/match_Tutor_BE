@@ -5,7 +5,7 @@ import { NotFoundError } from "../utils/error.response";
 import { ICertification, ITutor } from "../types/types/tutor";
 import cloudinary from "../config/cloudinary";
 import userService from "./user.service";
-import { Level, Subject, TimeSlot } from "../types/enums";
+import { ClassType, Level, Subject, TimeSlot } from "../types/enums";
 
 export class TutorService {
     // Get all tutors (approved and unapproved)
@@ -60,6 +60,197 @@ export class TutorService {
         return await Tutor.findOne({ userId: new Types.ObjectId(userId) })
             .populate('userId', 'name email avatarUrl phone gender address')
             .lean();
+    }
+
+    async searchTutors(
+        keyword: string,
+        filters: {
+            subjects?: string[];
+            levels?: string[];
+            city?: string;
+            minRate?: number;
+            maxRate?: number;
+            minExperience?: number;
+            maxExperience?: number;
+            classType?: ClassType[];
+            availability?: {
+                dayOfWeek?: number[];
+                slots?: TimeSlot[];
+            };
+            minRating?: number;
+            maxRating?: number;
+        },
+        page: number = 1,
+        limit: number = 6
+    ): Promise<{ data: ITutor[]; pagination: any }> {
+        const query: FilterQuery<ITutor> = { isApproved: true };
+        const skip = (page - 1) * limit;
+
+        // Keyword search
+        if (keyword && keyword.trim() !== "") {
+            query.$or = [
+                { bio: { $regex: keyword, $options: "i" } },
+                { "certifications.name": { $regex: keyword, $options: "i" } },
+                { "certifications.description": { $regex: keyword, $options: "i" } },
+            ];
+        }
+
+        // Subjects
+        if (filters?.subjects?.length) {
+            query.subjects = { $in: filters.subjects };
+        }
+
+        // Levels
+        if (filters?.levels?.length) {
+            query.levels = { $in: filters.levels };
+        }
+
+        // ClassType
+        if (filters?.classType?.length) {
+            query.classType = { $in: filters.classType };
+        }
+
+        // Experience years
+        if (filters?.minExperience !== undefined || filters?.maxExperience !== undefined) {
+            query.experienceYears = {};
+            if (filters.minExperience !== undefined) query.experienceYears.$gte = filters.minExperience;
+            if (filters.maxExperience !== undefined) query.experienceYears.$lte = filters.maxExperience;
+        }
+
+        // Hourly rate
+        if (filters?.minRate !== undefined || filters?.maxRate !== undefined) {
+            query.hourlyRate = {};
+            if (filters.minRate !== undefined) query.hourlyRate.$gte = filters.minRate;
+            if (filters.maxRate !== undefined) query.hourlyRate.$lte = filters.maxRate;
+        }
+
+        // Availability
+        if (filters?.availability) {
+            const elemMatch: any = {};
+
+            // Filter by dayOfWeek if provided
+            if (filters.availability.dayOfWeek?.length) {
+                elemMatch.dayOfWeek = { $in: filters.availability.dayOfWeek };
+            }
+
+            // Filter by slots if provided
+            if (filters.availability.slots?.length) {
+                elemMatch.slots = { $in: filters.availability.slots };
+            }
+
+            // Only include tutors who have at least one slot if no specific slots filter
+            if (!filters.availability.slots?.length) {
+                elemMatch.slots = { $exists: true, $ne: [] };
+            }
+
+            if (Object.keys(elemMatch).length > 0) {
+                query.availability = { $elemMatch: elemMatch };
+            }
+        }
+
+        //  Rating
+        if (filters?.minRating !== undefined || filters?.maxRating !== undefined) {
+            query["rating.average"] = {};
+            if (filters.minRating !== undefined) query["rating.average"].$gte = filters.minRating;
+            if (filters.maxRating !== undefined) query["rating.average"].$lte = filters.maxRating;
+        }
+
+        // Use aggregation ONLY for city filter
+        if (filters?.city) {
+            const pipeline: any[] = [
+                { $match: query },
+                {
+                    $lookup: {
+                        from: "users", // collection name in MongoDB
+                        localField: "userId",
+                        foreignField: "_id",
+                        as: "userId",
+                    },
+                },
+                { $unwind: "$userId" },
+                {
+                    $match: {
+                        "userId.address.city": { $regex: filters.city, $options: "i" },
+                    },
+                },
+                { $sort: { createdAt: -1 } },
+                { $skip: skip },
+                { $limit: limit },
+                {
+                    $project: {
+                        _id: 1,
+                        bio: 1,
+                        subjects: 1,
+                        levels: 1,
+                        classType: 1,
+                        experienceYears: 1,
+                        hourlyRate: 1,
+                        rating: 1,
+                        availability: 1,
+                        "userId._id": 1,
+                        "userId.name": 1,
+                        "userId.gender": 1,
+                        "userId.address.city": 1,
+                    },
+                },
+            ];
+
+            const tutors = await Tutor.aggregate(pipeline);
+
+            const totalPipeline = [
+                { $match: query },
+                {
+                    $lookup: {
+                        from: "users",
+                        localField: "userId",
+                        foreignField: "_id",
+                        as: "userId",
+                    },
+                },
+                { $unwind: "$userId" },
+                {
+                    $match: {
+                        "userId.address.city": { $regex: filters.city, $options: "i" },
+                    },
+                },
+                { $count: "total" },
+            ];
+
+            const totalResult = await Tutor.aggregate(totalPipeline);
+            const total = totalResult.length > 0 ? totalResult[0].total : 0;
+
+            return {
+                data: tutors,
+                pagination: {
+                    total,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(total / limit),
+                },
+            };
+        }
+
+        const tutors = await Tutor.find(query)
+            .populate({
+                path: "userId",
+                select: "name gender address.city",
+            })
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .lean();
+
+        const total = await Tutor.countDocuments(query);
+
+        return {
+            data: tutors.filter(t => t.userId !== null),
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit),
+            },
+        };
     }
 
     async createTutorProfile(
