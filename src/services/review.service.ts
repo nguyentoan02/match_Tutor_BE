@@ -86,20 +86,6 @@ export class ReviewService {
         });
 
         await review.save();
-        // Update tutor ratings
-        await Tutor.findOneAndUpdate(
-            { userId: tutorId }, // tutor is linked via userId
-            {
-                $inc: { "ratings.totalReviews": 1 },
-                $set: {
-                    "ratings.average": await Review.aggregate([
-                        { $match: { revieweeId: tutorId } },
-                        { $group: { _id: null, avg: { $avg: "$rating" } } }
-                    ]).then(res => (res.length > 0 ? res[0].avg : 0))
-                }
-            }
-        );
-        // Populate the review with user details
         const populatedReview = await Review.findById(review._id)
             .populate("reviewerId", "name avatarUrl")
             .populate("revieweeId", "name avatarUrl")
@@ -187,29 +173,6 @@ export class ReviewService {
         }
 
         await review.save();
-
-        const tutorId = review.revieweeId;
-
-        // Recalculate ratings for this tutor
-        const stats = await Review.aggregate([
-            { $match: { revieweeId: tutorId, isVisible: true } },
-            {
-                $group: {
-                    _id: "$revieweeId",
-                    average: { $avg: "$rating" },
-                    totalReviews: { $sum: 1 },
-                },
-            },
-        ]);
-
-        if (stats.length > 0) {
-            await Tutor.findByIdAndUpdate(tutorId, {
-                $set: {
-                    "ratings.average": stats[0].average,
-                    "ratings.totalReviews": stats[0].totalReviews,
-                },
-            });
-        }
 
         const updatedReview = await Review.findById(review._id)
             .populate("reviewerId", "name avatarUrl")
