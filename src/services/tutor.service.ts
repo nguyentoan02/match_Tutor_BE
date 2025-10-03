@@ -1,5 +1,6 @@
 import { FilterQuery, Types } from "mongoose";
 import Tutor from "../models/tutor.model";
+import User from "../models/user.model";
 import { CreateTutorInput, UpdateTutorInput } from "../schemas/tutor.schema";
 import { NotFoundError } from "../utils/error.response";
 import { ICertification, ITutor } from "../types/types/tutor";
@@ -65,10 +66,9 @@ export class TutorService {
     async searchTutors(
         keyword: string,
         filters: {
-            name?: string;
             subjects?: string[];
             levels?: string[];
-            city?: string;
+            cities?: string[];
             minRate?: number;
             maxRate?: number;
             minExperience?: number;
@@ -89,16 +89,16 @@ export class TutorService {
 
         // Keyword search
         if (keyword && keyword.trim() !== "") {
-            query.$or = [
-                { bio: { $regex: keyword, $options: "i" } },
-                { "certifications.name": { $regex: keyword, $options: "i" } },
-                { "certifications.description": { $regex: keyword, $options: "i" } },
-            ];
-        }
+            const matchingUsers = await User.find({
+                name: { $regex: keyword, $options: "i" }
+            }).select('_id');
 
-        // Name
-        if (filters?.name) {
-            query.name = { $regex: filters.name, $options: "i" };
+            const matchingUserIds = matchingUsers.map(user => user._id);
+
+            query.$or = [
+                { userId: { $in: matchingUserIds } },
+                { bio: { $regex: keyword, $options: "i" } },
+            ];
         }
 
         // Subjects
@@ -154,31 +154,33 @@ export class TutorService {
             }
         }
 
-        //  Rating
+        //  Ratings
         if (filters?.minRating !== undefined || filters?.maxRating !== undefined) {
-            query["rating.average"] = {};
-            if (filters.minRating !== undefined) query["rating.average"].$gte = filters.minRating;
-            if (filters.maxRating !== undefined) query["rating.average"].$lte = filters.maxRating;
+            query["ratings.average"] = {};
+            if (filters.minRating !== undefined) query["ratings.average"].$gte = filters.minRating;
+            if (filters.maxRating !== undefined) query["ratings.average"].$lte = filters.maxRating;
         }
 
-        // Use aggregation ONLY for city filter
-        if (filters?.city) {
+        // Use aggregation for city or cities filter
+        if (filters?.cities?.length) {
+            const cityMatch: any = {};
+
+            if (filters.cities?.length) {
+                cityMatch["userId.address.city"] = { $in: filters.cities };
+            }
+
             const pipeline: any[] = [
                 { $match: query },
                 {
                     $lookup: {
-                        from: "users", // collection name in MongoDB
+                        from: "users",
                         localField: "userId",
                         foreignField: "_id",
                         as: "userId",
                     },
                 },
                 { $unwind: "$userId" },
-                {
-                    $match: {
-                        "userId.address.city": { $regex: filters.city, $options: "i" },
-                    },
-                },
+                { $match: cityMatch },
                 { $sort: { createdAt: -1 } },
                 { $skip: skip },
                 { $limit: limit },
@@ -214,11 +216,7 @@ export class TutorService {
                     },
                 },
                 { $unwind: "$userId" },
-                {
-                    $match: {
-                        "userId.address.city": { $regex: filters.city, $options: "i" },
-                    },
-                },
+                { $match: cityMatch },
                 { $count: "total" },
             ];
 
