@@ -67,5 +67,33 @@ export const updateSessionSchema = z.object({
       ),
 });
 
+export const confirmParticipationSchema = z.object({
+   params: z.object({
+      sessionId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid session ID"),
+   }),
+   body: z.object({
+      decision: z.enum(["ACCEPTED", "REJECTED"]),
+   }),
+});
+
+export const confirmAttendanceSchema = z.object({
+   params: z.object({
+      sessionId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid session ID"),
+   }),
+});
+
+export const cancelSessionSchema = z.object({
+   params: z.object({
+      sessionId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid session ID"),
+   }),
+   body: z.object({
+      reason: z
+         .string()
+         .trim()
+         .min(10, "Reason must be at least 10 characters")
+         .max(500, "Reason must not exceed 500 characters"),
+   }),
+});
+
 export type CreateSessionBody = z.infer<typeof createSessionSchema>["body"];
 export type UpdateSessionBody = z.infer<typeof updateSessionSchema>["body"];
