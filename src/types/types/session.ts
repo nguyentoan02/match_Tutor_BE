@@ -8,6 +8,25 @@ export interface IReminder {
    methods?: ReminderMethodEnum[];
 }
 
+export interface IStudentConfirmation {
+   status: "PENDING" | "ACCEPTED" | "REJECTED";
+   confirmedAt?: Date;
+}
+
+export interface IAttendanceConfirmation {
+   tutorConfirmed: boolean;
+   studentConfirmed: boolean;
+   tutorConfirmedAt?: Date;
+   studentConfirmedAt?: Date;
+   isAttended: boolean;
+}
+
+export interface ICancellationInfo {
+   cancelledBy: Types.ObjectId;
+   reason: string;
+   cancelledAt: Date;
+}
+
 export interface ISession extends Document {
    teachingRequestId: Types.ObjectId;
    startTime: Date;
@@ -15,6 +34,15 @@ export interface ISession extends Document {
    status?: SessionStatus | string;
    isTrial?: boolean;
    createdBy?: Types.ObjectId;
+
+   // New fields
+   studentConfirmation?: IStudentConfirmation;
+   attendanceConfirmation?: IAttendanceConfirmation;
+   cancellation?: ICancellationInfo;
+   isDeleted?: boolean;
+   deletedAt?: Date;
+   deletedBy?: Types.ObjectId;
+
    materials?: Types.ObjectId[];
    quizIds?: Types.ObjectId[];
    reminders?: IReminder[];

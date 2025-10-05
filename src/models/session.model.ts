@@ -23,6 +23,41 @@ const SessionSchema: Schema<ISession> = new Schema(
       },
       isTrial: { type: Boolean, default: false },
       createdBy: { type: Schema.Types.ObjectId, ref: "User" },
+
+      // Student confirmation for session participation
+      studentConfirmation: {
+         status: {
+            type: String,
+            enum: ["PENDING", "ACCEPTED", "REJECTED"],
+            default: "PENDING",
+         },
+         confirmedAt: { type: Date },
+         _id: false,
+      },
+
+      // Attendance confirmation after session
+      attendanceConfirmation: {
+         tutorConfirmed: { type: Boolean, default: false },
+         studentConfirmed: { type: Boolean, default: false },
+         tutorConfirmedAt: { type: Date },
+         studentConfirmedAt: { type: Date },
+         isAttended: { type: Boolean, default: false }, // true only if both confirmed
+         _id: false,
+      },
+
+      // Cancellation info
+      cancellation: {
+         cancelledBy: { type: Schema.Types.ObjectId, ref: "User" },
+         reason: { type: String },
+         cancelledAt: { type: Date },
+         _id: false,
+      },
+
+      // Soft delete
+      isDeleted: { type: Boolean, default: false },
+      deletedAt: { type: Date },
+      deletedBy: { type: Schema.Types.ObjectId, ref: "User" },
+
       materials: [{ type: Schema.Types.ObjectId, ref: "Material" }],
       quizIds: [{ type: Schema.Types.ObjectId, ref: "Quiz" }],
       reminders: [

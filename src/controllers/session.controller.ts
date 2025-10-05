@@ -7,12 +7,22 @@ import { IUser } from "../types/types/user";
 class SessionController {
    async create(req: Request, res: Response, next: NextFunction) {
       try {
-         if (!req.user) throw new UnauthorizedError("Authentication required");
-         const currentUser = req.user as IUser;
-         const result = await sessionService.create(req.body, currentUser);
+         if (!req.user?._id) {
+            throw new UnauthorizedError("Authentication required");
+         }
+
+         const result = await sessionService.create(req.body, req.user);
+
          new CREATED({
-            message: "Session created successfully",
-            metadata: result,
+            message: "Session created successfully by tutor",
+            metadata: {
+               ...result.toObject(),
+               createdByInfo: {
+                  userId: req.user._id,
+                  role: req.user.role,
+                  name: req.user.name,
+               },
+            },
          }).send(res);
       } catch (err) {
          next(err);
@@ -21,14 +31,17 @@ class SessionController {
 
    async getById(req: Request, res: Response, next: NextFunction) {
       try {
-         if (!req.user) throw new UnauthorizedError("Authentication required");
-         const currentUser = req.user as IUser;
+         if (!req.user?._id) {
+            throw new UnauthorizedError("Authentication required");
+         }
+
          const result = await sessionService.getById(
             req.params.id,
-            currentUser._id as string
+            req.user._id.toString()
          );
+
          new OK({
-            message: "Session fetched successfully",
+            message: "Session retrieved successfully",
             metadata: result,
          }).send(res);
       } catch (err) {
@@ -101,6 +114,132 @@ class SessionController {
             (currentUser._id as string).toString()
          );
          res.status(204).send();
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   // Student confirms participation
+   async confirmParticipation(req: Request, res: Response, next: NextFunction) {
+      try {
+         if (!req.user?._id) {
+            throw new UnauthorizedError("Authentication required");
+         }
+
+         const { decision } = req.body; // "ACCEPTED" | "REJECTED"
+         const result = await sessionService.confirmParticipation(
+            req.params.sessionId,
+            req.user._id.toString(),
+            decision
+         );
+
+         new OK({
+            message: `Session participation ${decision.toLowerCase()}`,
+            metadata: result,
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   // Cancel a session
+   async cancel(req: Request, res: Response, next: NextFunction) {
+      try {
+         if (!req.user?._id) {
+            throw new UnauthorizedError("Authentication required");
+         }
+         const { reason } = req.body;
+         const result = await sessionService.cancel(
+            req.params.sessionId,
+            req.user._id.toString(),
+            reason
+         );
+         new OK({
+            message: "Session cancelled successfully",
+            metadata: result,
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   // Confirm attendance after session
+   async confirmAttendance(req: Request, res: Response, next: NextFunction) {
+      try {
+         if (!req.user?._id || !req.user.role) {
+            throw new UnauthorizedError("Authentication required");
+         }
+
+         const result = await sessionService.confirmAttendance(
+            req.params.sessionId,
+            req.user._id.toString(),
+            req.user.role
+         );
+
+         new OK({
+            message: "Attendance confirmed successfully",
+            metadata: result,
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   // GET /api/sessions/deleted/:id
+   async getDeletedRejectedById(
+      req: Request,
+      res: Response,
+      next: NextFunction
+   ) {
+      try {
+         if (!req.user?._id)
+            throw new UnauthorizedError("Authentication required");
+
+         const result = await sessionService.getDeletedRejectedSessionById(
+            req.params.id,
+            req.user._id.toString()
+         );
+
+         new OK({
+            message: "Deleted rejected session retrieved successfully",
+            metadata: result,
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   // GET /api/sessions/me/deleted
+   async listDeletedForUser(req: Request, res: Response, next: NextFunction) {
+      try {
+         if (!req.user?._id)
+            throw new UnauthorizedError("Authentication required");
+         const currentUser = req.user as IUser;
+         const result = await sessionService.listDeletedRejectedForUser(
+            (currentUser._id as string).toString()
+         );
+         new OK({
+            message: "Deleted rejected sessions for user fetched successfully",
+            metadata: result,
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   // NEW: GET /api/sessions/me/cancelled
+   async listCancelledForUser(req: Request, res: Response, next: NextFunction) {
+      try {
+         if (!req.user?._id)
+            throw new UnauthorizedError("Authentication required");
+         const currentUser = req.user as IUser;
+         const result = await sessionService.listCancelledForUser(
+            (currentUser._id as string).toString()
+         );
+         new OK({
+            message: "Cancelled sessions for user fetched successfully",
+            metadata: result,
+         }).send(res);
       } catch (err) {
          next(err);
       }
