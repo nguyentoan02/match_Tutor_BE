@@ -1,6 +1,10 @@
 import { Router } from "express";
-import adminController from "../controllers/admin.controller";
+import { authenticate, isRole } from "../middlewares/auth.middleware";
+import { Role } from "../types/enums/role.enum";
 import { validate } from "../middlewares/validation.middleware";
+import adminBanController from "../controllers/admin.ban.controller";
+import adminUserController from "../controllers/admin.user.controller";
+import adminTutorController from "../controllers/admin.tutor.controller";
 import { 
    banUserSchema, 
    unbanUserSchema, 
@@ -14,8 +18,6 @@ import {
    rejectTutorSchema,
    getPendingTutorsSchema
 } from "../schemas/admin.schema";
-import { authenticate, isRole } from "../middlewares/auth.middleware";
-import { Role } from "../types/enums/role.enum";
 
 const router = Router();
 
@@ -23,104 +25,24 @@ const router = Router();
 router.use(authenticate);
 router.use(isRole(Role.ADMIN));
 
-// User management routes
-// Ban a user
-router.post(
-   "/user/:id/ban",
-   validate(banUserSchema),
-   adminController.banUser
-);
+// ========== BAN MANAGEMENT ==========
+router.post("/user/:id/ban", validate(banUserSchema), adminBanController.banUser);
+router.post("/user/:id/unban", validate(unbanUserSchema), adminBanController.unbanUser);
+router.get("/user/banned", validate(getBannedUsersSchema), adminBanController.getBannedUsers);
+router.get("/user/:id/ban-history", validate(getUserBanHistorySchema), adminBanController.getUserBanHistory);
 
-// Unban a user
-router.post(
-   "/user/:id/unban",
-   validate(unbanUserSchema),
-   adminController.unbanUser
-);
+// ========== USER MANAGEMENT ==========
+router.get("/users", adminUserController.getAllUsers);
+router.get("/tutors/banned", validate(getBannedTutorsSchema), adminUserController.getBannedTutors);
+router.get("/tutors/active", validate(getActiveTutorsSchema), adminUserController.getActiveTutors);
+router.get("/students/banned", validate(getBannedStudentsSchema), adminUserController.getBannedStudents);
+router.get("/students/active", validate(getActiveStudentsSchema), adminUserController.getActiveStudents);
 
-// Get banned users list
-router.get(
-   "/user/banned",
-   validate(getBannedUsersSchema),
-   adminController.getBannedUsers
-);
-
-// Get user ban history
-router.get(
-   "/user/:id/ban-history",
-   validate(getUserBanHistorySchema),
-   adminController.getUserBanHistory
-);
-
-// Get all users with pagination and search
-router.get(
-   "/users",
-   adminController.getAllUsers
-);
-
-// Get banned tutors
-router.get(
-   "/tutors/banned",
-   validate(getBannedTutorsSchema),
-   adminController.getBannedTutors
-);
-
-// Get active tutors
-router.get(
-   "/tutors/active",
-   validate(getActiveTutorsSchema),
-   adminController.getActiveTutors
-);
-
-// Get banned students
-router.get(
-   "/students/banned",
-   validate(getBannedStudentsSchema),
-   adminController.getBannedStudents
-);
-
-// Get active students
-router.get(
-   "/students/active",
-   validate(getActiveStudentsSchema),
-   adminController.getActiveStudents
-);
-
-// Tutor profile management routes
-// Accept tutor profile
-router.post(
-   "/tutor/:id/accept",
-   validate(acceptTutorSchema),
-   adminController.acceptTutor
-);
-
-// Reject tutor profile
-router.post(
-   "/tutor/:id/reject",
-   validate(rejectTutorSchema),
-   adminController.rejectTutor
-);
-
-// Get pending tutors
-router.get(
-   "/tutors/pending",
-   validate(getPendingTutorsSchema),
-   adminController.getPendingTutors
-);
-
-// Get tutor profile by ID
-router.get(
-   "/tutor/:id",
-   adminController.getTutorProfile
-);
-
-
-// Get tutors with userId and tutorId mapping
-router.get(
-   "/tutors/mapping",
-   adminController.getTutorsWithMapping
-);
+// ========== TUTOR MANAGEMENT ==========
+router.post("/tutor/:id/accept", validate(acceptTutorSchema), adminTutorController.acceptTutor);
+router.post("/tutor/:id/reject", validate(rejectTutorSchema), adminTutorController.rejectTutor);
+router.get("/tutors/pending", validate(getPendingTutorsSchema), adminTutorController.getPendingTutors);
+router.get("/tutor/:id", adminTutorController.getTutorProfile);
+router.get("/tutors/mapping", adminTutorController.getTutorsWithMapping);
 
 export default router;
-
-export const description = "admin user management and ban/unban functionality";

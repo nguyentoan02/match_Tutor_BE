@@ -40,6 +40,9 @@ export interface ITutor extends Document {
    // classType indicates teaching mode shown in UI (online / in_person)
    classType?: ClassType[] | string[];
    isApproved?: boolean;
+   approvedAt?: Date; // Thời điểm được duyệt
+   rejectedReason?: string; // Lý do từ chối
+   rejectedAt?: Date; // Thời điểm bị từ chối
    ratings?: IRating;
    createdAt?: Date;
    updatedAt?: Date;
