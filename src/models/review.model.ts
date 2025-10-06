@@ -1,7 +1,38 @@
-import mongoose, { Schema } from "mongoose";
+import mongoose, { Schema, Types } from "mongoose";
 import { IReview } from "../types/types/review";
 import { getVietnamTime } from "../utils/date.util";
 import { REVIEW_TYPE_VALUES, ReviewTypeEnum } from "../types/enums/review.enum";
+import Tutor from "./tutor.model";
+// Utility to recalc tutor ratings
+async function recalcTutorRatings(tutorId: Types.ObjectId) {
+   const stats = await mongoose.model<IReview>("Review").aggregate([
+      { $match: { revieweeId: tutorId, isVisible: true } },
+      { $group: { _id: "$revieweeId", average: { $avg: "$rating" }, totalReviews: { $sum: 1 } } },
+   ]);
+
+   if (stats.length > 0) {
+      const updatedTutor = await Tutor.findOneAndUpdate(
+         { userId: tutorId },
+         {
+            "ratings.average": stats[0].average,
+            "ratings.totalReviews": stats[0].totalReviews,
+         },
+         { new: true }
+      );
+      // console.log("Updated Tutor:", updatedTutor);
+   } else {
+      // Reset if no reviews
+      const updatedTutor = await Tutor.findOneAndUpdate(
+         { userId: tutorId },
+         {
+            "ratings.average": 0,
+            "ratings.totalReviews": 0,
+         },
+         { new: true }
+      );
+      // console.log("Reset Tutor ratings:", updatedTutor);
+   }
+}
 
 const ReviewSchema: Schema<IReview> = new Schema(
    {
@@ -45,5 +76,18 @@ ReviewSchema.index({ teachingRequestId: 1 });
 // ReviewSchema.index({ sessionId: 1 }); // commented out — chỉ dùng cho SESSION reviews
 ReviewSchema.index({ reviewerId: 1, revieweeId: 1 });
 ReviewSchema.index({ revieweeId: 1 }); // Thêm index này để truy vấn review của một người nhanh hơn
+
+// Middleware để tự động tính lại điểm trung bình và tổng số review của gia sư sau khi thêm/sửa/xóa review
+ReviewSchema.post("save", async function (doc) {
+   await recalcTutorRatings(doc.revieweeId);
+});
+
+ReviewSchema.post("findOneAndUpdate", async function (doc) {
+   if (doc) await recalcTutorRatings(doc.revieweeId);
+});
+
+ReviewSchema.post("findOneAndDelete", async function (doc) {
+   if (doc) await recalcTutorRatings(doc.revieweeId);
+});
 
 export default mongoose.model<IReview>("Review", ReviewSchema);
