@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { BadRequestError, UnauthorizedError } from "../utils/error.response";
 import {
+   CreateMultipleChoiceQuizBody,
    CreateQuizBody,
    DeleteQuizBody,
    EditQuizBody,
@@ -98,6 +99,14 @@ class QuizController {
          currentUser._id.toString()
       );
       new OK({ message: "delete success" }).send(res);
+   }
+
+   async CreateMultipleChoiceQuiz(req: Request, res: Response) {
+      const currentUser = req.user;
+      if (!currentUser || !currentUser._id) {
+         throw new UnauthorizedError("Not authenticated");
+      }
+      const createQuiz: CreateMultipleChoiceQuizBody = req.body;
    }
 }
 

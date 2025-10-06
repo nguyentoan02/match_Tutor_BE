@@ -19,3 +19,16 @@ export interface IQuiz extends Document {
    updatedAt?: Date;
    quizQuestions?: Types.ObjectId[];
 }
+
+export interface IQuizInfo {
+   _id?: string;
+   title: string;
+   description: string;
+   quizMode?: QuizModeEnum;
+   settings?: QuizSettings;
+   createdBy: Types.ObjectId;
+   tags: string[];
+   totalQuestions?: number;
+   createdAt?: Date;
+   updatedAt?: Date;
+}

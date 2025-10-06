@@ -1,12 +1,14 @@
-import mongoose, { ClientSession } from "mongoose";
+import mongoose, { ClientSession, Types } from "mongoose";
 import quizModel from "../models/quiz.model";
 import quizQuestionModel from "../models/quizQuestion.model";
 import {
+   CreateMultipleChoiceQuizBody,
    DeleteFlashCardQuestion,
    EditFlashCardQuestion,
    FlashCardQuestionType,
+   MultipleChoiceQuestionType,
 } from "../schemas/quiz.schema";
-import { IQuiz } from "../types/types/quiz";
+import { IQuiz, IQuizInfo } from "../types/types/quiz";
 import {
    BadRequestError,
    InternalServerError,
@@ -236,9 +238,9 @@ class QuizService {
          const payload = (newQuestionArr || []).map((q) => ({ quizId, ...q }));
          let createdQuestions: IQuizQuestion[] = [];
          if (payload.length) {
-            createdQuestions = await quizQuestionModel.insertMany(payload, {
+            createdQuestions = (await quizQuestionModel.insertMany(payload, {
                session: s,
-            });
+            })) as unknown as IQuizQuestion[];
          }
 
          const finalQuestions = await quizQuestionModel
@@ -348,6 +350,64 @@ class QuizService {
       } catch (error) {
          await session.abortTransaction();
          throw new InternalServerError("can not delete this quiz");
+      } finally {
+         session.endSession();
+      }
+   }
+
+   async createMultipleChoiceQuiz(
+      tutorId: string,
+      quizAtr: IQuizInfo,
+      questionArr: MultipleChoiceQuestionType[]
+   ): Promise<IQuiz> {
+      const session = await mongoose.startSession();
+      try {
+         session.startTransaction();
+         const createdQuiz = await quizModel.create(
+            {
+               ...quizAtr,
+               createdBy: tutorId,
+            },
+            { session },
+            { new: true }
+         );
+         const quizDoc = createdQuiz;
+
+         if (!quizDoc) {
+            throw new Error("Failed to create quiz");
+         }
+         const questionPayload = questionArr.map((q) => ({
+            quizId: quizDoc._id,
+            ...q,
+         }));
+
+         for (let q of questionPayload) {
+            if (q.options && !q.options.includes(q.correctAnswer)) {
+               throw new BadRequestError(
+                  "correct answer must be one of the options"
+               );
+            }
+         }
+
+         const insertedQuestions = await quizQuestionModel.insertMany(
+            questionPayload,
+            { session }
+         );
+
+         quizDoc.totalQuestions = insertedQuestions.length;
+
+         await quizDoc.save({ session });
+         await session.commitTransaction();
+         session.endSession();
+         return {
+            ...quizDoc,
+            quizQuestions: insertedQuestions,
+         } as unknown as IQuiz;
+      } catch (error) {
+         await session.abortTransaction();
+         throw new InternalServerError(
+            "can not create multiple choice quiz and quiz questions"
+         );
       } finally {
          session.endSession();
       }

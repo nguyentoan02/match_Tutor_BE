@@ -3,6 +3,7 @@ import { authenticate } from "../middlewares/auth.middleware";
 import quizController from "../controllers/quiz.controller";
 import { validate } from "../middlewares/validation.middleware";
 import {
+   createMultipleChoiceQuizBodySchema,
    createQuizBodySchema,
    deleteQuizBodySchema,
    editQuizBodySchema,
@@ -45,6 +46,13 @@ router.delete(
    authenticate,
    validate(deleteQuizBodySchema),
    quizController.DeleteQuizByTutor
+);
+
+router.post(
+   "/createMultipleChoiceQuiz",
+   authenticate,
+   validate(createMultipleChoiceQuizBodySchema),
+   quizController.CreateMultipleChoiceQuiz
 );
 
 export default router;
