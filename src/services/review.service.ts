@@ -55,7 +55,7 @@ export class ReviewService {
 
         // Verify the reviewer is the student of this teaching request
         if (tr.studentId.userId._id.toString() !== reviewerId) {
-            throw new ForbiddenError("Only the student can review this teaching request");
+            throw new ForbiddenError("Only the student that completed this teaching request can review it");
         }
 
         if (!tr.tutorId?.userId) {
@@ -112,40 +112,6 @@ export class ReviewService {
     }
 
     /**
-     * Get reviews by teaching request
-     */
-    async getReviewsByTeachingRequest(teachingRequestId: string): Promise<IReview[]> {
-        const reviews = await Review.find({
-            teachingRequestId: new Types.ObjectId(teachingRequestId),
-            isVisible: true,
-        })
-            .populate("reviewerId", "name avatarUrl")
-            .sort({ createdAt: -1 })
-            .lean();
-
-        return reviews as IReview[];
-    }
-
-    /**
-     * Get student's review for a specific teaching request
-     */
-    async getStudentReviewForTeachingRequest(
-        teachingRequestId: string,
-        studentId: string
-    ): Promise<IReview | null> {
-        const review = await Review.findOne({
-            teachingRequestId: new Types.ObjectId(teachingRequestId),
-            reviewerId: new Types.ObjectId(studentId),
-        })
-            .populate("reviewerId", "name avatarUrl")
-            .populate("revieweeId", "name avatarUrl")
-            .populate("teachingRequestId", "subject level")
-            .lean();
-
-        return review as IReview | null;
-    }
-
-    /**
      * Update a review
      */
     async updateReview(
@@ -186,21 +152,21 @@ export class ReviewService {
     /**
      * Delete a review (soft delete by setting isVisible to false)
      */
-    async deleteReview(reviewId: string, reviewerId: string): Promise<void> {
-        const review = await Review.findById(reviewId);
+    // async deleteReview(reviewId: string, reviewerId: string): Promise<void> {
+    //     const review = await Review.findById(reviewId);
 
-        if (!review) {
-            throw new NotFoundError("Review not found");
-        }
+    //     if (!review) {
+    //         throw new NotFoundError("Review not found");
+    //     }
 
-        // Verify the user owns this review
-        if (review.reviewerId.toString() !== reviewerId) {
-            throw new ForbiddenError("You can only delete your own reviews");
-        }
+    //     // Verify the user owns this review
+    //     if (review.reviewerId.toString() !== reviewerId) {
+    //         throw new ForbiddenError("You can only delete your own reviews");
+    //     }
 
-        review.isVisible = false;
-        await review.save();
-    }
+    //     review.isVisible = false;
+    //     await review.save();
+    // }
 
     /**
      * Get tutor's average rating and review count
@@ -249,6 +215,25 @@ export class ReviewService {
         };
     }
 
+    /**
+     * Get all reviews written by a student (for sidebar)
+     */
+    async getStudentReviewHistory(studentUserId: string): Promise<IReview[]> {
+        const reviews = await Review.find({
+            reviewerId: new Types.ObjectId(studentUserId),
+            isVisible: true,
+        })
+            .populate("revieweeId", "name avatarUrl") // Tutor info
+            .populate("teachingRequestId", "subject level status")
+            .sort({ createdAt: -1 })
+            .lean();
+
+        return reviews as IReview[];
+    }
+
+
 }
+
+
 
 export default new ReviewService();

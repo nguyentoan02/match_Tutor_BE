@@ -25,18 +25,6 @@ router.get(
     reviewController.getTutorReviews
 );
 
-// Get reviews by teaching request
-router.get(
-    "/teaching-request/:teachingRequestId",
-    reviewController.getReviewsByTeachingRequest
-);
-
-// Get student's review for a teaching request
-router.get(
-    "/teaching-request/:teachingRequestId/student",
-    reviewController.getStudentReviewForTeachingRequest
-);
-
 // Update a review
 router.put(
     "/:reviewId",
@@ -45,15 +33,23 @@ router.put(
 );
 
 // Delete a review
-router.delete(
-    "/:reviewId",
-    reviewController.deleteReview
-);
+// router.delete(
+//     "/:reviewId",
+//     reviewController.deleteReview
+// );
 
 // Get tutor rating statistics
 router.get(
     "/tutor/:tutorId/stats",
     reviewController.getTutorRatingStats
 );
+
+// Get all reviews written by current student
+router.get(
+    "/student/history",
+    reviewController.getStudentReviewHistory
+);
+
+
 
 export default router;
