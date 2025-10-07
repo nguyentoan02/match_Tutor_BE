@@ -55,4 +55,11 @@ router.post(
    quizController.CreateMultipleChoiceQuiz
 );
 
+router.get(
+   "/getMultipleChoiceQuizByQuizId",
+   // authenticate,
+   validate(quizQuerySchema),
+   quizController.GetMultipleChoiceQuizByQuizId
+);
+
 export default router;

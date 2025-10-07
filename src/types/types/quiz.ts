@@ -26,8 +26,8 @@ export interface IQuizInfo {
    description: string;
    quizMode?: QuizModeEnum;
    settings?: QuizSettings;
-   createdBy: Types.ObjectId;
-   tags: string[];
+   createdBy?: Types.ObjectId;
+   tags?: string[];
    totalQuestions?: number;
    createdAt?: Date;
    updatedAt?: Date;

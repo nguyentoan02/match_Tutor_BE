@@ -4,9 +4,8 @@ import {
    CreateMultipleChoiceQuizBody,
    CreateQuizBody,
    DeleteQuizBody,
+   editMultipleChoiceQuizBody,
    EditQuizBody,
-   quizQuery,
-   quizTutorIdQuery,
 } from "../schemas/quiz.schema";
 import quizService from "../services/quiz.service";
 import { OK } from "../utils/success.response";
@@ -71,7 +70,7 @@ class QuizController {
          throw new UnauthorizedError("Not authenticated");
       }
       const editQuizArt: EditQuizBody = req.body;
-      const editedQuiz = await quizService.editQuizCombined(
+      const editedQuiz = await quizService.editFlashcardQuizCombined(
          currentUser._id.toString(),
          {
             _id: editQuizArt._id,
@@ -107,6 +106,54 @@ class QuizController {
          throw new UnauthorizedError("Not authenticated");
       }
       const createQuiz: CreateMultipleChoiceQuizBody = req.body;
+      const createdQuiz = await quizService.createMultipleChoiceQuiz(
+         currentUser._id.toString(),
+         {
+            title: createQuiz.title,
+            description: createQuiz.description,
+            settings: createQuiz.settings,
+            tags: createQuiz.tags,
+         },
+         createQuiz.questionArr
+      );
+      new OK({ message: "create quiz success", metadata: createdQuiz }).send(
+         res
+      );
+   }
+
+   async GetMultipleChoiceQuizByQuizId(req: Request, res: Response) {
+      const { quizId } = req.query;
+      if (!quizId) throw new BadRequestError("invalid quizId");
+      const quizQuestions = await quizService.getMultipleChoiceQuizByQuizId(
+         quizId.toString()
+      );
+      new OK({
+         message: "get multiple choice quiz by quizId success",
+         metadata: quizQuestions,
+      }).send(res);
+   }
+
+   async editMultipleChoiceQuizByTutor(req: Request, res: Response) {
+      const currentUser = req.user;
+      if (!currentUser || !currentUser._id) {
+         throw new UnauthorizedError("Not authenticated");
+      }
+      const editQuiz: editMultipleChoiceQuizBody = req.body;
+      const editedQuiz = await quizService.editMultipleChoiceQuizCombined(
+         currentUser._id.toString(),
+         {
+            _id: editQuiz._id,
+            title: editQuiz.title,
+            description: editQuiz.description,
+            settings: editQuiz.settings,
+            tags: editQuiz.tags,
+            quizMode: editQuiz.quizMode,
+         },
+         editQuiz.newMultipleChoiceQuizQuestionsArr ?? [],
+         editQuiz.editMultipleChoiceQuizQuestionsArr ?? [],
+         editQuiz.deleteMultipleChoiceQuizQuestionsArr ?? []
+      );
+      new OK({ message: "edit quiz success", metadata: editedQuiz }).send(res);
    }
 }
 

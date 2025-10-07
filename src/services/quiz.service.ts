@@ -4,7 +4,9 @@ import quizQuestionModel from "../models/quizQuestion.model";
 import {
    CreateMultipleChoiceQuizBody,
    DeleteFlashCardQuestion,
+   DeleteMultipleChoiceQuestion,
    EditFlashCardQuestion,
+   EditMultipleChoiceQuestion,
    FlashCardQuestionType,
    MultipleChoiceQuestionType,
 } from "../schemas/quiz.schema";
@@ -16,6 +18,7 @@ import {
 } from "../utils/error.response";
 import { IQuizQuestion, IQuizQuestionInfo } from "../types/types/quizQuestion";
 import sessionModel from "../models/session.model";
+import { QuestionTypeEnum } from "../types/enums";
 
 class QuizService {
    async createQuiz(
@@ -92,7 +95,7 @@ class QuizService {
       return payload;
    }
 
-   private async editQuiz(
+   private async editFlashcardQuiz(
       tutorId: string,
       quizAtr: Record<string, any>,
       session?: ClientSession
@@ -136,7 +139,7 @@ class QuizService {
       }
    }
 
-   private async updateQuizQuestions(
+   private async updateQuizFlashcardQuestions(
       tutorId: string,
       quizId: string,
       editQuestionArr: EditFlashCardQuestion[] = [],
@@ -166,8 +169,6 @@ class QuizService {
          const finalQuestions = await quizQuestionModel
             .find({ quizId })
             .session(s);
-         quizDoc.totalQuestions = finalQuestions.length;
-         await quizDoc.save({ session: s });
 
          if (ownSession) await s.commitTransaction();
          return finalQuestions;
@@ -201,12 +202,6 @@ class QuizService {
             { _id: { $in: deleteQuestionArr }, quizId },
             { session: s }
          );
-
-         const finalQuestions = await quizQuestionModel
-            .find({ quizId })
-            .session(s);
-         quizDoc.totalQuestions = finalQuestions.length;
-         await quizDoc.save({ session: s });
 
          if (ownSession) await s.commitTransaction();
       } catch (error) {
@@ -246,8 +241,6 @@ class QuizService {
          const finalQuestions = await quizQuestionModel
             .find({ quizId })
             .session(s);
-         quizDoc.totalQuestions = finalQuestions.length;
-         await quizDoc.save({ session: s });
 
          if (ownSession) await s.commitTransaction();
          return createdQuestions;
@@ -259,7 +252,7 @@ class QuizService {
       }
    }
 
-   async editQuizCombined(
+   async editFlashcardQuizCombined(
       tutorId: string,
       quizAtr: Record<string, any>,
       editQuestionArr: EditFlashCardQuestion[] = [],
@@ -270,11 +263,11 @@ class QuizService {
       try {
          session.startTransaction();
 
-         const quiz = await this.editQuiz(tutorId, quizAtr, session);
+         const quiz = await this.editFlashcardQuiz(tutorId, quizAtr, session);
 
          const quizId = quizAtr._id;
 
-         await this.updateQuizQuestions(
+         await this.updateQuizFlashcardQuestions(
             tutorId,
             quizId,
             editQuestionArr,
@@ -299,11 +292,14 @@ class QuizService {
             .find({ quizId })
             .session(session);
 
+         quiz.totalQuestions = finalQuestions.length;
+         await quiz.save({ session });
+
          await session.commitTransaction();
          return { quiz, quizQuestions: finalQuestions } as unknown as IQuiz;
       } catch (error) {
          await session.abortTransaction();
-         throw error;
+         throw new BadRequestError("can not edit this quiz");
       } finally {
          session.endSession();
       }
@@ -363,21 +359,24 @@ class QuizService {
       const session = await mongoose.startSession();
       try {
          session.startTransaction();
-         const createdQuiz = await quizModel.create(
-            {
-               ...quizAtr,
-               createdBy: tutorId,
-            },
-            { session },
-            { new: true }
+         const createdQuizArr = await quizModel.create(
+            [
+               {
+                  ...quizAtr,
+                  createdBy: tutorId,
+               },
+            ],
+            { session }
          );
-         const quizDoc = createdQuiz;
 
-         if (!quizDoc) {
+         if (!createdQuizArr || !createdQuizArr.length) {
             throw new Error("Failed to create quiz");
          }
+
+         const createdQuiz = createdQuizArr[0];
+
          const questionPayload = questionArr.map((q) => ({
-            quizId: quizDoc._id,
+            quizId: createdQuiz._id,
             ...q,
          }));
 
@@ -394,13 +393,15 @@ class QuizService {
             { session }
          );
 
-         quizDoc.totalQuestions = insertedQuestions.length;
+         createdQuiz.totalQuestions = insertedQuestions.length;
 
-         await quizDoc.save({ session });
+         await createdQuiz.save({ session });
          await session.commitTransaction();
          session.endSession();
          return {
-            ...quizDoc,
+            ...(createdQuiz.toObject
+               ? createdQuiz.toObject()
+               : (createdQuiz as any)),
             quizQuestions: insertedQuestions,
          } as unknown as IQuiz;
       } catch (error) {
@@ -408,6 +409,173 @@ class QuizService {
          throw new InternalServerError(
             "can not create multiple choice quiz and quiz questions"
          );
+      } finally {
+         session.endSession();
+      }
+   }
+
+   async getMultipleChoiceQuizByQuizId(
+      quizId: string
+   ): Promise<IQuizQuestionInfo> {
+      const multipleChoiceQuiz = await quizModel.findById(quizId);
+      if (!multipleChoiceQuiz)
+         throw new NotFoundError("can not found this quiz");
+      const quizQuestions = await quizQuestionModel.find({
+         quizId: quizId,
+         questionType: QuestionTypeEnum.MULTIPLE_CHOICE,
+      });
+      if (quizQuestions.length === 0) {
+         throw new NotFoundError(
+            "this quiz dosen't have any question please add more"
+         );
+      }
+      const payload: IQuizQuestionInfo = {
+         quizInfo: multipleChoiceQuiz,
+         quizQuestions,
+      };
+      return payload;
+   }
+
+   private async addNewMultipleChoiceQuestions(
+      tutorId: string,
+      quizId: string,
+      newQuestions: MultipleChoiceQuestionType[],
+      session?: ClientSession
+   ) {
+      const ownSession = !session;
+      const s = session || (await mongoose.startSession());
+      try {
+         if (ownSession) s.startTransaction();
+         const quizDoc = await quizModel.findOne({
+            _id: quizId,
+            createdBy: tutorId,
+         });
+         if (!quizDoc)
+            throw new NotFoundError("can not found this quiz to add question");
+         for (let q of newQuestions || []) {
+            const qAny: any = q as any;
+            if (qAny.options && !qAny.options.includes(qAny.correctAnswer)) {
+               throw new BadRequestError(
+                  "correct answer must be one of the options"
+               );
+            }
+         }
+         await quizQuestionModel.insertMany(newQuestions, { session: s });
+         if (ownSession) await s.commitTransaction();
+      } catch (error) {
+         if (ownSession) await s.abortTransaction();
+         throw new BadRequestError("can not update this quiz question");
+      } finally {
+         if (ownSession) s.endSession();
+      }
+   }
+
+   private async updateMultipleChoiceQuestions(
+      tutorId: string,
+      quizId: string,
+      editQuestions: EditMultipleChoiceQuestion[],
+      session?: ClientSession
+   ) {
+      const ownSession = !session;
+      const s = session || (await mongoose.startSession());
+      try {
+         if (ownSession) s.startTransaction();
+         const quizDoc = await quizModel.findOne({
+            _id: quizId,
+            createdBy: tutorId,
+         });
+         if (!quizDoc)
+            throw new NotFoundError("can not found this quiz to update");
+
+         for (const q of editQuestions || []) {
+            const qAny: any = q as any;
+            if (qAny.options && !qAny.options.includes(qAny.correctAnswer)) {
+               throw new BadRequestError(
+                  "correct answer must be one of the options"
+               );
+            }
+         }
+         for (const q of editQuestions || []) {
+            const qAny: any = q as any;
+            await quizQuestionModel.findOneAndUpdate(
+               { _id: qAny._id, quizId },
+               { $set: qAny },
+               { new: true, session: s }
+            );
+         }
+         if (ownSession) await s.commitTransaction();
+      } catch (error) {
+         if (ownSession) await s.abortTransaction();
+         throw new BadRequestError("can not update this quiz question");
+      } finally {
+         if (ownSession) s.endSession();
+      }
+   }
+
+   async editMultipleChoiceQuizCombined(
+      tutorId: string,
+      quizArt: IQuizInfo,
+      newMultipleChoiceQuestions: MultipleChoiceQuestionType[],
+      editMultipleChoiceQuestions: EditMultipleChoiceQuestion[],
+      deleteMultipleChoiceQuestions: DeleteMultipleChoiceQuestion[]
+   ) {
+      const session = await mongoose.startSession();
+      try {
+         session.startTransaction();
+         const quiz = await quizModel.findOneAndUpdate(
+            { _id: quizArt._id, createdBy: tutorId },
+            { $set: quizArt },
+            { new: true, session }
+         );
+
+         if (!quiz) {
+            throw new NotFoundError(
+               "can not found this quiz and update this quiz"
+            );
+         }
+         const quizId = quizArt._id;
+
+         if (!quizId) {
+            throw new BadRequestError("quiz id is required");
+         }
+
+         // add new questions
+         if (newMultipleChoiceQuestions.length > 0)
+            await this.addNewMultipleChoiceQuestions(
+               tutorId,
+               quizId.toString(),
+               newMultipleChoiceQuestions,
+               session
+            );
+         // update questions
+         if (editMultipleChoiceQuestions.length > 0)
+            await this.updateMultipleChoiceQuestions(
+               tutorId,
+               quizId.toString(),
+               editMultipleChoiceQuestions,
+               session
+            );
+         // delete questions
+         if (deleteMultipleChoiceQuestions.length > 0)
+            await quizQuestionModel.deleteMany(
+               {
+                  _id: { $in: deleteMultipleChoiceQuestions },
+                  quizId: quizId,
+               },
+               { session }
+            );
+
+         const finalQuestions = await quizQuestionModel
+            .find({ quizId: quizId })
+            .session(session);
+
+         quiz.totalQuestions = finalQuestions.length;
+         await quiz.save({ session });
+         await session.commitTransaction();
+         return { quiz, quizQuestions: finalQuestions } as unknown as IQuiz;
+      } catch (error) {
+         await session.abortTransaction();
+         throw new BadRequestError("can not edit this quiz");
       } finally {
          session.endSession();
       }
