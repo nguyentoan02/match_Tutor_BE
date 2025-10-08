@@ -155,6 +155,13 @@ class QuizController {
       );
       new OK({ message: "edit quiz success", metadata: editedQuiz }).send(res);
    }
+
+   async AsignQuizToSession(req: Request, res: Response) {
+      const currentUser = req.user;
+      if (!currentUser || !currentUser._id) {
+         throw new UnauthorizedError("Not authenticated");
+      }
+   }
 }
 
 export default new QuizController();

@@ -33,7 +33,9 @@ export interface ISession extends Document {
    endTime: Date;
    status?: SessionStatus | string;
    isTrial?: boolean;
-   createdBy?: Types.ObjectId;
+   // người tạo session luôn có mà sao lại optional nhỉ
+   // nhưng mà bỏ đi thì nó bị type warning
+   createdBy: Types.ObjectId;
 
    // New fields
    studentConfirmation?: IStudentConfirmation;
@@ -42,6 +44,8 @@ export interface ISession extends Document {
    isDeleted?: boolean;
    deletedAt?: Date;
    deletedBy?: Types.ObjectId;
+   // Thêm trường quizzes để lưu danh sách quiz được gán cho session
+   quizzes: Types.ObjectId[];
 
    materials?: Types.ObjectId[];
    quizIds?: Types.ObjectId[];

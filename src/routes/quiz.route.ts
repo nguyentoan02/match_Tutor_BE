@@ -62,4 +62,10 @@ router.get(
    quizController.GetMultipleChoiceQuizByQuizId
 );
 
+router.post(
+   "/asignQuizToSession",
+   authenticate,
+   quizController.AsignQuizToSession
+);
+
 export default router;
