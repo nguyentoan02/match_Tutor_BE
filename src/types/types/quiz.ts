@@ -1,5 +1,5 @@
 import { Document, Types } from "mongoose";
-import { QuizModeEnum } from "../enums/quiz.enum";
+import { QuestionTypeEnum, QuizModeEnum } from "../enums/quiz.enum";
 
 export interface QuizSettings {
    shuffleQuestions?: boolean;
@@ -11,6 +11,7 @@ export interface IQuiz extends Document {
    title: string;
    description?: string;
    quizMode?: QuizModeEnum;
+   quizType: QuestionTypeEnum;
    settings?: QuizSettings;
    createdBy?: Types.ObjectId;
    tags?: string[];

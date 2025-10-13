@@ -1,7 +1,12 @@
 import mongoose, { Schema } from "mongoose";
 import { IQuiz } from "../types/types/quiz";
 import { getVietnamTime } from "../utils/date.util";
-import { QUIZ_MODE_VALUES, QuizModeEnum } from "../types/enums/quiz.enum";
+import {
+   QUESTION_TYPE_VALUES,
+   QuestionTypeEnum,
+   QUIZ_MODE_VALUES,
+   QuizModeEnum,
+} from "../types/enums/quiz.enum";
 
 const QuizSchema: Schema<IQuiz> = new Schema(
    {
@@ -19,6 +24,11 @@ const QuizSchema: Schema<IQuiz> = new Schema(
          type: String,
          enum: QUIZ_MODE_VALUES,
          default: QuizModeEnum.STUDY,
+      },
+      quizType: {
+         enum: QUESTION_TYPE_VALUES,
+         type: String,
+         default: QuestionTypeEnum.FLASHCARD,
       },
       // Thêm settings để kiểm soát hành vi quiz
       settings: {

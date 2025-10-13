@@ -77,6 +77,17 @@ class QuizService {
       }
    }
 
+   async getFlashcardQuizesByTutor(tutorId: string): Promise<IQuiz[]> {
+      const quizes = await quizModel.find({
+         createdBy: tutorId,
+         quizType: QuestionTypeEnum.FLASHCARD,
+      });
+      if (quizes.length === 0) {
+         new NotFoundError("can not find any quiz from this tutor");
+      }
+      return quizes as IQuiz[];
+   }
+
    async getQuizesByTutor(tutorId: string): Promise<IQuiz[]> {
       const quizes = await quizModel.find({ createdBy: tutorId });
       if (quizes.length === 0) {

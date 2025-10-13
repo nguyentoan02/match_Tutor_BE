@@ -20,7 +20,11 @@ router.post(
    quizController.tutorCreateQuiz
 );
 
-router.get("/getTutorQuiz", authenticate, quizController.QuizByTutor);
+router.get(
+   "/getTutorFlashcardQuiz",
+   authenticate,
+   quizController.FlashcardQuizByTutor
+);
 
 router.get(
    "/getQuizQuestionsByQuiz",

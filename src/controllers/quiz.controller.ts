@@ -32,15 +32,15 @@ class QuizController {
       );
    }
 
-   async QuizByTutor(req: Request, res: Response) {
+   async FlashcardQuizByTutor(req: Request, res: Response) {
       const currentUser = req.user;
       if (!currentUser || !currentUser._id) {
          throw new UnauthorizedError("Not authenticated");
       }
-      const quizes = await quizService.getQuizesByTutor(
+      const quizes = await quizService.getFlashcardQuizesByTutor(
          currentUser._id.toString()
       );
-      new OK({ message: "get quizes succes", metadata: quizes }).send(res);
+      new OK({ message: "get quizes success", metadata: quizes }).send(res);
    }
 
    async QuizQuestions(req: Request, res: Response) {
