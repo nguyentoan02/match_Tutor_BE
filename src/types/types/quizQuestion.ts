@@ -9,8 +9,7 @@ export interface IQuizQuestion extends Document {
 
    // Multiple choice
    questionText?: string;
-   options?: string[];
-   correctAnswer?: string;
+   options?: { text: string; isCorrect: boolean }[];
 
    // Short answer
    acceptedAnswers?: string[];
