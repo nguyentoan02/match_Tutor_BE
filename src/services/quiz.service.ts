@@ -601,7 +601,7 @@ class QuizService {
       }
    }
 
-   async asignQuizToSession(
+   async AsignQuizToSession(
       tutorId: string,
       quizIds: string[],
       sessionId: string

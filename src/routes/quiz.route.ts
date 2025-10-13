@@ -3,7 +3,6 @@ import { authenticate } from "../middlewares/auth.middleware";
 import quizController from "../controllers/quiz.controller";
 import { validate } from "../middlewares/validation.middleware";
 import {
-   asignQuizToSessionBodySchema,
    createMultipleChoiceQuizBodySchema,
    createQuizBodySchema,
    deleteQuizBodySchema,
@@ -66,7 +65,6 @@ router.get(
 router.post(
    "/asignQuizToSession",
    authenticate,
-   validate(asignQuizToSessionBodySchema),
    quizController.AsignQuizToSession
 );
 
