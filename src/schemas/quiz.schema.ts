@@ -124,7 +124,7 @@ export const deleteQuizBodySchema = z.object({
 export const createMultipleChoiceQuizBodySchema = z.object({
    body: z.object({
       title: z.string().min(1, "title is required"),
-      description: z.string().min(1, "description is required"),
+      description: z.string().optional(),
       quizMode: z.nativeEnum(QuizModeEnum, "invalid quiz mode"),
       settings: z
          .object({
@@ -145,6 +145,7 @@ export const createMultipleChoiceQuizBodySchema = z.object({
             1,
             "questionArr must contain at least one multiple choice question"
          ),
+      quizType: z.literal(QuestionTypeEnum.MULTIPLE_CHOICE).optional(),
    }),
 });
 

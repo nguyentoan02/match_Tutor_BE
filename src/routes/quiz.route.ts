@@ -66,6 +66,12 @@ router.get(
    quizController.GetMultipleChoiceQuizByQuizId
 );
 
+router.get(
+   "/getMultipleChoiceQuizesByTutor",
+   authenticate,
+   quizController.GetMultipleChoiceQuizesByTutor
+);
+
 router.post(
    "/asignQuizToSession",
    authenticate,

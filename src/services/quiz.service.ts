@@ -20,7 +20,7 @@ import {
    InternalServerError,
    NotFoundError,
 } from "../utils/error.response";
-import { IQuizQuestion, IQuizQuestionInfo } from "../types/types/quizQuestion";
+import { IQuizQuestionInfo } from "../types/types/quizQuestion";
 import sessionModel from "../models/session.model";
 import { QuestionTypeEnum } from "../types/enums";
 import { ISession } from "../types/types/session";
@@ -289,7 +289,7 @@ class QuizService {
 
          const quizId = quizAtr._id;
 
-         Promise.all([
+         await Promise.all([
             this.updateQuizFlashcardQuestions(
                tutorId,
                quizId,
@@ -315,12 +315,17 @@ class QuizService {
             .session(session);
 
          quiz.totalQuestions = finalQuestions.length;
-         await quiz.save({ session });
+         await quizModel.findOneAndUpdate(
+            { _id: quizId },
+            { $set: { totalQuestions: finalQuestions.length } },
+            { session }
+         );
 
          await session.commitTransaction();
          return { quiz, quizQuestions: finalQuestions } as unknown as IQuiz;
       } catch (error) {
          await session.abortTransaction();
+         console.error("Edit quiz error:", error);
          throw new BadRequestError("can not edit this quiz");
       } finally {
          session.endSession();
@@ -629,6 +634,17 @@ class QuizService {
       session.quizzes.push(...quizIds.map((id) => new Types.ObjectId(id)));
       await session.save();
       return session as ISession;
+   }
+
+   async getMultipleChoiceQuizesByTutor(tutorId: string): Promise<IQuiz[]> {
+      const quizes = await quizModel.find({
+         createdBy: tutorId,
+         quizType: QuestionTypeEnum.MULTIPLE_CHOICE,
+      });
+      if (quizes.length === 0) {
+         new NotFoundError("can not find any quiz from this tutor");
+      }
+      return quizes as IQuiz[];
    }
 }
 

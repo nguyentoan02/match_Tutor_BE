@@ -24,7 +24,7 @@ export interface IQuiz extends Document {
 export interface IQuizInfo {
    _id?: string;
    title: string;
-   description: string;
+   description?: string;
    quizMode?: QuizModeEnum;
    settings?: QuizSettings;
    createdBy?: Types.ObjectId;

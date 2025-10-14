@@ -9,6 +9,7 @@ import {
 } from "../schemas/quiz.schema";
 import quizService from "../services/quiz.service";
 import { OK } from "../utils/success.response";
+import { QuestionTypeEnum } from "../types/enums";
 
 class QuizController {
    async tutorCreateQuiz(req: Request, res: Response) {
@@ -113,6 +114,7 @@ class QuizController {
             description: createQuiz.description,
             settings: createQuiz.settings,
             tags: createQuiz.tags,
+            quizType: QuestionTypeEnum.MULTIPLE_CHOICE,
          },
          createQuiz.questionArr
       );
@@ -161,6 +163,17 @@ class QuizController {
       if (!currentUser || !currentUser._id) {
          throw new UnauthorizedError("Not authenticated");
       }
+   }
+
+   async GetMultipleChoiceQuizesByTutor(req: Request, res: Response) {
+      const currentUser = req.user;
+      if (!currentUser || !currentUser._id) {
+         throw new UnauthorizedError("Not authenticated");
+      }
+      const quizes = await quizService.getMultipleChoiceQuizesByTutor(
+         currentUser._id.toString()
+      );
+      new OK({ message: "get quizes success", metadata: quizes }).send(res);
    }
 }
 
