@@ -1,8 +1,8 @@
 ﻿import { Request, Response, NextFunction } from "express";
-import adminTutorService from "../services/admin.tutor.service";
-import { OK } from "../utils/success.response";
-import { UnauthorizedError } from "../utils/error.response";
-import { AcceptTutorParams, RejectTutorParams, RejectTutorBody, GetPendingTutorsQuery } from "../schemas/admin.schema";
+import adminTutorService from "../../services/admin/admin.tutor.service";
+import { OK } from "../../utils/success.response";
+import { UnauthorizedError } from "../../utils/error.response";
+import { AcceptTutorParams, RejectTutorParams, RejectTutorBody, GetPendingTutorsQuery } from "../../schemas/admin.schema";
 
 class AdminTutorController {
    async acceptTutor(req: Request<AcceptTutorParams>, res: Response, next: NextFunction) {

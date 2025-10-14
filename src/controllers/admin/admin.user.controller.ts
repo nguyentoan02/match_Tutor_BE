@@ -1,13 +1,13 @@
 import { Request, Response, NextFunction } from "express";
-import adminUserService from "../services/admin.user.service";
-import { OK } from "../utils/success.response";
-import { UnauthorizedError } from "../utils/error.response";
+import adminUserService from "../../services/admin/admin.user.service";
+import { OK } from "../../utils/success.response";
+import { UnauthorizedError } from "../../utils/error.response";
 import { 
    GetBannedTutorsQuery,
    GetActiveTutorsQuery,
    GetBannedStudentsQuery,
    GetActiveStudentsQuery
-} from "../schemas/admin.schema";
+} from "../../schemas/admin.schema";
 
 class AdminUserController {
    // GET /api/admin/users - Get all users with pagination and search (Admin only)

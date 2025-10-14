@@ -1,13 +1,13 @@
 import { Request, Response, NextFunction } from "express";
-import adminBanService from "../services/admin.ban.service";
-import { OK } from "../utils/success.response";
-import { UnauthorizedError, BadRequestError } from "../utils/error.response";
+import adminBanService from "../../services/admin/admin.ban.service";
+import { OK } from "../../utils/success.response";
+import { UnauthorizedError, BadRequestError } from "../../utils/error.response";
 import { 
    BanUserParams, 
    BanUserBody, 
    UnbanUserParams, 
    GetUserBanHistoryParams
-} from "../schemas/admin.schema";
+} from "../../schemas/admin.schema";
 
 class AdminBanController {
    // POST /api/admin/user/:id/ban - Ban a user (Admin only)

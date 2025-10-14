@@ -1,4 +1,4 @@
-import User from "../models/user.model";
+import User from "../../models/user.model";
 
 export class AdminUserService {
    // Get all users with pagination and search (for admin dashboard)

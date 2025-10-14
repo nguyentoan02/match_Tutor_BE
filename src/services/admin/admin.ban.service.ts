@@ -1,14 +1,14 @@
-import User from "../models/user.model";
-import Tutor from "../models/tutor.model";
-import { NotFoundError, BadRequestError } from "../utils/error.response";
-import { IUser } from "../types/types/user";
-import { transporter } from "../config/mail";
+import User from "../../models/user.model";
+import Tutor from "../../models/tutor.model";
+import { NotFoundError, BadRequestError } from "../../utils/error.response";
+import { IUser } from "../../types/types/user";
+import { transporter } from "../../config/mail";
 import { 
    getBanNotificationEmailTemplate, 
    getUnbanNotificationEmailTemplate
-} from "../template/adminEmail";
-import { getVietnamTime } from "../utils/date.util";
-import { GetBannedUsersQuery } from "../schemas/admin.schema";
+} from "../../template/adminEmail";
+import { getVietnamTime } from "../../utils/date.util";
+import { GetBannedUsersQuery } from "../../schemas/admin.schema";
 
 export class AdminBanService {
    // Ban a user

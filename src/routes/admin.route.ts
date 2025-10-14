@@ -2,9 +2,7 @@ import { Router } from "express";
 import { authenticate, isRole } from "../middlewares/auth.middleware";
 import { Role } from "../types/enums/role.enum";
 import { validate } from "../middlewares/validation.middleware";
-import adminBanController from "../controllers/admin.ban.controller";
-import adminUserController from "../controllers/admin.user.controller";
-import adminTutorController from "../controllers/admin.tutor.controller";
+import adminController from "../controllers/admin";
 import { 
    banUserSchema, 
    unbanUserSchema, 
@@ -26,23 +24,23 @@ router.use(authenticate);
 router.use(isRole(Role.ADMIN));
 
 // ========== BAN MANAGEMENT ==========
-router.post("/user/:id/ban", validate(banUserSchema), adminBanController.banUser);
-router.post("/user/:id/unban", validate(unbanUserSchema), adminBanController.unbanUser);
-router.get("/user/banned", validate(getBannedUsersSchema), adminBanController.getBannedUsers);
-router.get("/user/:id/ban-history", validate(getUserBanHistorySchema), adminBanController.getUserBanHistory);
+router.post("/user/:id/ban", validate(banUserSchema), adminController.banUser);
+router.post("/user/:id/unban", validate(unbanUserSchema), adminController.unbanUser);
+router.get("/user/banned", validate(getBannedUsersSchema), adminController.getBannedUsers);
+router.get("/user/:id/ban-history", validate(getUserBanHistorySchema), adminController.getUserBanHistory);
 
 // ========== USER MANAGEMENT ==========
-router.get("/users", adminUserController.getAllUsers);
-router.get("/tutors/banned", validate(getBannedTutorsSchema), adminUserController.getBannedTutors);
-router.get("/tutors/active", validate(getActiveTutorsSchema), adminUserController.getActiveTutors);
-router.get("/students/banned", validate(getBannedStudentsSchema), adminUserController.getBannedStudents);
-router.get("/students/active", validate(getActiveStudentsSchema), adminUserController.getActiveStudents);
+router.get("/users", adminController.getAllUsers);
+router.get("/tutors/banned", validate(getBannedTutorsSchema), adminController.getBannedTutors);
+router.get("/tutors/active", validate(getActiveTutorsSchema), adminController.getActiveTutors);
+router.get("/students/banned", validate(getBannedStudentsSchema), adminController.getBannedStudents);
+router.get("/students/active", validate(getActiveStudentsSchema), adminController.getActiveStudents);
 
 // ========== TUTOR MANAGEMENT ==========
-router.post("/tutor/:id/accept", validate(acceptTutorSchema), adminTutorController.acceptTutor);
-router.post("/tutor/:id/reject", validate(rejectTutorSchema), adminTutorController.rejectTutor);
-router.get("/tutors/pending", validate(getPendingTutorsSchema), adminTutorController.getPendingTutors);
-router.get("/tutor/:id", adminTutorController.getTutorProfile);
-router.get("/tutors/mapping", adminTutorController.getTutorsWithMapping);
+router.post("/tutor/:id/accept", validate(acceptTutorSchema), adminController.acceptTutor);
+router.post("/tutor/:id/reject", validate(rejectTutorSchema), adminController.rejectTutor);
+router.get("/tutors/pending", validate(getPendingTutorsSchema), adminController.getPendingTutors);
+router.get("/tutors/mapping", adminController.getTutorsWithMapping);
+router.get("/tutor/:id", adminController.getTutorProfile);
 
 export default router;

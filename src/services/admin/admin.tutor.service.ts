@@ -1,13 +1,13 @@
-import Tutor from "../models/tutor.model";
-import User from "../models/user.model";
-import { NotFoundError, BadRequestError } from "../utils/error.response";
-import { ITutor } from "../types/types/tutor";
-import { transporter } from "../config/mail";
+import Tutor from "../../models/tutor.model";
+import User from "../../models/user.model";
+import { NotFoundError, BadRequestError } from "../../utils/error.response";
+import { ITutor } from "../../types/types/tutor";
+import { transporter } from "../../config/mail";
 import { 
    getTutorAcceptanceEmailTemplate,
    getTutorRejectionEmailTemplate
-} from "../template/adminEmail";
-import { getVietnamTime } from "../utils/date.util";
+} from "../../template/adminEmail";
+import { getVietnamTime } from "../../utils/date.util";
 
 export class AdminTutorService {
    // Accept tutor profile
