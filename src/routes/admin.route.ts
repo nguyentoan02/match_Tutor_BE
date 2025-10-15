@@ -1,6 +1,8 @@
 import { Router } from "express";
-import adminController from "../controllers/admin.controller";
+import { authenticate, isRole } from "../middlewares/auth.middleware";
+import { Role } from "../types/enums/role.enum";
 import { validate } from "../middlewares/validation.middleware";
+import adminController from "../controllers/admin";
 import { 
    banUserSchema, 
    unbanUserSchema, 
@@ -14,8 +16,6 @@ import {
    rejectTutorSchema,
    getPendingTutorsSchema
 } from "../schemas/admin.schema";
-import { authenticate, isRole } from "../middlewares/auth.middleware";
-import { Role } from "../types/enums/role.enum";
 
 const router = Router();
 
@@ -23,104 +23,24 @@ const router = Router();
 router.use(authenticate);
 router.use(isRole(Role.ADMIN));
 
-// User management routes
-// Ban a user
-router.post(
-   "/user/:id/ban",
-   validate(banUserSchema),
-   adminController.banUser
-);
+// ========== BAN MANAGEMENT ==========
+router.post("/user/:id/ban", validate(banUserSchema), adminController.banUser);
+router.post("/user/:id/unban", validate(unbanUserSchema), adminController.unbanUser);
+router.get("/user/banned", validate(getBannedUsersSchema), adminController.getBannedUsers);
+router.get("/user/:id/ban-history", validate(getUserBanHistorySchema), adminController.getUserBanHistory);
 
-// Unban a user
-router.post(
-   "/user/:id/unban",
-   validate(unbanUserSchema),
-   adminController.unbanUser
-);
+// ========== USER MANAGEMENT ==========
+router.get("/users", adminController.getAllUsers);
+router.get("/tutors/banned", validate(getBannedTutorsSchema), adminController.getBannedTutors);
+router.get("/tutors/active", validate(getActiveTutorsSchema), adminController.getActiveTutors);
+router.get("/students/banned", validate(getBannedStudentsSchema), adminController.getBannedStudents);
+router.get("/students/active", validate(getActiveStudentsSchema), adminController.getActiveStudents);
 
-// Get banned users list
-router.get(
-   "/user/banned",
-   validate(getBannedUsersSchema),
-   adminController.getBannedUsers
-);
-
-// Get user ban history
-router.get(
-   "/user/:id/ban-history",
-   validate(getUserBanHistorySchema),
-   adminController.getUserBanHistory
-);
-
-// Get all users with pagination and search
-router.get(
-   "/users",
-   adminController.getAllUsers
-);
-
-// Get banned tutors
-router.get(
-   "/tutors/banned",
-   validate(getBannedTutorsSchema),
-   adminController.getBannedTutors
-);
-
-// Get active tutors
-router.get(
-   "/tutors/active",
-   validate(getActiveTutorsSchema),
-   adminController.getActiveTutors
-);
-
-// Get banned students
-router.get(
-   "/students/banned",
-   validate(getBannedStudentsSchema),
-   adminController.getBannedStudents
-);
-
-// Get active students
-router.get(
-   "/students/active",
-   validate(getActiveStudentsSchema),
-   adminController.getActiveStudents
-);
-
-// Tutor profile management routes
-// Accept tutor profile
-router.post(
-   "/tutor/:id/accept",
-   validate(acceptTutorSchema),
-   adminController.acceptTutor
-);
-
-// Reject tutor profile
-router.post(
-   "/tutor/:id/reject",
-   validate(rejectTutorSchema),
-   adminController.rejectTutor
-);
-
-// Get pending tutors
-router.get(
-   "/tutors/pending",
-   validate(getPendingTutorsSchema),
-   adminController.getPendingTutors
-);
-
-// Get tutor profile by ID
-router.get(
-   "/tutor/:id",
-   adminController.getTutorProfile
-);
-
-
-// Get tutors with userId and tutorId mapping
-router.get(
-   "/tutors/mapping",
-   adminController.getTutorsWithMapping
-);
+// ========== TUTOR MANAGEMENT ==========
+router.post("/tutor/:id/accept", validate(acceptTutorSchema), adminController.acceptTutor);
+router.post("/tutor/:id/reject", validate(rejectTutorSchema), adminController.rejectTutor);
+router.get("/tutors/pending", validate(getPendingTutorsSchema), adminController.getPendingTutors);
+router.get("/tutors/mapping", adminController.getTutorsWithMapping);
+router.get("/tutor/:id", adminController.getTutorProfile);
 
 export default router;
-
-export const description = "admin user management and ban/unban functionality";
