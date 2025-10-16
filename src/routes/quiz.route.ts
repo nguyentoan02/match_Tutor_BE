@@ -6,6 +6,7 @@ import {
    createMultipleChoiceQuizBodySchema,
    createQuizBodySchema,
    deleteQuizBodySchema,
+   editMultipleChoiceQuizBodySchema,
    editQuizBodySchema,
    quizQuerySchema,
    quizTutorIdQuerySchema,
@@ -81,7 +82,7 @@ router.post(
 router.put(
    "/updateMultipleChoiceQuiz",
    authenticate,
-   validate(editQuizBodySchema),
+   validate(editMultipleChoiceQuizBodySchema),
    quizController.editMultipleChoiceQuizByTutor
 );
 
