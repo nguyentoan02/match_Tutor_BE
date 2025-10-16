@@ -150,6 +150,7 @@ class QuizController {
             settings: editQuiz.settings,
             tags: editQuiz.tags,
             quizMode: editQuiz.quizMode,
+            quizType: QuestionTypeEnum.MULTIPLE_CHOICE,
          },
          editQuiz.newMultipleChoiceQuizQuestionsArr ?? [],
          editQuiz.editMultipleChoiceQuizQuestionsArr ?? [],

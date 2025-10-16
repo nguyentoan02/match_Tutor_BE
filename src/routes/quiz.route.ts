@@ -78,4 +78,11 @@ router.post(
    quizController.AsignQuizToSession
 );
 
+router.put(
+   "/updateMultipleChoiceQuiz",
+   authenticate,
+   validate(editQuizBodySchema),
+   quizController.editMultipleChoiceQuizByTutor
+);
+
 export default router;

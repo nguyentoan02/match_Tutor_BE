@@ -523,6 +523,7 @@ class QuizService {
 
          for (const q of editQuestions || []) {
             const qAny: any = q as any;
+
             if (qAny.options && !qAny.options.includes(qAny.correctAnswer)) {
                throw new BadRequestError(
                   "correct answer must be one of the options"
@@ -606,11 +607,16 @@ class QuizService {
             .session(session);
 
          quiz.totalQuestions = finalQuestions.length;
-         await quiz.save({ session });
+         await quizModel.findOneAndUpdate(
+            { _id: quizId },
+            { $set: { totalQuestions: finalQuestions.length } },
+            { session }
+         );
          await session.commitTransaction();
          return { quiz, quizQuestions: finalQuestions } as unknown as IQuiz;
       } catch (error) {
          await session.abortTransaction();
+         console.log("Edit quiz error:", error);
          throw new BadRequestError("can not edit this quiz");
       } finally {
          session.endSession();
