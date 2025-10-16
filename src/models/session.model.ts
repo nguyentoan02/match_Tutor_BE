@@ -61,7 +61,7 @@ const SessionSchema: Schema<ISession> = new Schema(
       materials: [{ type: Schema.Types.ObjectId, ref: "Material" }],
       // thêm default [] để tránh lỗi khi push vào mảng null hoặc undefined
       // nếu không có trường này, khi tạo session mới, trường quizIds sẽ là undefined
-      quizIds: [{ type: Schema.Types.ObjectId, ref: "Quiz", default: [] }],
+      quizIds: { type: [Schema.Types.ObjectId], ref: "Quiz", default: [] }, // ???
       reminders: [
          {
             userId: { type: Schema.Types.ObjectId, ref: "User" },
