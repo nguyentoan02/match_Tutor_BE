@@ -637,7 +637,7 @@ class QuizService {
          throw new BadRequestError("you are not allowed to edit this session");
       }
 
-      session.quizzes.push(...quizIds.map((id) => new Types.ObjectId(id)));
+      session.quizIds.push(...quizIds.map((id) => new Types.ObjectId(id)));
       await session.save();
       return session as ISession;
    }

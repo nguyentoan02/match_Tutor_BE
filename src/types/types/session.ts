@@ -44,11 +44,9 @@ export interface ISession extends Document {
    isDeleted?: boolean;
    deletedAt?: Date;
    deletedBy?: Types.ObjectId;
-   // Thêm trường quizzes để lưu danh sách quiz được gán cho session
-   quizzes: Types.ObjectId[];
 
    materials?: Types.ObjectId[];
-   quizIds?: Types.ObjectId[];
+   quizIds: Types.ObjectId[];
    reminders?: IReminder[];
    location?: string;
    notes?: string;
