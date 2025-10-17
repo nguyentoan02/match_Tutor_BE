@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { BadRequestError, UnauthorizedError } from "../utils/error.response";
 import {
+   AsignQuizToSessionBody,
    CreateMultipleChoiceQuizBody,
    CreateQuizBody,
    DeleteQuizBody,
@@ -165,6 +166,16 @@ class QuizController {
       if (!currentUser || !currentUser._id) {
          throw new UnauthorizedError("Not authenticated");
       }
+      const asignQuizPayload: AsignQuizToSessionBody = req.body;
+      console.log("asignQuizPayload:", asignQuizPayload);
+      const asignResult = await quizService.asignQuizToSession(
+         currentUser._id.toString(),
+         asignQuizPayload.quizIds,
+         asignQuizPayload.sessionId
+      );
+      new OK({ message: "asign quiz success", metadata: asignResult }).send(
+         res
+      );
    }
 
    async GetMultipleChoiceQuizesByTutor(req: Request, res: Response) {

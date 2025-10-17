@@ -199,6 +199,19 @@ export const editMultipleChoiceQuizBodySchema = z.object({
    }),
 });
 
+export const asignQuizToSessionSchema = z.object({
+   body: z.object({
+      quizIds: z.array(
+         z
+            .string()
+            .regex(/^[0-9a-fA-F]{24}$/, "quizId must be a valid ObjectId")
+      ),
+      sessionId: z
+         .string()
+         .regex(/^[0-9a-fA-F]{24}$/, "sessionId must be a valid ObjectId"),
+   }),
+});
+
 export type CreateMultipleChoiceQuizBody = z.infer<
    typeof createMultipleChoiceQuizBodySchema
 >["body"];
@@ -219,4 +232,7 @@ export type DeleteMultipleChoiceQuestion = z.infer<
 >;
 export type editMultipleChoiceQuizBody = z.infer<
    typeof editMultipleChoiceQuizBodySchema
+>["body"];
+export type AsignQuizToSessionBody = z.infer<
+   typeof asignQuizToSessionSchema
 >["body"];

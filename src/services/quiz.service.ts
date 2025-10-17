@@ -623,7 +623,7 @@ class QuizService {
       }
    }
 
-   async AsignQuizToSession(
+   async asignQuizToSession(
       tutorId: string,
       quizIds: string[],
       sessionId: string
@@ -637,9 +637,20 @@ class QuizService {
          throw new BadRequestError("you are not allowed to edit this session");
       }
 
-      session.quizIds.push(...quizIds.map((id) => new Types.ObjectId(id)));
-      await session.save();
-      return session as ISession;
+      const quizIdsArr = Array.isArray(quizIds)
+         ? quizIds.filter((id) => !!id)
+         : [];
+      // if there is nothing to add, return the existing session unchanged
+      if (quizIdsArr.length === 0) {
+         return session as ISession;
+      }
+      const savedSession = await sessionModel.findByIdAndUpdate(
+         sessionId,
+         { $set: { quizIds: quizIdsArr } },
+         { new: true }
+      );
+      console.log("savedSession:", savedSession);
+      return savedSession as ISession;
    }
 
    async getMultipleChoiceQuizesByTutor(tutorId: string): Promise<IQuiz[]> {
