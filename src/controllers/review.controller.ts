@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from "express";
 import reviewService from "../services/review.service";
 import { OK, CREATED } from "../utils/success.response";
+import Tutor from "../models/tutor.model";
+import { NotFoundError, UnauthorizedError } from "../utils/error.response";
 
 class ReviewController {
     /**
@@ -40,7 +42,12 @@ class ReviewController {
         try {
             const { tutorId } = req.params;
 
-            const reviews = await reviewService.getTutorReviews(tutorId);
+            const tutor = await Tutor.findById(tutorId).populate("userId", "_id");
+            if (!tutor) {
+                throw new NotFoundError("Tutor not found");
+            }
+
+            const reviews = await reviewService.getTutorReviews(tutor.userId._id.toString());
 
             new OK({
                 message: "Tutor reviews retrieved successfully",
@@ -49,6 +56,53 @@ class ReviewController {
         } catch (err) {
             next(err);
         }
+    }
+
+    /**
+     * Get reviews for the currently logged-in tutor
+     * Supports pagination, filtering, and search
+     */
+    async getMyTutorReviews(req: Request, res: Response) {
+        const currentUser = req.user;
+
+        if (!currentUser || !currentUser._id) {
+            throw new UnauthorizedError("Not authenticated");
+        }
+
+        // Extract query parameters
+        const {
+            page,
+            limit,
+            keyword,
+            subjects,
+            levels,
+            minRating,
+            maxRating,
+            sort,
+            rating, // specific rating filter
+        } = req.query;
+
+        const filters = {
+            page: page ? Number(page) : 1,
+            limit: limit ? Number(limit) : 10,
+            keyword: keyword ? String(keyword) : "",
+            subjects: subjects ? String(subjects).split(",") : [],
+            levels: levels ? String(levels).split(",") : [],
+            minRating: minRating ? Number(minRating) : 0,
+            maxRating: maxRating ? Number(maxRating) : 5,
+            sort: (sort === "oldest" ? "oldest" : "newest") as "oldest" | "newest",
+            rating: rating ? String(rating) : undefined, // specific rating
+        };
+
+        const reviews = await reviewService.getTutorReviewsByUserId(
+            String(currentUser._id),
+            filters
+        );
+
+        new OK({
+            message: "Tutor reviews retrieved successfully",
+            metadata: reviews,
+        }).send(res);
     }
 
     /**
@@ -110,8 +164,12 @@ class ReviewController {
     async getTutorRatingStats(req: Request, res: Response, next: NextFunction) {
         try {
             const { tutorId } = req.params;
+            const tutor = await Tutor.findById(tutorId).populate("userId", "_id");
+            if (!tutor) {
+                throw new NotFoundError("Tutor not found");
+            }
 
-            const stats = await reviewService.getTutorRatingStats(tutorId);
+            const stats = await reviewService.getTutorRatingStats(tutor.userId._id.toString());
 
             new OK({
                 message: "Tutor rating stats retrieved successfully",

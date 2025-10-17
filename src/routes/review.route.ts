@@ -5,21 +5,28 @@ import {
     createReviewSchema,
     updateReviewSchema
 } from "../schemas/review.schema";
-import { authenticate } from "../middlewares/auth.middleware";
-
+import { authenticate, isRole } from "../middlewares/auth.middleware";
+import { Role } from "../types/enums";
 const router = Router();
-
-// All routes require authentication
-router.use(authenticate);
 
 // Create a review
 router.post(
     "/",
     validate(createReviewSchema),
+    authenticate,
+    isRole(Role.STUDENT),
     reviewController.createReview
 );
 
-// Get reviews for a tutor
+// Get reviews for the currently authenticated tutor
+router.get(
+    "/tutor/me",
+    authenticate,
+    isRole(Role.TUTOR),
+    reviewController.getMyTutorReviews
+);
+
+// Get reviews for a tutor by tutorId
 router.get(
     "/tutor/:tutorId",
     reviewController.getTutorReviews
@@ -29,6 +36,8 @@ router.get(
 router.put(
     "/:reviewId",
     validate(updateReviewSchema),
+    authenticate,
+    isRole(Role.STUDENT),
     reviewController.updateReview
 );
 
@@ -47,6 +56,8 @@ router.get(
 // Get all reviews written by current student
 router.get(
     "/student/history",
+    authenticate,
+    isRole(Role.STUDENT),
     reviewController.getStudentReviewHistory
 );
 

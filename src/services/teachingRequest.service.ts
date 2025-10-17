@@ -142,7 +142,7 @@ class TeachingRequestService {
       ) {
          request.status =
             studentDecision === DecisionStatus.ACCEPTED &&
-            tutorDecision === DecisionStatus.ACCEPTED
+               tutorDecision === DecisionStatus.ACCEPTED
                ? TeachingRequestStatus.IN_PROGRESS
                : TeachingRequestStatus.CANCELLED;
       }
@@ -315,6 +315,21 @@ class TeachingRequestService {
          })
          .sort({ createdAt: -1 });
    }
+
+   async getCompletedRequestBetween(studentUserId: string, tutorId: string) {
+      const student = await Student.findOne({ userId: studentUserId }).select("_id");
+      if (!student) throw new NotFoundError("Student profile not found");
+
+      const request = await TeachingRequest.findOne({
+         studentId: student._id,
+         tutorId,
+         status: TeachingRequestStatus.COMPLETED,
+      }).select("_id");
+
+      return request;
+   }
+
+
 }
 
 export default new TeachingRequestService();
