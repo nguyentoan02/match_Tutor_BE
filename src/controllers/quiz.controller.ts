@@ -114,6 +114,7 @@ class QuizController {
             description: createQuiz.description,
             settings: createQuiz.settings,
             tags: createQuiz.tags,
+            quizMode: createQuiz.quizMode,
             quizType: QuestionTypeEnum.MULTIPLE_CHOICE,
          },
          createQuiz.questionArr
