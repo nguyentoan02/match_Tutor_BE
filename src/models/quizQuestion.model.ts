@@ -22,7 +22,8 @@ const QuizQuestionSchema: Schema<IQuizQuestion> = new Schema(
       // Trường cho MULTIPLE_CHOICE
       questionText: { type: String },
       options: [{ type: String }],
-      correctAnswer: { type: String },
+      //modify Multiple correct answers
+      correctAnswer: [{ type: String }],
 
       // Trường cho SHORT_ANSWER
       acceptedAnswers: [{ type: String }], // Có thể chấp nhận nhiều đáp án đúng

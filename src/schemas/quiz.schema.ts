@@ -5,6 +5,7 @@ const baseQuestion = z.object({
    order: z.number().int().nonnegative().optional(),
    questionType: z.nativeEnum(QuestionTypeEnum),
    explanation: z.string().optional(),
+   quizId: z.string().optional(),
 });
 
 const flashcardQuestion = baseQuestion.extend({
@@ -23,7 +24,7 @@ const multipleChoiceQuestion = baseQuestion.extend({
       .array(z.string())
       .min(2, "at least two options are required for multiple choice"),
    correctAnswer: z
-      .string()
+      .array(z.string().min(1, "correctAnswer is required for multiple choice"))
       .min(1, "correct answer is required for multiple choice"),
    points: z.number().min(0, "points must be non-negative").optional(),
 });
