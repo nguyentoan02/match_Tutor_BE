@@ -66,8 +66,9 @@ export class ReviewService {
 
         // Check if review already exists for this teaching request
         const existingReview = await Review.findOne({
-            teachingRequestId: new Types.ObjectId(teachingRequestId),
             reviewerId: new Types.ObjectId(reviewerId),
+            revieweeId: tutorId,
+            isVisible: true,
         });
 
         if (existingReview) {
@@ -112,6 +113,156 @@ export class ReviewService {
     }
 
     /**
+     * Get tutor reviews (by userId)
+     * Supports paging, search, and filters for:
+     * - reviewer name
+     * - comment keyword
+     * - subject
+     * - level
+     * - rating range
+     * - sort order (newest or oldest)
+     */
+    async getTutorReviewsByUserId(
+        tutorUserId: string,
+        filters: {
+            page?: number;
+            limit?: number;
+            keyword?: string; // search by comment or reviewer name
+            subjects?: string[];
+            levels?: string[];
+            minRating?: number;
+            maxRating?: number;
+            sort?: "newest" | "oldest";
+            rating?: string; // specific rating filter
+        }
+    ) {
+        const {
+            page = 1,
+            limit = 10,
+            keyword = "",
+            subjects = [],
+            levels = [],
+            minRating = 0,
+            maxRating = 5,
+            sort = "newest",
+            rating, // specific rating
+        } = filters;
+
+        const skip = (page - 1) * limit;
+
+        // Find tutor document by userId
+        const tutor = await Tutor.findOne({ userId: new Types.ObjectId(tutorUserId) });
+        if (!tutor) {
+            throw new NotFoundError("Tutor profile not found");
+        }
+
+        // Build match conditions
+        const match: any = {
+            revieweeId: new Types.ObjectId(tutorUserId),
+            isVisible: true,
+        };
+
+        // Rating filtering
+        if (rating) {
+            // Specific rating filter (like "5" for 5 stars)
+            match.rating = Number(rating);
+        } else {
+            // Rating range filter
+            match.rating = { $gte: minRating, $lte: maxRating };
+        }
+
+        // Build aggregate pipeline
+        const pipeline: any[] = [
+            { $match: match },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "reviewerId",
+                    foreignField: "_id",
+                    as: "reviewerId",
+                },
+            },
+            { $unwind: "$reviewerId" },
+            {
+                $lookup: {
+                    from: "teaching_requests",
+                    localField: "teachingRequestId",
+                    foreignField: "_id",
+                    as: "teachingRequestId",
+                },
+            },
+            { $unwind: { path: "$teachingRequestId", preserveNullAndEmptyArrays: true } },
+        ];
+
+        // Filter by subject or level
+        const andConditions: any[] = [];
+
+        if (subjects.length > 0) {
+            andConditions.push({
+                "teachingRequestId.subject": { $in: subjects },
+            });
+        }
+
+        if (levels.length > 0) {
+            andConditions.push({
+                "teachingRequestId.level": { $in: levels },
+            });
+        }
+
+        // Keyword search in reviewer name or comment
+        if (keyword) {
+            andConditions.push({
+                $or: [
+                    { "reviewerId.name": { $regex: keyword, $options: "i" } }
+                ],
+            });
+        }
+
+        if (andConditions.length > 0) {
+            pipeline.push({ $match: { $and: andConditions } });
+        }
+
+        // Add sort
+        pipeline.push({
+            $sort: { createdAt: sort === "newest" ? -1 : 1 },
+        });
+
+        // Count total before pagination
+        const countPipeline = [...pipeline];
+        countPipeline.push({ $count: "total" });
+        const countResult = await Review.aggregate(countPipeline);
+        const total = countResult[0]?.total || 0;
+
+        // Apply pagination
+        pipeline.push({ $skip: skip });
+        pipeline.push({ $limit: limit });
+
+        // Select fields to return
+        pipeline.push({
+            $project: {
+                _id: 1,
+                rating: 1,
+                comment: 1,
+                createdAt: 1,
+                "reviewerId._id": 1,
+                "reviewerId.name": 1,
+                "reviewerId.avatarUrl": 1,
+                "teachingRequestId.subject": 1,
+                "teachingRequestId.level": 1,
+            },
+        });
+
+        const reviews = await Review.aggregate(pipeline);
+
+        return {
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit),
+            reviews,
+        };
+    }
+    /**
      * Update a review
      */
     async updateReview(
@@ -128,6 +279,18 @@ export class ReviewService {
         // Verify the user owns this review
         if (review.reviewerId.toString() !== reviewerId) {
             throw new ForbiddenError("You can only update your own reviews");
+        }
+
+        // Check if review is older than 24 hours
+        if (!review.createdAt) {
+            throw new BadRequestError("Review creation date is missing.");
+        }
+        const now = new Date();
+        const timeSinceCreation = now.getTime() - review.createdAt.getTime();
+        const hoursPassed = timeSinceCreation / (1000 * 60 * 60);
+
+        if (hoursPassed > 24) {
+            throw new ForbiddenError("You can only edit your review within 24 hours of posting.");
         }
 
         // Update fields
