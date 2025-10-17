@@ -5,13 +5,27 @@ const baseQuestion = z.object({
    order: z.number().int().nonnegative().optional(),
    questionType: z.nativeEnum(QuestionTypeEnum),
    explanation: z.string().optional(),
-   points: z.number().min(0).optional(),
 });
 
 const flashcardQuestion = baseQuestion.extend({
+   points: z.number().min(0).optional(),
    questionType: z.literal(QuestionTypeEnum.FLASHCARD),
    frontText: z.string().min(1, "frontText is required for flashcard"),
    backText: z.string().min(1, "backText is required for flashcard"),
+});
+
+const multipleChoiceQuestion = baseQuestion.extend({
+   questionType: z.literal(QuestionTypeEnum.MULTIPLE_CHOICE),
+   questionText: z
+      .string()
+      .min(1, "question text is required for multiple choice"),
+   options: z
+      .array(z.string())
+      .min(2, "at least two options are required for multiple choice"),
+   correctAnswer: z
+      .string()
+      .min(1, "correct answer is required for multiple choice"),
+   points: z.number().min(0, "points must be non-negative").optional(),
 });
 
 export const createQuizBodySchema = z.object({
@@ -107,6 +121,87 @@ export const deleteQuizBodySchema = z.object({
    }),
 });
 
+export const createMultipleChoiceQuizBodySchema = z.object({
+   body: z.object({
+      title: z.string().min(1, "title is required"),
+      description: z.string().optional(),
+      quizMode: z.nativeEnum(QuizModeEnum, "invalid quiz mode"),
+      settings: z
+         .object({
+            shuffleQuestions: z.boolean().optional(),
+            showCorrectAnswersAfterSubmit: z.boolean().optional(),
+            timeLimitMinutes: z
+               .number()
+               .int()
+               .nonnegative()
+               .nullable()
+               .optional(),
+         })
+         .optional(),
+      tags: z.array(z.string()).optional(),
+      questionArr: z
+         .array(multipleChoiceQuestion)
+         .min(
+            1,
+            "questionArr must contain at least one multiple choice question"
+         ),
+      quizType: z.literal(QuestionTypeEnum.MULTIPLE_CHOICE).optional(),
+   }),
+});
+
+const editMultipleChoiceQuestion = multipleChoiceQuestion.extend({
+   _id: z
+      .string()
+      .regex(/^[0-9a-fA-F]{24}$/, "question _id must be a valid ObjectId")
+      .optional(),
+});
+
+const deleteMultipleChoiceQuestion = z.object({
+   _id: z
+      .string()
+      .regex(/^[0-9a-fA-F]{24}$/, "question _id must be a valid ObjectId")
+      .optional(),
+});
+
+export const editMultipleChoiceQuizBodySchema = z.object({
+   body: z.object({
+      _id: z.string(),
+      title: z.string().min(1, "title is required"),
+      description: z.string().min(1, "description is required"),
+      sessionId: z
+         .string()
+         .regex(/^[0-9a-fA-F]{24}$/, "sessionId must be a valid ObjectId")
+         .optional(),
+      quizMode: z.nativeEnum(QuizModeEnum).optional(),
+      settings: z
+         .object({
+            shuffleQuestions: z.boolean().optional(),
+            showCorrectAnswersAfterSubmit: z.boolean().optional(),
+            timeLimitMinutes: z
+               .number()
+               .int()
+               .nonnegative()
+               .nullable()
+               .optional(),
+         })
+         .optional(),
+      tags: z.array(z.string()).optional(),
+      // optional array of multiple choice questions for create/update/delete handling
+      editMultipleChoiceQuizQuestionsArr: z
+         .array(editMultipleChoiceQuestion)
+         .optional(),
+      newMultipleChoiceQuizQuestionsArr: z
+         .array(multipleChoiceQuestion)
+         .optional(),
+      deleteMultipleChoiceQuizQuestionsArr: z
+         .array(deleteMultipleChoiceQuestion)
+         .optional(),
+   }),
+});
+
+export type CreateMultipleChoiceQuizBody = z.infer<
+   typeof createMultipleChoiceQuizBodySchema
+>["body"];
 export type DeleteQuizBody = z.infer<typeof deleteQuizBodySchema>["body"];
 export type DeleteFlashCardQuestion = z.infer<typeof deleteFlashcardQuestion>;
 export type EditFlashCardQuestion = z.infer<typeof editFlashcardQuestion>;
@@ -115,3 +210,13 @@ export type quizTutorIdQuery = z.infer<typeof quizTutorIdQuerySchema>["query"];
 export type quizQuery = z.infer<typeof quizQuerySchema>["query"];
 export type FlashCardQuestionType = z.infer<typeof flashcardQuestion>;
 export type CreateQuizBody = z.infer<typeof createQuizBodySchema>["body"];
+export type MultipleChoiceQuestionType = z.infer<typeof multipleChoiceQuestion>;
+export type EditMultipleChoiceQuestion = z.infer<
+   typeof editMultipleChoiceQuestion
+>;
+export type DeleteMultipleChoiceQuestion = z.infer<
+   typeof deleteMultipleChoiceQuestion
+>;
+export type editMultipleChoiceQuizBody = z.infer<
+   typeof editMultipleChoiceQuizBodySchema
+>["body"];
