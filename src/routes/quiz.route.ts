@@ -86,4 +86,6 @@ router.put(
    quizController.editMultipleChoiceQuizByTutor
 );
 
+router.get("/getSessionsAssigned", authenticate, quizController.getAssigned);
+
 export default router;

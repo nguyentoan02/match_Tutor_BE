@@ -346,13 +346,10 @@ class QuizService {
       }
 
       const existed = await sessionModel
-         .findOne({ quizIds: quizId })
+         .find({ quizIds: quizId })
          .lean()
          .select("_id")
          .exec();
-      if (existed) {
-         new BadRequestError("please remove this quiz from all the session");
-      }
 
       const deleteIds = quizQuestions
          .map((q: any) => q._id)
@@ -364,6 +361,14 @@ class QuizService {
          if (deleteIds.length) {
             await quizQuestionModel.deleteMany(
                { _id: { $in: deleteIds }, quizId },
+               { session }
+            );
+         }
+
+         if (existed) {
+            await sessionModel.updateMany(
+               { quizIds: quizId },
+               { $pull: { quizIds: quizId } },
                { session }
             );
          }
@@ -649,7 +654,6 @@ class QuizService {
          { $set: { quizIds: quizIdsArr } },
          { new: true }
       );
-      console.log("savedSession:", savedSession);
       return savedSession as ISession;
    }
 
@@ -662,6 +666,30 @@ class QuizService {
          new NotFoundError("can not find any quiz from this tutor");
       }
       return quizes as IQuiz[];
+   }
+
+   async getSessionsAssigned(quizId: string): Promise<ISession[]> {
+      const sessions = await sessionModel
+         .find({
+            quizIds: new Types.ObjectId(quizId),
+         })
+         .select(
+            "-quizIds -createdBy -updatedAt -__v -studentConfirmation -attendanceConfirmation -cancellation -isDeleted -deletedAt -deletedBy -materials -reminders -location -notes"
+         )
+         .populate({
+            path: "teachingRequestId",
+            select: "title subject level studentId",
+            populate: {
+               path: "studentId",
+               select: "userId",
+               populate: {
+                  path: "userId",
+                  select: "name email ",
+               },
+            },
+         });
+
+      return sessions as ISession[];
    }
 }
 
