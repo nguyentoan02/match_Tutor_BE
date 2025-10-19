@@ -20,7 +20,7 @@ import {
    InternalServerError,
    NotFoundError,
 } from "../utils/error.response";
-import { IQuizQuestionInfo } from "../types/types/quizQuestion";
+import { IQuizQuestion, IQuizQuestionInfo } from "../types/types/quizQuestion";
 import sessionModel from "../models/session.model";
 import { QuestionTypeEnum } from "../types/enums";
 import { ISession } from "../types/types/session";
@@ -407,10 +407,24 @@ class QuizService {
             ...q,
          }));
 
-         for (let q of questionPayload) {
-            if (q.options && !q.options.includes(q.correctAnswer)) {
+         for (const q of questionPayload) {
+            const { options, correctAnswer } = q;
+            if (!options)
                throw new BadRequestError(
-                  "correct answer must be one of the options"
+                  "options are required for multiple choice question"
+               );
+
+            if (!correctAnswer)
+               throw new BadRequestError(
+                  "at least one correct answer is required for multiple choice question"
+               );
+
+            const invalidAnswer = correctAnswer.filter(
+               (answer) => !options.includes(answer)
+            );
+            if (invalidAnswer.length > 0) {
+               throw new BadRequestError(
+                  "each correct answer must be one of the options"
                );
             }
          }
@@ -481,11 +495,26 @@ class QuizService {
             throw new NotFoundError("can not found this quiz to add question");
 
          const insertQueries = newQuestions.map((p) => {
-            if (p.options && !p.options.includes(p.correctAnswer)) {
+            const { options, correctAnswer } = p;
+            if (!options)
                throw new BadRequestError(
-                  "correct answer must be one of the options"
+                  "options are required for multiple choice question"
+               );
+
+            if (!correctAnswer)
+               throw new BadRequestError(
+                  "at least one correct answer is required for multiple choice question"
+               );
+
+            const invalidAnswer = correctAnswer.filter(
+               (answer) => !options.includes(answer)
+            );
+            if (invalidAnswer.length > 0) {
+               throw new BadRequestError(
+                  "each correct answer must be one of the options"
                );
             }
+
             const pAny = p as any;
             return {
                insertOne: { document: { quizId, ...pAny } },
@@ -521,12 +550,27 @@ class QuizService {
          if (!quizDoc)
             throw new NotFoundError("can not found this quiz to update");
 
-         for (const q of editQuestions || []) {
-            const qAny: any = q as any;
-
-            if (qAny.options && !qAny.options.includes(qAny.correctAnswer)) {
+         for (const q of editQuestions) {
+            const { options, correctAnswer } = q;
+            if (!options)
                throw new BadRequestError(
-                  "correct answer must be one of the options"
+                  "options are required for multiple choice question"
+               );
+
+            if (!correctAnswer)
+               throw new BadRequestError(
+                  "at least one correct answer is required for multiple choice question"
+               );
+
+            const invalidAnswers = correctAnswer.filter(
+               (answer) => !options.includes(answer)
+            );
+
+            if (invalidAnswers.length > 0) {
+               throw new BadRequestError(
+                  `Correct answers [${invalidAnswers.join(
+                     ", "
+                  )}] must be present in options`
                );
             }
          }
