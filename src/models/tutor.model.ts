@@ -49,6 +49,9 @@ const TutorSchema: Schema<ITutor> = new Schema(
          },
       ],
       isApproved: { type: Boolean, default: false },
+      approvedAt: { type: Date },
+      rejectedReason: { type: String },
+      rejectedAt: { type: Date },
       ratings: {
          average: { type: Number, default: 0 },
          totalReviews: { type: Number, default: 0 },

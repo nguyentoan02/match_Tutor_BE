@@ -1,14 +1,15 @@
 import { Request, Response } from "express";
 import { BadRequestError, UnauthorizedError } from "../utils/error.response";
 import {
+   CreateMultipleChoiceQuizBody,
    CreateQuizBody,
    DeleteQuizBody,
+   editMultipleChoiceQuizBody,
    EditQuizBody,
-   quizQuery,
-   quizTutorIdQuery,
 } from "../schemas/quiz.schema";
 import quizService from "../services/quiz.service";
 import { OK } from "../utils/success.response";
+import { QuestionTypeEnum } from "../types/enums";
 
 class QuizController {
    async tutorCreateQuiz(req: Request, res: Response) {
@@ -32,15 +33,15 @@ class QuizController {
       );
    }
 
-   async QuizByTutor(req: Request, res: Response) {
+   async FlashcardQuizByTutor(req: Request, res: Response) {
       const currentUser = req.user;
       if (!currentUser || !currentUser._id) {
          throw new UnauthorizedError("Not authenticated");
       }
-      const quizes = await quizService.getQuizesByTutor(
+      const quizes = await quizService.getFlashcardQuizesByTutor(
          currentUser._id.toString()
       );
-      new OK({ message: "get quizes succes", metadata: quizes }).send(res);
+      new OK({ message: "get quizes success", metadata: quizes }).send(res);
    }
 
    async QuizQuestions(req: Request, res: Response) {
@@ -70,7 +71,7 @@ class QuizController {
          throw new UnauthorizedError("Not authenticated");
       }
       const editQuizArt: EditQuizBody = req.body;
-      const editedQuiz = await quizService.editQuizCombined(
+      const editedQuiz = await quizService.editFlashcardQuizCombined(
          currentUser._id.toString(),
          {
             _id: editQuizArt._id,
@@ -98,6 +99,83 @@ class QuizController {
          currentUser._id.toString()
       );
       new OK({ message: "delete success" }).send(res);
+   }
+
+   async CreateMultipleChoiceQuiz(req: Request, res: Response) {
+      const currentUser = req.user;
+      if (!currentUser || !currentUser._id) {
+         throw new UnauthorizedError("Not authenticated");
+      }
+      const createQuiz: CreateMultipleChoiceQuizBody = req.body;
+      const createdQuiz = await quizService.createMultipleChoiceQuiz(
+         currentUser._id.toString(),
+         {
+            title: createQuiz.title,
+            description: createQuiz.description,
+            settings: createQuiz.settings,
+            tags: createQuiz.tags,
+            quizMode: createQuiz.quizMode,
+            quizType: QuestionTypeEnum.MULTIPLE_CHOICE,
+         },
+         createQuiz.questionArr
+      );
+      new OK({ message: "create quiz success", metadata: createdQuiz }).send(
+         res
+      );
+   }
+
+   async GetMultipleChoiceQuizByQuizId(req: Request, res: Response) {
+      const { quizId } = req.query;
+      if (!quizId) throw new BadRequestError("invalid quizId");
+      const quizQuestions = await quizService.getMultipleChoiceQuizByQuizId(
+         quizId.toString()
+      );
+      new OK({
+         message: "get multiple choice quiz by quizId success",
+         metadata: quizQuestions,
+      }).send(res);
+   }
+
+   async editMultipleChoiceQuizByTutor(req: Request, res: Response) {
+      const currentUser = req.user;
+      if (!currentUser || !currentUser._id) {
+         throw new UnauthorizedError("Not authenticated");
+      }
+      const editQuiz: editMultipleChoiceQuizBody = req.body;
+      const editedQuiz = await quizService.editMultipleChoiceQuizCombined(
+         currentUser._id.toString(),
+         {
+            _id: editQuiz._id,
+            title: editQuiz.title,
+            description: editQuiz.description,
+            settings: editQuiz.settings,
+            tags: editQuiz.tags,
+            quizMode: editQuiz.quizMode,
+            quizType: QuestionTypeEnum.MULTIPLE_CHOICE,
+         },
+         editQuiz.newMultipleChoiceQuizQuestionsArr ?? [],
+         editQuiz.editMultipleChoiceQuizQuestionsArr ?? [],
+         editQuiz.deleteMultipleChoiceQuizQuestionsArr ?? []
+      );
+      new OK({ message: "edit quiz success", metadata: editedQuiz }).send(res);
+   }
+
+   async AsignQuizToSession(req: Request, res: Response) {
+      const currentUser = req.user;
+      if (!currentUser || !currentUser._id) {
+         throw new UnauthorizedError("Not authenticated");
+      }
+   }
+
+   async GetMultipleChoiceQuizesByTutor(req: Request, res: Response) {
+      const currentUser = req.user;
+      if (!currentUser || !currentUser._id) {
+         throw new UnauthorizedError("Not authenticated");
+      }
+      const quizes = await quizService.getMultipleChoiceQuizesByTutor(
+         currentUser._id.toString()
+      );
+      new OK({ message: "get quizes success", metadata: quizes }).send(res);
    }
 }
 

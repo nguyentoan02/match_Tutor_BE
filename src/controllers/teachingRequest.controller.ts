@@ -2,12 +2,13 @@ import { Request, Response, NextFunction } from "express";
 import teachingRequestService from "../services/teachingRequest.service";
 import { CREATED, OK } from "../utils/success.response";
 import { IUser } from "../types/types/user";
-import { UnauthorizedError } from "../utils/error.response";
+
 import {
    GetAdminReviewRequestsQuery,
    ResolveAdminReviewParams,
    ResolveAdminReviewBody,
 } from "../schemas/teachingRequest.schema";
+import { NotFoundError, UnauthorizedError } from "../utils/error.response";
 
 class TeachingRequestController {
    async create(req: Request, res: Response, next: NextFunction) {
@@ -339,6 +340,44 @@ class TeachingRequestController {
          new OK({
             message: "Admin review history retrieved successfully",
             metadata: history,
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   async getCompletedRequestBetween(
+      req: Request,
+      res: Response,
+      next: NextFunction
+   ) {
+      try {
+         const { studentUserId, tutorId } = req.query;
+
+         if (!studentUserId || !tutorId) {
+            throw new NotFoundError("Student user ID or tutor ID is missing.");
+         }
+
+         if (typeof studentUserId !== "string" || typeof tutorId !== "string") {
+            throw new NotFoundError(
+               "Invalid query parameters for studentUserId or tutorId."
+            );
+         }
+         const request =
+            await teachingRequestService.getCompletedRequestBetween(
+               studentUserId,
+               tutorId
+            );
+
+         if (!request) {
+            return new NotFoundError(
+               "No completed teaching request found between you and this tutor"
+            );
+         }
+
+         new OK({
+            message: "Completed teaching request found",
+            metadata: { request },
          }).send(res);
       } catch (err) {
          next(err);

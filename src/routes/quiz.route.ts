@@ -3,8 +3,10 @@ import { authenticate } from "../middlewares/auth.middleware";
 import quizController from "../controllers/quiz.controller";
 import { validate } from "../middlewares/validation.middleware";
 import {
+   createMultipleChoiceQuizBodySchema,
    createQuizBodySchema,
    deleteQuizBodySchema,
+   editMultipleChoiceQuizBodySchema,
    editQuizBodySchema,
    quizQuerySchema,
    quizTutorIdQuerySchema,
@@ -19,7 +21,11 @@ router.post(
    quizController.tutorCreateQuiz
 );
 
-router.get("/getTutorQuiz", authenticate, quizController.QuizByTutor);
+router.get(
+   "/getTutorFlashcardQuiz",
+   authenticate,
+   quizController.FlashcardQuizByTutor
+);
 
 router.get(
    "/getQuizQuestionsByQuiz",
@@ -45,6 +51,39 @@ router.delete(
    authenticate,
    validate(deleteQuizBodySchema),
    quizController.DeleteQuizByTutor
+);
+
+router.post(
+   "/createMultipleChoiceQuiz",
+   authenticate,
+   validate(createMultipleChoiceQuizBodySchema),
+   quizController.CreateMultipleChoiceQuiz
+);
+
+router.get(
+   "/getMultipleChoiceQuizByQuizId",
+   // authenticate,
+   validate(quizQuerySchema),
+   quizController.GetMultipleChoiceQuizByQuizId
+);
+
+router.get(
+   "/getMultipleChoiceQuizesByTutor",
+   authenticate,
+   quizController.GetMultipleChoiceQuizesByTutor
+);
+
+router.post(
+   "/asignQuizToSession",
+   authenticate,
+   quizController.AsignQuizToSession
+);
+
+router.put(
+   "/updateMultipleChoiceQuiz",
+   authenticate,
+   validate(editMultipleChoiceQuizBodySchema),
+   quizController.editMultipleChoiceQuizByTutor
 );
 
 export default router;

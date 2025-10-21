@@ -86,6 +86,13 @@ router.patch(
 );
 
 router.get(
+   "/completed/between",
+   authenticate,
+   isRole(Role.STUDENT),
+   controller.getCompletedRequestBetween
+);
+
+router.get(
    "/student/me",
    authenticate,
    isRole(Role.STUDENT),

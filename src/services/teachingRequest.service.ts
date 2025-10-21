@@ -541,6 +541,21 @@ class TeachingRequestService {
          completionHistory: request.complete_pendingHistory || [],
       };
    }
+
+   async getCompletedRequestBetween(studentUserId: string, tutorId: string) {
+      const student = await Student.findOne({ userId: studentUserId }).select(
+         "_id"
+      );
+      if (!student) throw new NotFoundError("Student profile not found");
+
+      const request = await TeachingRequest.findOne({
+         studentId: student._id,
+         tutorId,
+         status: TeachingRequestStatus.COMPLETED,
+      }).select("_id");
+
+      return request;
+   }
 }
 
 export default new TeachingRequestService();

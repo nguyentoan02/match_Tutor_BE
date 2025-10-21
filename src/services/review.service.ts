@@ -1,0 +1,402 @@
+import Review from "../models/review.model";
+import TeachingRequest from "../models/teachingRequest.model";
+import Tutor from "../models/tutor.model";
+import { IReview } from "../types/types/review";
+import { ReviewTypeEnum } from "../types/enums/review.enum";
+import { TeachingRequestStatus } from "../types/enums/teachingRequest.enum";
+import {
+    NotFoundError,
+    BadRequestError,
+    ForbiddenError
+} from "../utils/error.response";
+import { Types } from "mongoose";
+import { ITeachingRequest } from "../types/types/teachingRequest";
+import { IStudent } from "../types/types/student";
+import { ITutor } from "../types/types/tutor";
+
+export class ReviewService {
+    /**
+     * Create a review for a completed teaching request
+     */
+    async createReview(
+        teachingRequestId: string,
+        reviewerId: string,
+        rating: number,
+        comment?: string
+    ): Promise<IReview> {
+        // Validate teaching request exists and is completed
+        const teachingRequest = await TeachingRequest.findById(teachingRequestId)
+            .populate({
+                path: "studentId",
+                populate: { path: "userId", select: "_id" }
+            })
+            .populate({
+                path: "tutorId",
+                populate: { path: "userId", select: "_id" }
+            })
+            .lean<PopulatedTeachingRequest | null>();
+
+        if (!teachingRequest) {
+            throw new NotFoundError("Teaching request not found");
+        }
+
+        // Check if teaching request is completed
+        if (teachingRequest.status !== TeachingRequestStatus.COMPLETED) {
+            throw new BadRequestError(
+                `Can only review completed teaching requests. Current status: ${teachingRequest.status}`
+            );
+        }
+        type PopulatedTeachingRequest = ITeachingRequest & {
+            studentId: IStudent & { userId: { _id: Types.ObjectId } };
+            tutorId: ITutor & { userId: { _id: Types.ObjectId } };
+        };
+
+        const tr = teachingRequest as PopulatedTeachingRequest;
+
+        // Verify the reviewer is the student of this teaching request
+        if (tr.studentId.userId._id.toString() !== reviewerId) {
+            throw new ForbiddenError("Only the student that completed this teaching request can review it");
+        }
+
+        if (!tr.tutorId?.userId) {
+            throw new NotFoundError("Tutor information not found in teaching request");
+        }
+
+        const tutorId = tr.tutorId.userId._id;
+
+        // Check if review already exists for this teaching request
+        const existingReview = await Review.findOne({
+            reviewerId: new Types.ObjectId(reviewerId),
+            revieweeId: tutorId,
+            isVisible: true,
+        });
+
+        if (existingReview) {
+            throw new BadRequestError("You have already reviewed this teaching request");
+        }
+
+        // Create the review
+        const review = new Review({
+            type: ReviewTypeEnum.OVERALL,
+            teachingRequestId: new Types.ObjectId(teachingRequestId),
+            reviewerId: new Types.ObjectId(reviewerId),
+            revieweeId: tutorId,
+            rating,
+            comment,
+            isVisible: true,
+        });
+
+        await review.save();
+        const populatedReview = await Review.findById(review._id)
+            .populate("reviewerId", "name avatarUrl")
+            .populate("revieweeId", "name avatarUrl")
+            .populate("teachingRequestId", "subject level")
+            .lean();
+
+        return populatedReview as IReview;
+    }
+
+    /**
+     * Get reviews for a tutor
+     */
+    async getTutorReviews(tutorId: string): Promise<IReview[]> {
+        const reviews = await Review.find({
+            revieweeId: new Types.ObjectId(tutorId),
+            isVisible: true,
+        })
+            .populate("reviewerId", "name avatarUrl")
+            .populate("teachingRequestId", "subject level")
+            .sort({ createdAt: -1 })
+            .lean();
+
+        return reviews as IReview[];
+    }
+
+    /**
+     * Get tutor reviews (by userId)
+     * Supports paging, search, and filters for:
+     * - reviewer name
+     * - comment keyword
+     * - subject
+     * - level
+     * - rating range
+     * - sort order (newest or oldest)
+     */
+    async getTutorReviewsByUserId(
+        tutorUserId: string,
+        filters: {
+            page?: number;
+            limit?: number;
+            keyword?: string; // search by comment or reviewer name
+            subjects?: string[];
+            levels?: string[];
+            minRating?: number;
+            maxRating?: number;
+            sort?: "newest" | "oldest";
+            rating?: string; // specific rating filter
+        }
+    ) {
+        const {
+            page = 1,
+            limit = 10,
+            keyword = "",
+            subjects = [],
+            levels = [],
+            minRating = 0,
+            maxRating = 5,
+            sort = "newest",
+            rating, // specific rating
+        } = filters;
+
+        const skip = (page - 1) * limit;
+
+        // Find tutor document by userId
+        const tutor = await Tutor.findOne({ userId: new Types.ObjectId(tutorUserId) });
+        if (!tutor) {
+            throw new NotFoundError("Tutor profile not found");
+        }
+
+        // Build match conditions
+        const match: any = {
+            revieweeId: new Types.ObjectId(tutorUserId),
+            isVisible: true,
+        };
+
+        // Rating filtering
+        if (rating) {
+            // Specific rating filter (like "5" for 5 stars)
+            match.rating = Number(rating);
+        } else {
+            // Rating range filter
+            match.rating = { $gte: minRating, $lte: maxRating };
+        }
+
+        // Build aggregate pipeline
+        const pipeline: any[] = [
+            { $match: match },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "reviewerId",
+                    foreignField: "_id",
+                    as: "reviewerId",
+                },
+            },
+            { $unwind: "$reviewerId" },
+            {
+                $lookup: {
+                    from: "teaching_requests",
+                    localField: "teachingRequestId",
+                    foreignField: "_id",
+                    as: "teachingRequestId",
+                },
+            },
+            { $unwind: { path: "$teachingRequestId", preserveNullAndEmptyArrays: true } },
+        ];
+
+        // Filter by subject or level
+        const andConditions: any[] = [];
+
+        if (subjects.length > 0) {
+            andConditions.push({
+                "teachingRequestId.subject": { $in: subjects },
+            });
+        }
+
+        if (levels.length > 0) {
+            andConditions.push({
+                "teachingRequestId.level": { $in: levels },
+            });
+        }
+
+        // Keyword search in reviewer name or comment
+        if (keyword) {
+            andConditions.push({
+                $or: [
+                    { "reviewerId.name": { $regex: keyword, $options: "i" } }
+                ],
+            });
+        }
+
+        if (andConditions.length > 0) {
+            pipeline.push({ $match: { $and: andConditions } });
+        }
+
+        // Add sort
+        pipeline.push({
+            $sort: { createdAt: sort === "newest" ? -1 : 1 },
+        });
+
+        // Count total before pagination
+        const countPipeline = [...pipeline];
+        countPipeline.push({ $count: "total" });
+        const countResult = await Review.aggregate(countPipeline);
+        const total = countResult[0]?.total || 0;
+
+        // Apply pagination
+        pipeline.push({ $skip: skip });
+        pipeline.push({ $limit: limit });
+
+        // Select fields to return
+        pipeline.push({
+            $project: {
+                _id: 1,
+                rating: 1,
+                comment: 1,
+                createdAt: 1,
+                "reviewerId._id": 1,
+                "reviewerId.name": 1,
+                "reviewerId.avatarUrl": 1,
+                "teachingRequestId.subject": 1,
+                "teachingRequestId.level": 1,
+            },
+        });
+
+        const reviews = await Review.aggregate(pipeline);
+
+        return {
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit),
+            reviews,
+        };
+    }
+    /**
+     * Update a review
+     */
+    async updateReview(
+        reviewId: string,
+        reviewerId: string,
+        updates: { rating?: number; comment?: string }
+    ): Promise<IReview> {
+        const review = await Review.findById(reviewId);
+
+        if (!review) {
+            throw new NotFoundError("Review not found");
+        }
+
+        // Verify the user owns this review
+        if (review.reviewerId.toString() !== reviewerId) {
+            throw new ForbiddenError("You can only update your own reviews");
+        }
+
+        // Check if review is older than 24 hours
+        if (!review.createdAt) {
+            throw new BadRequestError("Review creation date is missing.");
+        }
+        const now = new Date();
+        const timeSinceCreation = now.getTime() - review.createdAt.getTime();
+        const hoursPassed = timeSinceCreation / (1000 * 60 * 60);
+
+        if (hoursPassed > 24) {
+            throw new ForbiddenError("You can only edit your review within 24 hours of posting.");
+        }
+
+        // Update fields
+        if (updates.rating !== undefined) {
+            review.rating = updates.rating;
+        }
+        if (updates.comment !== undefined) {
+            review.comment = updates.comment;
+        }
+
+        await review.save();
+
+        const updatedReview = await Review.findById(review._id)
+            .populate("reviewerId", "name avatarUrl")
+            .populate("revieweeId", "name avatarUrl")
+            .populate("teachingRequestId", "subject level")
+            .lean();
+
+        return updatedReview as IReview;
+    }
+
+    /**
+     * Delete a review (soft delete by setting isVisible to false)
+     */
+    // async deleteReview(reviewId: string, reviewerId: string): Promise<void> {
+    //     const review = await Review.findById(reviewId);
+
+    //     if (!review) {
+    //         throw new NotFoundError("Review not found");
+    //     }
+
+    //     // Verify the user owns this review
+    //     if (review.reviewerId.toString() !== reviewerId) {
+    //         throw new ForbiddenError("You can only delete your own reviews");
+    //     }
+
+    //     review.isVisible = false;
+    //     await review.save();
+    // }
+
+    /**
+     * Get tutor's average rating and review count
+     */
+    async getTutorRatingStats(tutorId: string): Promise<{
+        averageRating: number;
+        totalReviews: number;
+        ratingDistribution: { [key: number]: number };
+    }> {
+        const stats = await Review.aggregate([
+            {
+                $match: {
+                    revieweeId: new Types.ObjectId(tutorId),
+                    isVisible: true,
+                },
+            },
+            {
+                $group: {
+                    _id: null,
+                    averageRating: { $avg: "$rating" },
+                    totalReviews: { $sum: 1 },
+                    ratingDistribution: {
+                        $push: "$rating",
+                    },
+                },
+            },
+        ]);
+
+        if (stats.length === 0) {
+            return {
+                averageRating: 0,
+                totalReviews: 0,
+                ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+            };
+        }
+
+        const ratingDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+        stats[0].ratingDistribution.forEach((rating: number) => {
+            ratingDistribution[rating as keyof typeof ratingDistribution]++;
+        });
+
+        return {
+            averageRating: Math.round(stats[0].averageRating * 10) / 10,
+            totalReviews: stats[0].totalReviews,
+            ratingDistribution,
+        };
+    }
+
+    /**
+     * Get all reviews written by a student (for sidebar)
+     */
+    async getStudentReviewHistory(studentUserId: string): Promise<IReview[]> {
+        const reviews = await Review.find({
+            reviewerId: new Types.ObjectId(studentUserId),
+            isVisible: true,
+        })
+            .populate("revieweeId", "name avatarUrl") // Tutor info
+            .populate("teachingRequestId", "subject level status")
+            .sort({ createdAt: -1 })
+            .lean();
+
+        return reviews as IReview[];
+    }
+
+
+}
+
+
+
+export default new ReviewService();
