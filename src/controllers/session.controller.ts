@@ -3,6 +3,8 @@ import sessionService from "../services/session.service";
 import { CREATED, OK } from "../utils/success.response";
 import { UnauthorizedError } from "../utils/error.response";
 import { IUser } from "../types/types/user";
+import { Role } from "../types/enums";
+// Import Role type
 
 class SessionController {
    async create(req: Request, res: Response, next: NextFunction) {
@@ -166,18 +168,40 @@ class SessionController {
    // Confirm attendance after session
    async confirmAttendance(req: Request, res: Response, next: NextFunction) {
       try {
-         if (!req.user?._id || !req.user.role) {
+         if (!req.user?._id) {
             throw new UnauthorizedError("Authentication required");
          }
 
          const result = await sessionService.confirmAttendance(
             req.params.sessionId,
             req.user._id.toString(),
-            req.user.role
+            req.user.role as Role
          );
 
          new OK({
             message: "Attendance confirmed successfully",
+            metadata: result,
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   // Reject attendance after session
+   async rejectAttendance(req: Request, res: Response, next: NextFunction) {
+      try {
+         if (!req.user?._id) {
+            throw new UnauthorizedError("Authentication required");
+         }
+
+         const result = await sessionService.rejectAttendance(
+            req.params.sessionId,
+            req.user._id.toString(),
+            req.user.role as Role
+         );
+
+         new OK({
+            message: "Attendance rejected successfully",
             metadata: result,
          }).send(res);
       } catch (err) {

@@ -16,6 +16,7 @@ import { Role } from "../types/enums/role.enum";
 import { IUser } from "../types/types/user";
 import { CreateTeachingRequestBody } from "../schemas/teachingRequest.schema";
 import { ITutor } from "../types/types/tutor";
+import mongoose from "mongoose";
 
 class TeachingRequestService {
    async create(studentUserId: string, data: CreateTeachingRequestBody) {
@@ -82,71 +83,8 @@ class TeachingRequestService {
 
       request.status =
          decision === "ACCEPTED"
-            ? TeachingRequestStatus.TRIAL_ACCEPTED
+            ? TeachingRequestStatus.IN_PROGRESS
             : TeachingRequestStatus.REJECTED;
-      await request.save();
-      return request;
-   }
-
-   async makeTrialDecision(
-      requestId: string,
-      currentUser: IUser,
-      decision: DecisionStatus
-   ) {
-      const request = await TeachingRequest.findById(requestId).populate<{
-         tutorId: ITutor;
-      }>("tutorId");
-      if (!request) throw new NotFoundError("Teaching request not found");
-
-      if (request.status !== TeachingRequestStatus.TRIAL_COMPLETED) {
-         throw new BadRequestError(
-            "A decision can only be made after the trial period is completed."
-         );
-      }
-      if (!request.trialDecision) {
-         throw new InternalServerError(
-            "Trial decision data is missing for this request."
-         );
-      }
-
-      const userRole = currentUser.role;
-      let isParticipant = false;
-
-      if (userRole === Role.STUDENT) {
-         const student = await Student.findOne({ userId: currentUser._id });
-         if (student && String(request.studentId) === String(student._id)) {
-            isParticipant = true;
-            request.trialDecision.student = decision;
-         }
-      } else if (userRole === Role.TUTOR) {
-         if (
-            request.tutorId &&
-            String((request.tutorId as any).userId) === String(currentUser._id)
-         ) {
-            isParticipant = true;
-            request.trialDecision.tutor = decision;
-         }
-      }
-
-      if (!isParticipant) {
-         throw new ForbiddenError(
-            "You are not a participant in this teaching request."
-         );
-      }
-
-      const { student: studentDecision, tutor: tutorDecision } =
-         request.trialDecision;
-      if (
-         studentDecision !== DecisionStatus.PENDING &&
-         tutorDecision !== DecisionStatus.PENDING
-      ) {
-         request.status =
-            studentDecision === DecisionStatus.ACCEPTED &&
-            tutorDecision === DecisionStatus.ACCEPTED
-               ? TeachingRequestStatus.IN_PROGRESS
-               : TeachingRequestStatus.CANCELLED;
-      }
-
       await request.save();
       return request;
    }
@@ -165,20 +103,42 @@ class TeachingRequestService {
          );
       }
 
+      // Nếu đã có lần review trước, push vào history
+      if (request.cancellationDecision?.adminResolvedAt) {
+         if (!request.cancellationDecisionHistory) {
+            request.cancellationDecisionHistory = [];
+         }
+         request.cancellationDecisionHistory.push({
+            ...request.cancellationDecision,
+            resolvedDate: new Date(),
+         });
+      }
+
+      // Khởi tạo lần yêu cầu mới, reset các trường admin
       const requestedBy = currentUser.role.toLowerCase() as "student" | "tutor";
       request.status = TeachingRequestStatus.CANCELLATION_PENDING;
       request.cancellationDecision = {
-         student:
-            requestedBy === "student"
-               ? DecisionStatus.ACCEPTED
-               : DecisionStatus.PENDING,
-         tutor:
-            requestedBy === "tutor"
-               ? DecisionStatus.ACCEPTED
-               : DecisionStatus.PENDING,
+         student: {
+            decision:
+               requestedBy === "student"
+                  ? DecisionStatus.ACCEPTED
+                  : DecisionStatus.PENDING,
+            reason: requestedBy === "student" ? reason : undefined,
+         },
+         tutor: {
+            decision:
+               requestedBy === "tutor"
+                  ? DecisionStatus.ACCEPTED
+                  : DecisionStatus.PENDING,
+            reason: requestedBy === "tutor" ? reason : undefined,
+         },
          requestedBy,
          requestedAt: new Date(),
-         reason,
+         reason, // Initiator's reason
+         adminReviewRequired: false,
+         adminResolvedBy: undefined,
+         adminResolvedAt: undefined,
+         adminNotes: undefined,
       };
 
       await request.save();
@@ -199,20 +159,44 @@ class TeachingRequestService {
          );
       }
 
+      // Preserve previous admin resolution
+      if (request.complete_pending?.adminResolvedAt) {
+         if (!request.complete_pendingHistory) {
+            request.complete_pendingHistory = [];
+         }
+         request.complete_pendingHistory.push({
+            ...request.complete_pending,
+            resolvedDate: new Date(),
+         });
+      }
+
+      // Khởi tạo lần yêu cầu mới, reset các trường admin
       const requestedBy = currentUser.role.toLowerCase() as "student" | "tutor";
       request.status = TeachingRequestStatus.COMPLETE_PENDING;
       request.complete_pending = {
-         student:
-            requestedBy === "student"
-               ? DecisionStatus.ACCEPTED
-               : DecisionStatus.PENDING,
-         tutor:
-            requestedBy === "tutor"
-               ? DecisionStatus.ACCEPTED
-               : DecisionStatus.PENDING,
+         student: {
+            decision:
+               requestedBy === "student"
+                  ? DecisionStatus.ACCEPTED
+                  : DecisionStatus.PENDING,
+            reason: requestedBy === "student" ? reason : undefined,
+         },
+         tutor: {
+            decision:
+               requestedBy === "tutor"
+                  ? DecisionStatus.ACCEPTED
+                  : DecisionStatus.PENDING,
+            reason: requestedBy === "tutor" ? reason : undefined,
+         },
          requestedBy,
          requestedAt: new Date(),
          reason,
+         studentConfirmedAt: undefined,
+         tutorConfirmedAt: undefined,
+         adminReviewRequired: false,
+         adminResolvedBy: undefined,
+         adminResolvedAt: undefined,
+         adminNotes: undefined,
       };
 
       await request.save();
@@ -223,7 +207,8 @@ class TeachingRequestService {
       requestId: string,
       currentUser: IUser,
       action: "cancellation" | "completion",
-      decision: "ACCEPTED" | "REJECTED"
+      decision: "ACCEPTED" | "REJECTED",
+      reason?: string // Add reason parameter
    ) {
       const request = await TeachingRequest.findById(requestId);
       if (!request) throw new NotFoundError("Teaching request not found");
@@ -248,18 +233,22 @@ class TeachingRequestService {
       const userRole = currentUser.role.toLowerCase() as "student" | "tutor";
       const decisionData = request[decisionField];
 
-      if (!decisionData || decisionData[userRole] !== DecisionStatus.PENDING) {
+      if (
+         !decisionData ||
+         decisionData[userRole].decision !== DecisionStatus.PENDING
+      ) {
          throw new BadRequestError(
             "You have already responded or cannot respond at this time."
          );
       }
 
-      decisionData[userRole] = decision;
+      decisionData[userRole].decision = decision;
+      decisionData[userRole].reason = reason; // Save the reason
 
       if (decision === "ACCEPTED") {
          if (
-            decisionData.student === DecisionStatus.ACCEPTED &&
-            decisionData.tutor === DecisionStatus.ACCEPTED
+            decisionData.student.decision === DecisionStatus.ACCEPTED &&
+            decisionData.tutor.decision === DecisionStatus.ACCEPTED
          ) {
             request.status = finalStatus;
          }
@@ -314,6 +303,243 @@ class TeachingRequestService {
             populate: { path: "userId", select: "name avatarUrl" },
          })
          .sort({ createdAt: -1 });
+   }
+
+   // GET pending admin‐review
+   async getRequestsForAdminReview(query: { page: number; limit: number }) {
+      const page = query.page || 1;
+      const limit = query.limit || 10;
+      const skip = (page - 1) * limit;
+
+      const filter: any = {
+         $or: [
+            { "cancellationDecision.adminReviewRequired": true },
+            { "complete_pending.adminReviewRequired": true },
+         ],
+      };
+
+      const [requests, total] = await Promise.all([
+         TeachingRequest.find(filter)
+            .populate({
+               path: "studentId",
+               select: "userId",
+               populate: {
+                  path: "userId",
+                  select: "name email avatarUrl",
+               },
+            })
+            .populate({
+               path: "tutorId",
+               select: "userId",
+               populate: {
+                  path: "userId",
+                  select: "name email avatarUrl",
+               },
+            })
+            .populate({
+               path: "createdBy",
+               select: "name email",
+            })
+            .sort({ updatedAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .lean(),
+         TeachingRequest.countDocuments(filter),
+      ]);
+
+      return {
+         requests,
+         pagination: { page, limit, total },
+      };
+   }
+
+   // GET resolved admin‐review
+   async getResolvedRequestsForAdminReview(query: {
+      page: number;
+      limit: number;
+   }) {
+      const page = query.page || 1;
+      const limit = query.limit || 10;
+      const skip = (page - 1) * limit;
+
+      // Only requests with at least one cancellation or completion history entry
+      const filter: any = {
+         $or: [
+            { "cancellationDecisionHistory.0": { $exists: true } },
+            { "complete_pendingHistory.0": { $exists: true } },
+         ],
+      };
+
+      const [requests, total] = await Promise.all([
+         TeachingRequest.find(filter)
+            .populate({
+               path: "studentId",
+               select: "userId",
+               populate: {
+                  path: "userId",
+                  select: "name email avatarUrl",
+               },
+            })
+            .populate({
+               path: "tutorId",
+               select: "userId",
+               populate: {
+                  path: "userId",
+                  select: "name email avatarUrl",
+               },
+            })
+            .populate({
+               path: "createdBy",
+               select: "name email",
+            })
+            .sort({ updatedAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .lean(),
+         TeachingRequest.countDocuments(filter),
+      ]);
+
+      return {
+         requests,
+         pagination: { page, limit, total },
+      };
+   }
+
+   // GET recently resolved admin-review
+   async getRecentlyResolvedAdminReviews(query: {
+      page: number;
+      limit: number;
+   }) {
+      const page = query.page || 1;
+      const limit = query.limit || 10;
+      const skip = (page - 1) * limit;
+
+      // Find requests where an admin resolution has occurred in the main decision object
+      const filter: any = {
+         $or: [
+            {
+               "cancellationDecision.adminResolvedAt": {
+                  $exists: true,
+                  $ne: null,
+               },
+            },
+            {
+               "complete_pending.adminResolvedAt": { $exists: true, $ne: null },
+            },
+         ],
+      };
+
+      const [requests, total] = await Promise.all([
+         TeachingRequest.find(filter)
+            .populate({
+               path: "studentId",
+               select: "userId",
+               populate: {
+                  path: "userId",
+                  select: "name email avatarUrl",
+               },
+            })
+            .populate({
+               path: "tutorId",
+               select: "userId",
+               populate: {
+                  path: "userId",
+                  select: "name email avatarUrl",
+               },
+            })
+            .populate({
+               path: "createdBy",
+               select: "name email",
+            })
+            .sort({ updatedAt: -1 }) // Sort by the most recent update
+            .skip(skip)
+            .limit(limit)
+            .lean(),
+         TeachingRequest.countDocuments(filter),
+      ]);
+
+      return {
+         requests,
+         pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+      };
+   }
+
+   async resolveAdminReview(
+      requestId: string,
+      adminUserId: string,
+      decision: "ACCEPTED" | "REJECTED",
+      adminNotes?: string
+   ) {
+      const request = await TeachingRequest.findById(requestId);
+      if (!request) {
+         throw new NotFoundError("Teaching request not found");
+      }
+
+      const now = new Date();
+      let resolved = false;
+
+      // Check and resolve cancellation review
+      if (request.cancellationDecision?.adminReviewRequired) {
+         if (decision === "ACCEPTED") {
+            request.status = TeachingRequestStatus.CANCELLED;
+         } else {
+            request.status = TeachingRequestStatus.IN_PROGRESS;
+         }
+
+         request.cancellationDecision.adminReviewRequired = false;
+         request.cancellationDecision.adminResolvedBy =
+            new mongoose.Types.ObjectId(adminUserId);
+         request.cancellationDecision.adminResolvedAt = now;
+         request.cancellationDecision.adminNotes = adminNotes;
+         resolved = true;
+      }
+
+      // Check and resolve completion review
+      if (request.complete_pending?.adminReviewRequired) {
+         if (decision === "ACCEPTED") {
+            request.status = TeachingRequestStatus.COMPLETED;
+         } else {
+            request.status = TeachingRequestStatus.IN_PROGRESS;
+         }
+
+         request.complete_pending.adminReviewRequired = false;
+         request.complete_pending.adminResolvedBy = new mongoose.Types.ObjectId(
+            adminUserId
+         );
+         request.complete_pending.adminResolvedAt = now;
+         request.complete_pending.adminNotes = adminNotes;
+         resolved = true;
+      }
+
+      if (!resolved) {
+         throw new BadRequestError("No admin review required for this request");
+      }
+
+      await request.save();
+      return request;
+   }
+
+   // NEW: Method to get admin review history for a specific request
+   async getAdminReviewHistory(requestId: string) {
+      const request = await TeachingRequest.findById(requestId)
+         .select("cancellationDecisionHistory complete_pendingHistory")
+         .populate({
+            path: "cancellationDecisionHistory.adminResolvedBy",
+            select: "name email",
+         })
+         .populate({
+            path: "complete_pendingHistory.adminResolvedBy",
+            select: "name email",
+         });
+
+      if (!request) {
+         throw new NotFoundError("Teaching request not found");
+      }
+
+      return {
+         cancellationHistory: request.cancellationDecisionHistory || [],
+         completionHistory: request.complete_pendingHistory || [],
+      };
    }
 }
 

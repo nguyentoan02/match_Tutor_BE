@@ -3,6 +3,11 @@ import teachingRequestService from "../services/teachingRequest.service";
 import { CREATED, OK } from "../utils/success.response";
 import { IUser } from "../types/types/user";
 import { UnauthorizedError } from "../utils/error.response";
+import {
+   GetAdminReviewRequestsQuery,
+   ResolveAdminReviewParams,
+   ResolveAdminReviewBody,
+} from "../schemas/teachingRequest.schema";
 
 class TeachingRequestController {
    async create(req: Request, res: Response, next: NextFunction) {
@@ -59,27 +64,27 @@ class TeachingRequestController {
       }
    }
 
-   async makeTrialDecision(req: Request, res: Response, next: NextFunction) {
-      try {
-         if (!req.user) {
-            throw new UnauthorizedError(
-               "Authentication failed: User not found."
-            );
-         }
-         const { decision } = req.body;
-         const result = await teachingRequestService.makeTrialDecision(
-            req.params.id,
-            req.user as IUser,
-            decision
-         );
-         new OK({
-            message: "Trial decision submitted successfully.",
-            metadata: result,
-         }).send(res);
-      } catch (err) {
-         next(err);
-      }
-   }
+   // async makeTrialDecision(req: Request, res: Response, next: NextFunction) {
+   //    try {
+   //       if (!req.user) {
+   //          throw new UnauthorizedError(
+   //             "Authentication failed: User not found."
+   //          );
+   //       }
+   //       const { decision } = req.body;
+   //       const result = await teachingRequestService.makeTrialDecision(
+   //          req.params.id,
+   //          req.user as IUser,
+   //          decision
+   //       );
+   //       new OK({
+   //          message: "Trial decision submitted successfully.",
+   //          metadata: result,
+   //       }).send(res);
+   //    } catch (err) {
+   //       next(err);
+   //    }
+   // }
 
    async requestCancellation(req: Request, res: Response, next: NextFunction) {
       try {
@@ -132,15 +137,16 @@ class TeachingRequestController {
                "Authentication failed: User not found."
             );
          }
-         const { decision } = req.body;
+         const { decision, reason } = req.body;
          const result = await teachingRequestService.confirmAction(
             req.params.id,
             req.user as IUser,
             "cancellation",
-            decision
+            decision,
+            reason
          );
          new OK({
-            message: "Cancellation confirmation processed.",
+            message: `Cancellation ${decision.toLowerCase()} successfully.`,
             metadata: result,
          }).send(res);
       } catch (err) {
@@ -155,15 +161,16 @@ class TeachingRequestController {
                "Authentication failed: User not found."
             );
          }
-         const { decision } = req.body;
+         const { decision, reason } = req.body;
          const result = await teachingRequestService.confirmAction(
             req.params.id,
             req.user as IUser,
             "completion",
-            decision
+            decision,
+            reason
          );
          new OK({
-            message: "Completion confirmation processed.",
+            message: `Completion ${decision.toLowerCase()} successfully.`,
             metadata: result,
          }).send(res);
       } catch (err) {
@@ -207,6 +214,131 @@ class TeachingRequestController {
          new OK({
             message: "Tutor's teaching requests fetched successfully.",
             metadata: result,
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   // GET /api/teachingRequest/admin/review - Get teaching requests requiring admin review (Admin only)
+   async getRequestsForAdminReview(
+      req: Request,
+      res: Response,
+      next: NextFunction
+   ) {
+      try {
+         const currentUser = req.user;
+         if (!currentUser || !currentUser._id) {
+            throw new UnauthorizedError("Not authenticated");
+         }
+
+         const result = await teachingRequestService.getRequestsForAdminReview(
+            req.query as unknown as GetAdminReviewRequestsQuery
+         );
+
+         new OK({
+            message:
+               "Teaching requests requiring admin review retrieved successfully",
+            metadata: result,
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   // POST /api/teachingRequest/admin/review/:id/resolve - Resolve admin review for a teaching request (Admin only)
+   async resolveAdminReview(
+      req: Request<ResolveAdminReviewParams, {}, ResolveAdminReviewBody>,
+      res: Response,
+      next: NextFunction
+   ) {
+      try {
+         const currentUser = req.user;
+         if (!currentUser || !currentUser._id) {
+            throw new UnauthorizedError("Not authenticated");
+         }
+
+         const { id: requestId } = req.params;
+         const { decision, adminNotes } = req.body;
+
+         const result = await teachingRequestService.resolveAdminReview(
+            requestId,
+            currentUser._id.toString(),
+            decision,
+            adminNotes
+         );
+
+         new OK({
+            message: `Admin review resolved successfully - ${decision.toLowerCase()}`,
+            metadata: result,
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   // GET /api/teachingRequest/admin/review/recently-resolved
+   async getRecentlyResolvedAdminReviews(
+      req: Request,
+      res: Response,
+      next: NextFunction
+   ) {
+      try {
+         if (!req.user?._id) throw new UnauthorizedError("Not authenticated");
+         const result =
+            await teachingRequestService.getRecentlyResolvedAdminReviews(
+               req.query as unknown as GetAdminReviewRequestsQuery
+            );
+         new OK({
+            message:
+               "Recently resolved teaching requests retrieved successfully",
+            metadata: result,
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   // GET /api/teachingRequest/admin/review/resolved
+   async getResolvedAdminReviews(
+      req: Request,
+      res: Response,
+      next: NextFunction
+   ) {
+      try {
+         if (!req.user?._id) throw new UnauthorizedError("Not authenticated");
+         const result =
+            await teachingRequestService.getResolvedRequestsForAdminReview(
+               req.query as unknown as GetAdminReviewRequestsQuery
+            );
+         new OK({
+            message: "Resolved teaching requests retrieved successfully",
+            metadata: result,
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   // GET /api/teachingRequest/:id/admin/review/history
+   async getAdminReviewHistory(
+      req: Request<ResolveAdminReviewParams>,
+      res: Response,
+      next: NextFunction
+   ) {
+      try {
+         const currentUser = req.user;
+         if (!currentUser?._id) {
+            throw new UnauthorizedError("Not authenticated");
+         }
+         const request = await teachingRequestService.getById(req.params.id);
+         const history = {
+            cancellationHistory: request.cancellationDecisionHistory,
+            completionHistory: request.complete_pendingHistory,
+         };
+         new OK({
+            message: "Admin review history retrieved successfully",
+            metadata: history,
          }).send(res);
       } catch (err) {
          next(err);

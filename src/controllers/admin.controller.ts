@@ -6,10 +6,10 @@ import {
    UnauthorizedError,
    BadRequestError,
 } from "../utils/error.response";
-import { 
-   BanUserParams, 
-   BanUserBody, 
-   UnbanUserParams, 
+import {
+   BanUserParams,
+   BanUserBody,
+   UnbanUserParams,
    GetBannedUsersQuery,
    GetUserBanHistoryParams,
    GetBannedTutorsQuery,
@@ -19,12 +19,16 @@ import {
    AcceptTutorParams,
    RejectTutorParams,
    RejectTutorBody,
-   GetPendingTutorsQuery
+   GetPendingTutorsQuery,
 } from "../schemas/admin.schema";
 
 class AdminController {
    // POST /api/admin/user/:id/ban - Ban a user (Admin only)
-   async banUser(req: Request<BanUserParams, {}, BanUserBody>, res: Response, next: NextFunction) {
+   async banUser(
+      req: Request<BanUserParams, {}, BanUserBody>,
+      res: Response,
+      next: NextFunction
+   ) {
       try {
          const currentUser = req.user;
          if (!currentUser || !currentUser._id) {
@@ -55,7 +59,11 @@ class AdminController {
    }
 
    // POST /api/admin/user/:id/unban - Unban a user (Admin only)
-   async unbanUser(req: Request<UnbanUserParams>, res: Response, next: NextFunction) {
+   async unbanUser(
+      req: Request<UnbanUserParams>,
+      res: Response,
+      next: NextFunction
+   ) {
       try {
          const currentUser = req.user;
          if (!currentUser || !currentUser._id) {
@@ -86,8 +94,8 @@ class AdminController {
             throw new UnauthorizedError("Not authenticated");
          }
 
-         const page = parseInt(req.query.page as string || "1", 10);
-         const limit = parseInt(req.query.limit as string || "10", 10);
+         const page = parseInt((req.query.page as string) || "1", 10);
+         const limit = parseInt((req.query.limit as string) || "10", 10);
          const search = req.query.search as string;
 
          const result = await adminService.getBannedUsers({
@@ -106,7 +114,11 @@ class AdminController {
    }
 
    // GET /api/admin/user/:id/ban-history - Get user ban history (Admin only)
-   async getUserBanHistory(req: Request<GetUserBanHistoryParams>, res: Response, next: NextFunction) {
+   async getUserBanHistory(
+      req: Request<GetUserBanHistoryParams>,
+      res: Response,
+      next: NextFunction
+   ) {
       try {
          const currentUser = req.user;
          if (!currentUser || !currentUser._id) {
@@ -127,7 +139,16 @@ class AdminController {
    }
 
    // GET /api/admin/users - Get all users with pagination and search (Admin only)
-   async getAllUsers(req: Request<{}, {}, {}, { page?: string; limit?: string; search?: string; role?: string }>, res: Response, next: NextFunction) {
+   async getAllUsers(
+      req: Request<
+         {},
+         {},
+         {},
+         { page?: string; limit?: string; search?: string; role?: string }
+      >,
+      res: Response,
+      next: NextFunction
+   ) {
       try {
          const currentUser = req.user;
          if (!currentUser || !currentUser._id) {
@@ -163,7 +184,9 @@ class AdminController {
             throw new UnauthorizedError("Not authenticated");
          }
 
-         const result = await adminService.getBannedTutors(req.query as unknown as GetBannedTutorsQuery);
+         const result = await adminService.getBannedTutors(
+            req.query as unknown as GetBannedTutorsQuery
+         );
 
          new OK({
             message: "Banned tutors retrieved successfully",
@@ -182,7 +205,9 @@ class AdminController {
             throw new UnauthorizedError("Not authenticated");
          }
 
-         const result = await adminService.getActiveTutors(req.query as unknown as GetActiveTutorsQuery);
+         const result = await adminService.getActiveTutors(
+            req.query as unknown as GetActiveTutorsQuery
+         );
 
          new OK({
             message: "Active tutors retrieved successfully",
@@ -201,7 +226,9 @@ class AdminController {
             throw new UnauthorizedError("Not authenticated");
          }
 
-         const result = await adminService.getBannedStudents(req.query as unknown as GetBannedStudentsQuery);
+         const result = await adminService.getBannedStudents(
+            req.query as unknown as GetBannedStudentsQuery
+         );
 
          new OK({
             message: "Banned students retrieved successfully",
@@ -220,7 +247,9 @@ class AdminController {
             throw new UnauthorizedError("Not authenticated");
          }
 
-         const result = await adminService.getActiveStudents(req.query as unknown as GetActiveStudentsQuery);
+         const result = await adminService.getActiveStudents(
+            req.query as unknown as GetActiveStudentsQuery
+         );
 
          new OK({
             message: "Active students retrieved successfully",
@@ -232,7 +261,11 @@ class AdminController {
    }
 
    // POST /api/admin/tutor/:id/accept - Accept tutor profile (Admin only)
-   async acceptTutor(req: Request<AcceptTutorParams>, res: Response, next: NextFunction) {
+   async acceptTutor(
+      req: Request<AcceptTutorParams>,
+      res: Response,
+      next: NextFunction
+   ) {
       try {
          const currentUser = req.user;
          if (!currentUser || !currentUser._id) {
@@ -256,7 +289,11 @@ class AdminController {
    }
 
    // POST /api/admin/tutor/:id/reject - Reject tutor profile (Admin only)
-   async rejectTutor(req: Request<RejectTutorParams, {}, RejectTutorBody>, res: Response, next: NextFunction) {
+   async rejectTutor(
+      req: Request<RejectTutorParams, {}, RejectTutorBody>,
+      res: Response,
+      next: NextFunction
+   ) {
       try {
          const currentUser = req.user;
          if (!currentUser || !currentUser._id) {
@@ -289,7 +326,9 @@ class AdminController {
             throw new UnauthorizedError("Not authenticated");
          }
 
-         const result = await adminService.getPendingTutors(req.query as unknown as GetPendingTutorsQuery);
+         const result = await adminService.getPendingTutors(
+            req.query as unknown as GetPendingTutorsQuery
+         );
 
          new OK({
             message: "Pending tutors retrieved successfully",
@@ -321,7 +360,6 @@ class AdminController {
       }
    }
 
-
    // GET /api/admin/tutors/mapping - Get tutors with userId and tutorId mapping (Admin only)
    async getTutorsWithMapping(req: Request, res: Response, next: NextFunction) {
       try {
@@ -330,16 +368,18 @@ class AdminController {
             throw new UnauthorizedError("Not authenticated");
          }
 
-         const page = parseInt(req.query.page as string || "1", 10);
-         const limit = parseInt(req.query.limit as string || "10", 10);
+         const page = parseInt((req.query.page as string) || "1", 10);
+         const limit = parseInt((req.query.limit as string) || "10", 10);
          const search = req.query.search as string;
-         const status = req.query.status as 'all' | 'pending' | 'approved' | 'banned' || 'all';
+         const status =
+            (req.query.status as "all" | "pending" | "approved" | "banned") ||
+            "all";
 
          const result = await adminService.getTutorsWithMapping({
             page,
             limit,
             search,
-            status
+            status,
          });
 
          new OK({

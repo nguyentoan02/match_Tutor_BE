@@ -1,49 +1,37 @@
 import mongoose, { Schema } from "mongoose";
-import { ISession } from "../types/types/session";
-import {
-   SESSION_STATUS_VALUES,
-   SessionStatus,
-} from "../types/enums/session.enum";
+import { ISessionHistory } from "../types/types/sessionHistory";
 import { getVietnamTime } from "../utils/date.util";
-import { REMINDER_METHOD_VALUES } from "../types/enums/reminder.enum";
 
-const SessionSchema: Schema<ISession> = new Schema(
+const SessionHistorySchema: Schema<ISessionHistory> = new Schema(
    {
+      sessionId: {
+         type: Schema.Types.ObjectId,
+         ref: "Session",
+         required: true,
+      },
       teachingRequestId: {
          type: Schema.Types.ObjectId,
          ref: "TeachingRequest",
-         required: true,
       },
-      startTime: { type: Date, required: true },
-      endTime: { type: Date, required: true },
-      status: {
-         type: String,
-         enum: SESSION_STATUS_VALUES,
-         default: SessionStatus.SCHEDULED,
-      },
-      isTrial: { type: Boolean, default: false },
-      createdBy: { type: Schema.Types.ObjectId, ref: "User" },
-      materials: [{ type: Schema.Types.ObjectId, ref: "Material" }],
-      quizIds: [{ type: Schema.Types.ObjectId, ref: "Quiz" }],
-      reminders: [
-         {
-            userId: { type: Schema.Types.ObjectId, ref: "User" },
-            minutesBefore: { type: Number },
-            methods: [{ type: String, enum: REMINDER_METHOD_VALUES }],
-            _id: false,
-         },
-      ],
-      location: { type: String },
-      notes: { type: String },
+      changedBy: { type: Schema.Types.ObjectId, ref: "User" },
+      action: { type: String, required: true },
+      summary: { type: String },
+      changes: { type: Object },
+      meta: { type: Object },
    },
    {
       timestamps: {
+         createdAt: true,
+         updatedAt: false,
          currentTime: getVietnamTime,
       },
-      collection: "sessions",
+      collection: "session_history",
    }
 );
 
-SessionSchema.index({ teachingRequestId: 1, startTime: 1 });
+SessionHistorySchema.index({ sessionId: 1, createdAt: -1 });
 
-export default mongoose.model<ISession>("Session", SessionSchema);
+export default mongoose.model<ISessionHistory>(
+   "SessionHistory",
+   SessionHistorySchema
+);

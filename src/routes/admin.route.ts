@@ -1,9 +1,9 @@
 import { Router } from "express";
 import adminController from "../controllers/admin.controller";
 import { validate } from "../middlewares/validation.middleware";
-import { 
-   banUserSchema, 
-   unbanUserSchema, 
+import {
+   banUserSchema,
+   unbanUserSchema,
    getBannedUsersSchema,
    getUserBanHistorySchema,
    getBannedTutorsSchema,
@@ -12,7 +12,7 @@ import {
    getActiveStudentsSchema,
    acceptTutorSchema,
    rejectTutorSchema,
-   getPendingTutorsSchema
+   getPendingTutorsSchema,
 } from "../schemas/admin.schema";
 import { authenticate, isRole } from "../middlewares/auth.middleware";
 import { Role } from "../types/enums/role.enum";
@@ -25,11 +25,7 @@ router.use(isRole(Role.ADMIN));
 
 // User management routes
 // Ban a user
-router.post(
-   "/user/:id/ban",
-   validate(banUserSchema),
-   adminController.banUser
-);
+router.post("/user/:id/ban", validate(banUserSchema), adminController.banUser);
 
 // Unban a user
 router.post(
@@ -53,10 +49,7 @@ router.get(
 );
 
 // Get all users with pagination and search
-router.get(
-   "/users",
-   adminController.getAllUsers
-);
+router.get("/users", adminController.getAllUsers);
 
 // Get banned tutors
 router.get(
@@ -109,17 +102,10 @@ router.get(
 );
 
 // Get tutor profile by ID
-router.get(
-   "/tutor/:id",
-   adminController.getTutorProfile
-);
-
+router.get("/tutor/:id", adminController.getTutorProfile);
 
 // Get tutors with userId and tutorId mapping
-router.get(
-   "/tutors/mapping",
-   adminController.getTutorsWithMapping
-);
+router.get("/tutors/mapping", adminController.getTutorsWithMapping);
 
 export default router;
 
