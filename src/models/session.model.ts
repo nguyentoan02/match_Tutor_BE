@@ -35,13 +35,28 @@ const SessionSchema: Schema<ISession> = new Schema(
          _id: false,
       },
 
-      // Attendance confirmation after session
+      // Attendance confirmation after session (manual check-in by both parties)
       attendanceConfirmation: {
-         tutorConfirmed: { type: Boolean, default: false },
-         studentConfirmed: { type: Boolean, default: false },
-         tutorConfirmedAt: { type: Date },
-         studentConfirmedAt: { type: Date },
-         isAttended: { type: Boolean, default: false }, // true only if both confirmed
+         tutor: {
+            status: {
+               type: String,
+               enum: ["PENDING", "ACCEPTED", "REJECTED"],
+               default: "PENDING",
+            },
+            decidedAt: { type: Date },
+         },
+         student: {
+            status: {
+               type: String,
+               enum: ["PENDING", "ACCEPTED", "REJECTED"],
+               default: "PENDING",
+            },
+            decidedAt: { type: Date },
+         },
+         // Finalization metadata: set when both have responded
+         finalizedAt: { type: Date },
+         // Convenience flag: true only if both status === "ACCEPTED"
+         isAttended: { type: Boolean, default: false },
          _id: false,
       },
 

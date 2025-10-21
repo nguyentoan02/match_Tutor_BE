@@ -12,42 +12,52 @@ export interface ITrialDecision {
 }
 
 export interface ICompletePending {
-   // current decisions
-   student: DecisionStatus | string;
-   tutor: DecisionStatus | string;
+   // current decisions + individual reasons
+   student: { decision: DecisionStatus | string; reason?: string };
+   tutor: { decision: DecisionStatus | string; reason?: string };
 
-   // who originally proposed to complete the course: "student" | "tutor"
+   // who originally proposed to complete the course
    requestedBy?: "student" | "tutor";
-
    // when the completion was proposed
    requestedAt?: Date;
-
-   // optional short reason provided by the proposer
+   // initiator’s reason
    reason?: string;
 
-   // timestamps when each party confirmed (useful for audit / UI)
+   // timestamps when each party confirmed (for audit/UI)
    studentConfirmedAt?: Date;
    tutorConfirmedAt?: Date;
 
-   // mark if escalation to admin is required (when one party disputes)
+   // escalation to admin
    adminReviewRequired?: boolean;
-
-   // admin resolution metadata (if admin handles the dispute)
-   adminResolvedBy?: Types.ObjectId; // admin user id
+   // admin resolution
+   adminResolvedBy?: Types.ObjectId;
    adminResolvedAt?: Date;
    adminNotes?: string;
 }
 
 export interface ICancellationDecision {
-   student: DecisionStatus | string;
-   tutor: DecisionStatus | string;
+   // decisions + individual reasons
+   student: { decision: DecisionStatus | string; reason?: string };
+   tutor: { decision: DecisionStatus | string; reason?: string };
+
    requestedBy?: "student" | "tutor";
    requestedAt?: Date;
+   // initiator’s reason
    reason?: string;
-   adminReviewRequired?: boolean; // Đánh dấu khi cần Admin can thiệp
-   adminResolvedBy?: Types.ObjectId; // Admin nào đã xử lý
-   adminResolvedAt?: Date; // Thời gian Admin xử lý
-   adminNotes?: string; // Ghi chú của Admin
+
+   adminReviewRequired?: boolean;
+   adminResolvedBy?: Types.ObjectId;
+   adminResolvedAt?: Date;
+   adminNotes?: string;
+}
+
+// NEW: History interfaces for admin reviews
+export interface ICancellationDecisionHistory extends ICancellationDecision {
+   resolvedDate?: Date; // Thời gian lưu vào history
+}
+
+export interface ICompletePendingHistory extends ICompletePending {
+   resolvedDate?: Date; // Thời gian lưu vào history
 }
 
 export interface ITeachingRequest extends Document {
@@ -58,11 +68,16 @@ export interface ITeachingRequest extends Document {
    hourlyRate: number;
    description?: string;
    totalSessionsPlanned?: number;
-   trialSessionsCompleted?: number; // Đảm bảo trường này tồn tại
+   trialSessionsCompleted?: number;
    trialDecision?: ITrialDecision;
    status?: TeachingRequestStatus | string;
    complete_pending?: ICompletePending;
    cancellationDecision?: ICancellationDecision;
+
+   // NEW: History arrays
+   cancellationDecisionHistory?: ICancellationDecisionHistory[];
+   complete_pendingHistory?: ICompletePendingHistory[];
+
    createdBy?: Types.ObjectId;
    createdAt?: Date;
    updatedAt?: Date;

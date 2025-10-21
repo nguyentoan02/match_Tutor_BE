@@ -6,6 +6,8 @@ import {
    createSessionSchema,
    updateSessionSchema,
    cancelSessionSchema,
+   confirmAttendanceSchema,
+   rejectAttendanceSchema,
 } from "../schemas/session.schema";
 import { Role } from "../types/enums/role.enum";
 
@@ -56,6 +58,17 @@ router.patch(
 );
 
 // Both tutor and student confirm attendance after session
-router.patch("/:sessionId/confirm-attendance", controller.confirmAttendance);
+router.patch(
+   "/:sessionId/confirm-attendance",
+   validate(confirmAttendanceSchema),
+   controller.confirmAttendance
+);
+
+// Both tutor and student can reject attendance after session
+router.patch(
+   "/:sessionId/reject-attendance",
+   validate(rejectAttendanceSchema),
+   controller.rejectAttendance
+);
 
 export default router;

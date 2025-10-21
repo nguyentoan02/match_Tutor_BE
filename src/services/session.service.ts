@@ -275,48 +275,156 @@ class SessionService {
 
       await this.checkParticipant(session.teachingRequestId.toString(), userId);
 
-      // Cho phép điểm danh khi session đã được confirm hoặc đã hoàn thành
-      if (
-         session.status !== SessionStatus.CONFIRMED &&
-         session.status !== SessionStatus.COMPLETED
-      ) {
+      // Cho phép điểm danh khi session đã được confirm
+      if (session.status !== SessionStatus.CONFIRMED) {
          throw new BadRequestError(
-            "Can only confirm attendance for confirmed or completed sessions"
+            "Can only confirm attendance for sessions in CONFIRMED status"
          );
       }
 
+      // Initialize attendanceConfirmation if not exists
       if (!session.attendanceConfirmation) {
          session.attendanceConfirmation = {
-            tutorConfirmed: false,
-            studentConfirmed: false,
+            tutor: {
+               status: "PENDING",
+            },
+            student: {
+               status: "PENDING",
+            },
             isAttended: false,
          };
       }
 
       const now = new Date();
 
+      // Update confirmation based on user role
       if (userRole === Role.TUTOR) {
-         if (session.attendanceConfirmation.tutorConfirmed) {
+         if (session.attendanceConfirmation.tutor.status !== "PENDING") {
             throw new BadRequestError("Tutor attendance already confirmed");
          }
-         session.attendanceConfirmation.tutorConfirmed = true;
-         session.attendanceConfirmation.tutorConfirmedAt = now;
+         session.attendanceConfirmation.tutor.status = "ACCEPTED";
+         session.attendanceConfirmation.tutor.decidedAt = now;
       } else if (userRole === Role.STUDENT) {
-         if (session.attendanceConfirmation.studentConfirmed) {
+         if (session.attendanceConfirmation.student.status !== "PENDING") {
             throw new BadRequestError("Student attendance already confirmed");
          }
-         session.attendanceConfirmation.studentConfirmed = true;
-         session.attendanceConfirmation.studentConfirmedAt = now;
+         session.attendanceConfirmation.student.status = "ACCEPTED";
+         session.attendanceConfirmation.student.decidedAt = now;
       }
 
-      // Check if both confirmed
-      session.attendanceConfirmation.isAttended =
-         session.attendanceConfirmation.tutorConfirmed &&
-         session.attendanceConfirmation.studentConfirmed;
+      // Check if both have responded
+      const tutorResponded =
+         session.attendanceConfirmation.tutor.status !== "PENDING";
+      const studentResponded =
+         session.attendanceConfirmation.student.status !== "PENDING";
 
-      // Nếu cả hai đã xác nhận điểm danh, cập nhật trạng thái buổi học
-      if (session.attendanceConfirmation.isAttended) {
-         session.status = SessionStatus.COMPLETED;
+      if (tutorResponded && studentResponded) {
+         // Both have responded, finalize the session
+         session.attendanceConfirmation.finalizedAt = now;
+
+         const tutorAccepted =
+            session.attendanceConfirmation.tutor.status === "ACCEPTED";
+         const studentAccepted =
+            session.attendanceConfirmation.student.status === "ACCEPTED";
+
+         if (tutorAccepted && studentAccepted) {
+            // Both confirmed attendance
+            session.attendanceConfirmation.isAttended = true;
+            session.status = SessionStatus.COMPLETED;
+         } else {
+            // At least one did not attend
+            session.attendanceConfirmation.isAttended = false;
+            session.status = SessionStatus.NOT_CONDUCTED;
+         }
+
+         // --- NEW: If this is a trial session and now completed, increment trial counter on TeachingRequest
+         if (session.isTrial && session.status === SessionStatus.COMPLETED) {
+            const request = await TeachingRequest.findById(
+               session.teachingRequestId
+            );
+            if (request) {
+               request.trialSessionsCompleted =
+                  (request.trialSessionsCompleted || 0) + 1;
+               if (request.trialSessionsCompleted >= 2) {
+                  request.status = TeachingRequestStatus.TRIAL_COMPLETED;
+               }
+               await request.save();
+            }
+         }
+      }
+
+      await session.save();
+      return session;
+   }
+
+   // Reject attendance after session
+   async rejectAttendance(sessionId: string, userId: string, userRole: Role) {
+      const session = await Session.findById(sessionId);
+      if (!session) throw new NotFoundError("Session not found");
+
+      await this.checkParticipant(session.teachingRequestId.toString(), userId);
+
+      // Cho phép từ chối điểm danh chỉ khi session đã được confirm
+      if (session.status !== SessionStatus.CONFIRMED) {
+         throw new BadRequestError(
+            "Can only reject attendance for sessions in CONFIRMED status"
+         );
+      }
+
+      // Initialize attendanceConfirmation if not exists
+      if (!session.attendanceConfirmation) {
+         session.attendanceConfirmation = {
+            tutor: {
+               status: "PENDING",
+            },
+            student: {
+               status: "PENDING",
+            },
+            isAttended: false,
+         };
+      }
+
+      const now = new Date();
+
+      // Update rejection based on user role
+      if (userRole === Role.TUTOR) {
+         if (session.attendanceConfirmation.tutor.status !== "PENDING") {
+            throw new BadRequestError("Tutor attendance already decided");
+         }
+         session.attendanceConfirmation.tutor.status = "REJECTED";
+         session.attendanceConfirmation.tutor.decidedAt = now;
+      } else if (userRole === Role.STUDENT) {
+         if (session.attendanceConfirmation.student.status !== "PENDING") {
+            throw new BadRequestError("Student attendance already decided");
+         }
+         session.attendanceConfirmation.student.status = "REJECTED";
+         session.attendanceConfirmation.student.decidedAt = now;
+      }
+
+      // Check if both have responded
+      const tutorResponded =
+         session.attendanceConfirmation.tutor.status !== "PENDING";
+      const studentResponded =
+         session.attendanceConfirmation.student.status !== "PENDING";
+
+      if (tutorResponded && studentResponded) {
+         // Both have responded, finalize the session
+         session.attendanceConfirmation.finalizedAt = now;
+
+         const tutorAccepted =
+            session.attendanceConfirmation.tutor.status === "ACCEPTED";
+         const studentAccepted =
+            session.attendanceConfirmation.student.status === "ACCEPTED";
+
+         if (tutorAccepted && studentAccepted) {
+            // Both confirmed attendance
+            session.attendanceConfirmation.isAttended = true;
+            session.status = SessionStatus.COMPLETED;
+         } else {
+            // At least one did not attend
+            session.attendanceConfirmation.isAttended = false;
+            session.status = SessionStatus.NOT_CONDUCTED;
+         }
       }
 
       await session.save();

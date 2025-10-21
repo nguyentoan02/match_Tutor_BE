@@ -82,6 +82,12 @@ export const confirmAttendanceSchema = z.object({
    }),
 });
 
+export const rejectAttendanceSchema = z.object({
+   params: z.object({
+      sessionId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid session ID"),
+   }),
+});
+
 export const cancelSessionSchema = z.object({
    params: z.object({
       sessionId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid session ID"),

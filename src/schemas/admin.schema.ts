@@ -35,7 +35,10 @@ export const getBannedUsersSchema = z.object({
          .string()
          .regex(/^\d+$/, "Limit must be a number")
          .transform((val) => parseInt(val, 10))
-         .refine((val) => val > 0 && val <= 100, "Limit must be between 1 and 100")
+         .refine(
+            (val) => val > 0 && val <= 100,
+            "Limit must be between 1 and 100"
+         )
          .optional()
          .default(10),
       search: z.string().optional(),
@@ -63,7 +66,10 @@ export const getBannedTutorsSchema = z.object({
          .string()
          .regex(/^\d+$/, "Limit must be a number")
          .transform((val) => parseInt(val, 10))
-         .refine((val) => val > 0 && val <= 100, "Limit must be between 1 and 100")
+         .refine(
+            (val) => val > 0 && val <= 100,
+            "Limit must be between 1 and 100"
+         )
          .optional()
          .default(10),
       search: z.string().optional(),
@@ -84,7 +90,10 @@ export const getActiveTutorsSchema = z.object({
          .string()
          .regex(/^\d+$/, "Limit must be a number")
          .transform((val) => parseInt(val, 10))
-         .refine((val) => val > 0 && val <= 100, "Limit must be between 1 and 100")
+         .refine(
+            (val) => val > 0 && val <= 100,
+            "Limit must be between 1 and 100"
+         )
          .optional()
          .default(10),
       search: z.string().optional(),
@@ -105,7 +114,10 @@ export const getBannedStudentsSchema = z.object({
          .string()
          .regex(/^\d+$/, "Limit must be a number")
          .transform((val) => parseInt(val, 10))
-         .refine((val) => val > 0 && val <= 100, "Limit must be between 1 and 100")
+         .refine(
+            (val) => val > 0 && val <= 100,
+            "Limit must be between 1 and 100"
+         )
          .optional()
          .default(10),
       search: z.string().optional(),
@@ -126,7 +138,10 @@ export const getActiveStudentsSchema = z.object({
          .string()
          .regex(/^\d+$/, "Limit must be a number")
          .transform((val) => parseInt(val, 10))
-         .refine((val) => val > 0 && val <= 100, "Limit must be between 1 and 100")
+         .refine(
+            (val) => val > 0 && val <= 100,
+            "Limit must be between 1 and 100"
+         )
          .optional()
          .default(10),
       search: z.string().optional(),
@@ -168,7 +183,10 @@ export const getPendingTutorsSchema = z.object({
          .string()
          .regex(/^\d+$/, "Limit must be a number")
          .transform((val) => parseInt(val, 10))
-         .refine((val) => val > 0 && val <= 100, "Limit must be between 1 and 100")
+         .refine(
+            (val) => val > 0 && val <= 100,
+            "Limit must be between 1 and 100"
+         )
          .optional()
          .default(10),
       search: z.string().optional(),
@@ -180,12 +198,24 @@ export type BanUserParams = z.infer<typeof banUserSchema>["params"];
 export type BanUserBody = z.infer<typeof banUserSchema>["body"];
 export type UnbanUserParams = z.infer<typeof unbanUserSchema>["params"];
 export type GetBannedUsersQuery = z.infer<typeof getBannedUsersSchema>["query"];
-export type GetUserBanHistoryParams = z.infer<typeof getUserBanHistorySchema>["params"];
-export type GetBannedTutorsQuery = z.infer<typeof getBannedTutorsSchema>["query"];
-export type GetActiveTutorsQuery = z.infer<typeof getActiveTutorsSchema>["query"];
-export type GetBannedStudentsQuery = z.infer<typeof getBannedStudentsSchema>["query"];
-export type GetActiveStudentsQuery = z.infer<typeof getActiveStudentsSchema>["query"];
+export type GetUserBanHistoryParams = z.infer<
+   typeof getUserBanHistorySchema
+>["params"];
+export type GetBannedTutorsQuery = z.infer<
+   typeof getBannedTutorsSchema
+>["query"];
+export type GetActiveTutorsQuery = z.infer<
+   typeof getActiveTutorsSchema
+>["query"];
+export type GetBannedStudentsQuery = z.infer<
+   typeof getBannedStudentsSchema
+>["query"];
+export type GetActiveStudentsQuery = z.infer<
+   typeof getActiveStudentsSchema
+>["query"];
 export type AcceptTutorParams = z.infer<typeof acceptTutorSchema>["params"];
 export type RejectTutorParams = z.infer<typeof rejectTutorSchema>["params"];
 export type RejectTutorBody = z.infer<typeof rejectTutorSchema>["body"];
-export type GetPendingTutorsQuery = z.infer<typeof getPendingTutorsSchema>["query"];
+export type GetPendingTutorsQuery = z.infer<
+   typeof getPendingTutorsSchema
+>["query"];
