@@ -645,10 +645,7 @@ class QuizService {
       const quizIdsArr = Array.isArray(quizIds)
          ? quizIds.filter((id) => !!id)
          : [];
-      // if there is nothing to add, return the existing session unchanged
-      if (quizIdsArr.length === 0) {
-         return session as ISession;
-      }
+
       const savedSession = await sessionModel.findByIdAndUpdate(
          sessionId,
          { $set: { quizIds: quizIdsArr } },
@@ -690,6 +687,24 @@ class QuizService {
          });
 
       return sessions as ISession[];
+   }
+
+   async getQuizzesInSessionDetail(sessionId: string): Promise<IQuiz[]> {
+      const session = await sessionModel.findById(sessionId);
+      if (!session) {
+         throw new NotFoundError("can not find this session");
+      }
+
+      const quizIds = session.quizIds;
+      if (!quizIds || quizIds.length === 0) {
+         return [];
+      }
+
+      const quizzes = await quizModel.find({
+         _id: { $in: quizIds },
+      });
+
+      return quizzes as IQuiz[];
    }
 }
 
