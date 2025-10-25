@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { BadRequestError, UnauthorizedError } from "../utils/error.response";
 import {
+   AsignQuizToSessionBody,
    CreateMultipleChoiceQuizBody,
    CreateQuizBody,
    DeleteQuizBody,
@@ -165,6 +166,16 @@ class QuizController {
       if (!currentUser || !currentUser._id) {
          throw new UnauthorizedError("Not authenticated");
       }
+      const asignQuizPayload: AsignQuizToSessionBody = req.body;
+      console.log("asignQuizPayload:", asignQuizPayload);
+      const asignResult = await quizService.asignQuizToSession(
+         currentUser._id.toString(),
+         asignQuizPayload.quizIds,
+         asignQuizPayload.sessionId
+      );
+      new OK({ message: "asign quiz success", metadata: asignResult }).send(
+         res
+      );
    }
 
    async GetMultipleChoiceQuizesByTutor(req: Request, res: Response) {
@@ -176,6 +187,38 @@ class QuizController {
          currentUser._id.toString()
       );
       new OK({ message: "get quizes success", metadata: quizes }).send(res);
+   }
+
+   async getAssigned(req: Request, res: Response) {
+      const currentUser = req.user;
+      if (!currentUser || !currentUser._id) {
+         throw new UnauthorizedError("Not authenticated");
+      }
+      const quizId = req.query.quizId as string;
+      if (!quizId) {
+         throw new BadRequestError("invalid quizId");
+      }
+      const sessions = await quizService.getSessionsAssigned(quizId);
+      new OK({
+         message: "get sessions assigned success",
+         metadata: sessions,
+      }).send(res);
+   }
+
+   async getQuizzesInSessionDetail(req: Request, res: Response) {
+      const currentUser = req.user;
+      if (!currentUser || !currentUser._id) {
+         throw new UnauthorizedError("Not authenticated");
+      }
+      const sessionId = req.query.sessionId as string;
+      if (!sessionId) {
+         throw new BadRequestError("invalid sessionId");
+      }
+      const quizzes = await quizService.getQuizzesInSessionDetail(sessionId);
+      new OK({
+         message: "get quizzes in session detail success",
+         metadata: quizzes,
+      }).send(res);
    }
 }
 

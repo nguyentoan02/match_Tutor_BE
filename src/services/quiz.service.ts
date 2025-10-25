@@ -346,13 +346,10 @@ class QuizService {
       }
 
       const existed = await sessionModel
-         .findOne({ quizIds: quizId })
+         .find({ quizIds: quizId })
          .lean()
          .select("_id")
          .exec();
-      if (existed) {
-         new BadRequestError("please remove this quiz from all the session");
-      }
 
       const deleteIds = quizQuestions
          .map((q: any) => q._id)
@@ -364,6 +361,14 @@ class QuizService {
          if (deleteIds.length) {
             await quizQuestionModel.deleteMany(
                { _id: { $in: deleteIds }, quizId },
+               { session }
+            );
+         }
+
+         if (existed) {
+            await sessionModel.updateMany(
+               { quizIds: quizId },
+               { $pull: { quizIds: quizId } },
                { session }
             );
          }
@@ -667,7 +672,7 @@ class QuizService {
       }
    }
 
-   async AsignQuizToSession(
+   async asignQuizToSession(
       tutorId: string,
       quizIds: string[],
       sessionId: string
@@ -681,9 +686,16 @@ class QuizService {
          throw new BadRequestError("you are not allowed to edit this session");
       }
 
-      session.quizIds.push(...quizIds.map((id) => new Types.ObjectId(id)));
-      await session.save();
-      return session as ISession;
+      const quizIdsArr = Array.isArray(quizIds)
+         ? quizIds.filter((id) => !!id)
+         : [];
+
+      const savedSession = await sessionModel.findByIdAndUpdate(
+         sessionId,
+         { $set: { quizIds: quizIdsArr } },
+         { new: true }
+      );
+      return savedSession as ISession;
    }
 
    async getMultipleChoiceQuizesByTutor(tutorId: string): Promise<IQuiz[]> {
@@ -695,6 +707,48 @@ class QuizService {
          new NotFoundError("can not find any quiz from this tutor");
       }
       return quizes as IQuiz[];
+   }
+
+   async getSessionsAssigned(quizId: string): Promise<ISession[]> {
+      const sessions = await sessionModel
+         .find({
+            quizIds: new Types.ObjectId(quizId),
+         })
+         .select(
+            "-quizIds -createdBy -updatedAt -__v -studentConfirmation -attendanceConfirmation -cancellation -isDeleted -deletedAt -deletedBy -materials -reminders -location -notes"
+         )
+         .populate({
+            path: "teachingRequestId",
+            select: "title subject level studentId",
+            populate: {
+               path: "studentId",
+               select: "userId",
+               populate: {
+                  path: "userId",
+                  select: "name email ",
+               },
+            },
+         });
+
+      return sessions as ISession[];
+   }
+
+   async getQuizzesInSessionDetail(sessionId: string): Promise<IQuiz[]> {
+      const session = await sessionModel.findById(sessionId);
+      if (!session) {
+         throw new NotFoundError("can not find this session");
+      }
+
+      const quizIds = session.quizIds;
+      if (!quizIds || quizIds.length === 0) {
+         return [];
+      }
+
+      const quizzes = await quizModel.find({
+         _id: { $in: quizIds },
+      });
+
+      return quizzes as IQuiz[];
    }
 }
 
