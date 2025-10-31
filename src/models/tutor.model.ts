@@ -28,6 +28,7 @@ const TutorSchema: Schema<ITutor> = new Schema(
             _id: false,
          },
       ],
+      
       //ten, mo ta voi anh, de t them
       certifications: [
          {
@@ -56,6 +57,17 @@ const TutorSchema: Schema<ITutor> = new Schema(
          average: { type: Number, default: 0 },
          totalReviews: { type: Number, default: 0 },
          _id: false,
+      },
+      // Tutor package info (derived from payments). Keep minimal snapshot if needed.
+      currentSubscription: {
+         packageId: { type: Schema.Types.ObjectId, ref: "Package" },
+         endDate: { type: Date },
+         features: {
+            boostVisibility: { type: Boolean, default: false },
+            priorityRanking: { type: Boolean, default: false },
+            maxStudents: { type: Number, default: 10 },
+            featuredProfile: { type: Boolean, default: false },
+         },
       },
    },
    {

@@ -27,7 +27,15 @@ class AdminService {
 
    // Statistics
    getUserStatistics = adminStatisticsService.getUserStatistics;
+
+   // Tutor Package Management - Import từ adminUserService
+   createTutorPackage = adminUserService.createTutorPackage;
+   getAllTutorPackages = adminUserService.getAllTutorPackages;
+   getTutorPackageById = adminUserService.getTutorPackageById;
+   updateTutorPackage = adminUserService.updateTutorPackage;
+   deleteTutorPackage = adminUserService.deleteTutorPackage;
+   getTutorPackageStats = adminUserService.getTutorPackageStats;
+   getTutorsUsingPackage = adminUserService.getTutorsUsingPackage;
 }
 
 export default new AdminService();
-

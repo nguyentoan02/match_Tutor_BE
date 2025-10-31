@@ -193,6 +193,75 @@ export const getPendingTutorsSchema = z.object({
    }),
 });
 
+export const createPackageSchema = z.object({
+	body: z.object({
+		name: z.string().min(1),
+		description: z.array(z.string()).optional(),
+		price: z.number().nonnegative(),
+		features: z
+			.object({
+				boostVisibility: z.boolean().optional(),
+				priorityRanking: z.boolean().optional(),
+                maxStudents: z.number().int().nonnegative().optional(),
+                maxQuiz: z.number().int().nonnegative().optional(),
+				featuredProfile: z.boolean().optional(),
+			})
+			.optional(),
+		isActive: z.boolean().optional(),
+		popular: z.boolean().optional(),
+	}),
+});
+
+export const updatePackageSchema = z.object({
+	params: z.object({ id: z.string().min(1) }),
+	body: z
+		.object({
+			name: z.string().min(1).optional(),
+			description: z.array(z.string()).optional(),
+			price: z.number().nonnegative().optional(),
+			features: z
+				.object({
+					boostVisibility: z.boolean().optional(),
+					priorityRanking: z.boolean().optional(),
+                    maxStudents: z.number().int().nonnegative().optional(),
+                    maxQuiz: z.number().int().nonnegative().optional(),
+					featuredProfile: z.boolean().optional(),
+				})
+				.optional(),
+			isActive: z.boolean().optional(),
+			popular: z.boolean().optional(),
+		})
+		.strict(),
+});
+
+export const listPackagesSchema = z.object({
+	query: z.object({
+		page: z.coerce.number().int().positive().optional(),
+		limit: z.coerce.number().int().positive().optional(),
+		isActive: z.enum(["true", "false"]).optional(),
+	}),
+});
+
+export const getPackageByIdSchema = z.object({
+	params: z.object({ id: z.string().min(1) }),
+});
+
+export const getTutorsUsingPackageSchema = z.object({
+	params: z.object({ id: z.string().min(1) }),
+	query: z.object({
+		page: z.coerce.number().int().positive().optional(),
+		limit: z.coerce.number().int().positive().optional(),
+	}),
+});
+
+export const updatePackageStatusSchema = z.object({
+	params: z.object({ id: z.string().min(1) }),
+	body: z.object({
+		isActive: z.boolean(),
+		popular: z.boolean().optional(),
+	}),
+});
+
 // Export types for TypeScript
 export type BanUserParams = z.infer<typeof banUserSchema>["params"];
 export type BanUserBody = z.infer<typeof banUserSchema>["body"];
