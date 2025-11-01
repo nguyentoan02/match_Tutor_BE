@@ -5,6 +5,7 @@ export enum SessionStatus {
    CANCELLED = "CANCELLED",
    COMPLETED = "COMPLETED",
    NOT_CONDUCTED = "NOT_CONDUCTED",
+   DISPUTED = "DISPUTED",
 }
 
 export const SESSION_STATUS_VALUES = Object.values(SessionStatus);

@@ -51,6 +51,25 @@ class SessionController {
       }
    }
 
+   async listByLearningCommitment(
+      req: Request,
+      res: Response,
+      next: NextFunction
+   ) {
+      try {
+         if (!req.user?._id) {
+            throw new UnauthorizedError("Authentication required");
+         }
+         const sessions = await sessionService.listByLearningCommitment(
+            req.params.learningCommitmentId,
+            req.user._id.toString()
+         );
+         new OK({ message: "Sessions by learning commitment", metadata: sessions }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
    async listByTeachingRequest(
       req: Request,
       res: Response,
@@ -197,7 +216,8 @@ class SessionController {
          const result = await sessionService.rejectAttendance(
             req.params.sessionId,
             req.user._id.toString(),
-            req.user.role as Role
+            req.user.role as Role,
+            req.body
          );
 
          new OK({

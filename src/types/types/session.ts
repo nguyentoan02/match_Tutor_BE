@@ -26,6 +26,42 @@ export interface IAttendanceConfirmation {
    isAttended: boolean;
 }
 
+export interface IAttendanceWindow {
+   tutorDeadline: Date; // endTime + 15m
+   studentDeadline: Date; // endTime + 30m
+}
+
+export interface IAttendanceLogEntry {
+   userRole: "TUTOR" | "STUDENT" | "SYSTEM";
+   action:
+      | "CHECKED_IN"
+      | "ABSENT_AUTO"
+      | "ABSENT_MANUAL"
+      | "DISPUTE_OPENED";
+   note?: string;
+   createdAt: Date;
+}
+
+export interface IAbsenceInfo {
+   tutorAbsent?: boolean;
+   studentAbsent?: boolean;
+   decidedAt?: Date;
+   reason?: string;
+   evidenceUrls?: string[];
+}
+
+export interface IDisputeInfo {
+   status: "OPEN" | "RESOLVED";
+   openedBy: Types.ObjectId;
+   reason: string;
+   evidenceUrls: string[];
+   openedAt: Date;
+   resolvedAt?: Date;
+   resolvedBy?: Types.ObjectId;
+   decision?: SessionStatus.COMPLETED | SessionStatus.NOT_CONDUCTED;
+   adminNotes?: string;
+}
+
 export interface ICancellationInfo {
    cancelledBy: Types.ObjectId;
    reason: string;
@@ -33,7 +69,8 @@ export interface ICancellationInfo {
 }
 
 export interface ISession extends Document {
-   teachingRequestId: Types.ObjectId;
+   teachingRequestId?: Types.ObjectId; // Optional nếu chuyển sang learningCommitment
+   learningCommitmentId: Types.ObjectId; // Thêm mới
    startTime: Date;
    endTime: Date;
    status?: SessionStatus | string;
@@ -45,6 +82,10 @@ export interface ISession extends Document {
    // New fields
    studentConfirmation?: IStudentConfirmation;
    attendanceConfirmation?: IAttendanceConfirmation;
+  attendanceWindow?: IAttendanceWindow;
+  attendanceLogs?: IAttendanceLogEntry[];
+  absence?: IAbsenceInfo;
+  dispute?: IDisputeInfo;
    cancellation?: ICancellationInfo;
    isDeleted?: boolean;
    deletedAt?: Date;
