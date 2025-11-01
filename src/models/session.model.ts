@@ -12,7 +12,12 @@ const SessionSchema: Schema<ISession> = new Schema(
       teachingRequestId: {
          type: Schema.Types.ObjectId,
          ref: "TeachingRequest",
-         required: true,
+         required: false, // Có thể optional nếu chuyển sang learningCommitment
+      },
+      learningCommitmentId: {
+         type: Schema.Types.ObjectId,
+         ref: "LearningCommitment",
+         required: true, // Bắt buộc cho logic mới
       },
       startTime: { type: Date, required: true },
       endTime: { type: Date, required: true },
@@ -57,6 +62,56 @@ const SessionSchema: Schema<ISession> = new Schema(
          finalizedAt: { type: Date },
          // Convenience flag: true only if both status === "ACCEPTED"
          isAttended: { type: Boolean, default: false },
+         _id: false,
+      },
+
+      // Attendance window deadlines
+      attendanceWindow: {
+         tutorDeadline: { type: Date },
+         studentDeadline: { type: Date },
+         _id: false,
+      },
+
+      // Attendance logs for audit
+      attendanceLogs: [
+         {
+            userRole: { type: String, enum: ["TUTOR", "STUDENT", "SYSTEM"] },
+            action: {
+               type: String,
+               enum: [
+                  "CHECKED_IN",
+                  "ABSENT_AUTO",
+                  "ABSENT_MANUAL",
+                  "DISPUTE_OPENED",
+               ],
+            },
+            note: { type: String },
+            createdAt: { type: Date, default: getVietnamTime },
+            _id: false,
+         },
+      ],
+
+      // Absence resolution
+      absence: {
+         tutorAbsent: { type: Boolean },
+         studentAbsent: { type: Boolean },
+         decidedAt: { type: Date },
+         reason: { type: String },
+         evidenceUrls: [{ type: String }],
+         _id: false,
+      },
+
+      // Dispute info
+      dispute: {
+         status: { type: String, enum: ["OPEN", "RESOLVED"] },
+         openedBy: { type: Schema.Types.ObjectId, ref: "User" },
+         reason: { type: String },
+         evidenceUrls: [{ type: String }],
+         openedAt: { type: Date },
+         resolvedAt: { type: Date },
+         resolvedBy: { type: Schema.Types.ObjectId, ref: "User" },
+         decision: { type: String, enum: ["COMPLETED", "NOT_CONDUCTED"] },
+         adminNotes: { type: String },
          _id: false,
       },
 

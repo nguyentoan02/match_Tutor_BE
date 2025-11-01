@@ -25,10 +25,13 @@ router.get("/me/deleted", controller.listDeletedForUser);
 // NEW: Lấy các session CANCELLED của user hiện tại
 router.get("/me/cancelled", controller.listCancelledForUser);
 
-// Tạo một session mới cho một teaching request
+// Tạo một session mới cho một learning commitment
 router.post("/", validate(createSessionSchema), controller.create);
 
-// Lấy danh sách các session của một teaching request
+// Lấy danh sách các session theo learning commitment
+router.get("/commitment/:learningCommitmentId", controller.listByLearningCommitment);
+
+// (Legacy) Lấy danh sách các session của một teaching request
 router.get("/request/:teachingRequestId", controller.listByTeachingRequest);
 
 // NEW: Lấy chi tiết session đã bị REJECTED & soft-deleted (participant access)

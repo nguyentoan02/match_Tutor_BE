@@ -2,6 +2,7 @@ import Session from "../models/session.model";
 import TeachingRequest from "../models/teachingRequest.model";
 import Tutor from "../models/tutor.model";
 import Student from "../models/student.model";
+import LearningCommitment from "../models/learningCommitment.model";
 import {
    CreateSessionBody,
    UpdateSessionBody,
@@ -20,34 +21,152 @@ import { Role } from "../types/enums/role.enum";
 import { SessionStatus } from "../types/enums/session.enum";
 import mongoose from "mongoose";
 import { getVietnamTime } from "../utils/date.util";
+import moment from "moment-timezone";
 
 class SessionService {
+   private TUTOR_CHECKIN_GRACE_MINUTES = 15;
+   private STUDENT_CHECKIN_GRACE_MINUTES = 30;
+
+   private appendLog(
+      session: any,
+      entry: {
+         userRole: "TUTOR" | "STUDENT" | "SYSTEM";
+         action: string;
+         note?: string;
+      }
+   ) {
+      if (!session.attendanceLogs) session.attendanceLogs = [];
+      session.attendanceLogs.push({ ...entry, createdAt: getVietnamTime() });
+   }
+
+   // NEW: Helper method to handle extending commitment endDate based on absent sessions
+   private async extendCommitmentForAbsences(commitmentId: string) {
+      const commitment = await LearningCommitment.findById(commitmentId);
+      if (!commitment) return;
+
+      // Increment absent sessions count
+      commitment.absentSessions = (commitment.absentSessions || 0) + 1;
+
+      // Calculate new extended weeks
+      const newExtendedWeeks = Math.ceil(commitment.absentSessions / 2);
+      const oldExtendedWeeks = commitment.extendedWeeks || 0;
+
+      // If new extended weeks > old, extend endDate by the difference
+      if (newExtendedWeeks > oldExtendedWeeks) {
+         const weeksToAdd = newExtendedWeeks - oldExtendedWeeks;
+         const endDateMoment = moment(commitment.endDate).tz(
+            "Asia/Ho_Chi_Minh"
+         );
+         endDateMoment.add(weeksToAdd, "weeks");
+         commitment.endDate = endDateMoment.toDate();
+         commitment.extendedWeeks = newExtendedWeeks;
+      }
+
+      await commitment.save();
+   }
+
+   private async autoFinalizeAttendanceIfDue(session: any) {
+      const now = getVietnamTime();
+      const end = session.endTime as Date;
+
+      // Ensure deadlines exist
+      const tutorDeadline =
+         session.attendanceWindow?.tutorDeadline ||
+         new Date(end.getTime() + this.TUTOR_CHECKIN_GRACE_MINUTES * 60 * 1000);
+      const studentDeadline =
+         session.attendanceWindow?.studentDeadline ||
+         new Date(
+            end.getTime() + this.STUDENT_CHECKIN_GRACE_MINUTES * 60 * 1000
+         );
+      session.attendanceWindow = { tutorDeadline, studentDeadline };
+
+      const tutorStatus =
+         session.attendanceConfirmation?.tutor?.status || "PENDING";
+      const studentStatus =
+         session.attendanceConfirmation?.student?.status || "PENDING";
+
+      // If already finalized or completed/disputed, skip
+      if (
+         [
+            SessionStatus.COMPLETED,
+            SessionStatus.CANCELLED,
+            SessionStatus.DISPUTED,
+         ].includes(session.status)
+      )
+         return session;
+
+      // Tutor missed
+      if (tutorStatus === "PENDING" && now > tutorDeadline) {
+         // Tutor absent auto
+         session.attendanceConfirmation = session.attendanceConfirmation || {
+            tutor: { status: "PENDING" },
+            student: { status: "PENDING" },
+            isAttended: false,
+         };
+         session.attendanceConfirmation.tutor.status = "REJECTED";
+         session.attendanceConfirmation.tutor.decidedAt = now;
+         session.absence = session.absence || {};
+         session.absence.tutorAbsent = true;
+         session.absence.decidedAt = now;
+         this.appendLog(session, {
+            userRole: "SYSTEM",
+            action: "ABSENT_AUTO",
+            note: "Tutor missed check-in window",
+         });
+         session.status = SessionStatus.NOT_CONDUCTED;
+         // NEW: Extend commitment for absences
+         await this.extendCommitmentForAbsences(
+            session.learningCommitmentId.toString()
+         );
+      }
+
+      // If tutor checked in but student missed
+      const tutorAccepted =
+         (session.attendanceConfirmation?.tutor?.status || "PENDING") ===
+         "ACCEPTED";
+      if (
+         tutorAccepted &&
+         studentStatus === "PENDING" &&
+         now > studentDeadline
+      ) {
+         session.attendanceConfirmation.student.status = "REJECTED";
+         session.attendanceConfirmation.student.decidedAt = now;
+         session.absence = session.absence || {};
+         session.absence.studentAbsent = true;
+         session.absence.decidedAt = now;
+         this.appendLog(session, {
+            userRole: "SYSTEM",
+            action: "ABSENT_AUTO",
+            note: "Student missed check-in window",
+         });
+         session.status = SessionStatus.NOT_CONDUCTED;
+         // NEW: Extend commitment for absences
+         await this.extendCommitmentForAbsences(
+            session.learningCommitmentId.toString()
+         );
+      }
+
+      return session;
+   }
+   // Legacy: participant check via teaching request (kept for existing endpoints)
    private async checkParticipant(teachingRequestId: string, userId: string) {
       const request = await TeachingRequest.findById(teachingRequestId)
          .populate({
             path: "studentId",
             select: "userId",
-            populate: {
-               path: "userId",
-               select: "_id",
-            },
+            populate: { path: "userId", select: "_id" },
          })
          .populate({
             path: "tutorId",
             select: "userId",
-            populate: {
-               path: "userId",
-               select: "_id",
-            },
+            populate: { path: "userId", select: "_id" },
          });
 
       if (!request) {
          throw new NotFoundError("Teaching request not found");
       }
 
-      // Convert userId to string to ensure proper comparison
       const userIdStr = userId.toString();
-      // Sửa lại cách truy cập _id từ document được populate
       const studentUserId = (request.studentId as any)?.userId?._id?.toString();
       const tutorUserId = (request.tutorId as any)?.userId?._id?.toString();
 
@@ -58,67 +177,97 @@ class SessionService {
       }
       return request;
    }
+   private async checkParticipantByCommitment(
+      learningCommitmentId: string,
+      userId: string
+   ) {
+      const commitment = await LearningCommitment.findById(learningCommitmentId)
+         .populate({
+            path: "student",
+            select: "userId",
+            populate: { path: "userId", select: "_id" },
+         })
+         .populate({
+            path: "tutor",
+            select: "userId",
+            populate: { path: "userId", select: "_id" },
+         });
 
-   // Modified create: chỉ tutor được phép tạo session cho teachingRequest đó
-   async create(data: CreateSessionBody, currentUser: IUser) {
-      const request = await TeachingRequest.findById(data.teachingRequestId);
-      if (!request) throw new NotFoundError("Teaching request not found");
+      if (!commitment) {
+         throw new NotFoundError("Learning commitment not found");
+      }
 
-      // Chỉ gia sư (TUTOR) được tạo session
-      if (currentUser.role !== Role.TUTOR) {
+      const userIdStr = userId.toString();
+      const studentUserId = (
+         commitment as any
+      )?.student?.userId?._id?.toString();
+      const tutorUserId = (commitment as any)?.tutor?.userId?._id?.toString();
+
+      if (userIdStr !== studentUserId && userIdStr !== tutorUserId) {
          throw new ForbiddenError(
-            "Only the assigned tutor can create sessions."
+            "You are not a participant of this learning commitment."
          );
+      }
+      return commitment;
+   }
+
+   // Create session based on active learning commitment
+   async create(data: CreateSessionBody, currentUser: IUser) {
+      const commitment = await LearningCommitment.findById(
+         (data as any).learningCommitmentId
+      );
+      if (!commitment) throw new NotFoundError("Learning commitment not found");
+
+      // Only tutor of this commitment can create sessions
+      if (currentUser.role !== Role.TUTOR) {
+         throw new ForbiddenError("Only the tutor can create sessions.");
       }
 
       const tutor = await Tutor.findOne({ userId: currentUser._id });
-      if (
-         !tutor ||
-         !request.tutorId ||
-         String(request.tutorId) !== String(tutor._id)
-      ) {
+      if (!tutor || String(commitment.tutor) !== String(tutor._id)) {
          throw new ForbiddenError(
-            "You are not the designated tutor for this teaching request."
+            "You are not the designated tutor for this learning commitment."
          );
       }
 
-      // Validate request state for trial / regular sessions
-      if (data.isTrial) {
-         if (
-            ![
-               TeachingRequestStatus.TRIAL_ACCEPTED,
-               TeachingRequestStatus.TRIAL_SCHEDULED,
-            ].includes(request.status as TeachingRequestStatus)
-         ) {
-            throw new BadRequestError(
-               "Trial sessions can only be created when the request is in TRIAL_ACCEPTED or TRIAL_SCHEDULED status."
-            );
-         }
-
-         const trialSessionCount = await Session.countDocuments({
-            teachingRequestId: data.teachingRequestId,
-            isTrial: true,
-         });
-
-         if (trialSessionCount >= 2) {
-            throw new BadRequestError(
-               "A maximum of 2 trial sessions can be created."
-            );
-         }
-      } else {
-         if (request.status !== TeachingRequestStatus.IN_PROGRESS) {
-            throw new BadRequestError(
-               "Regular sessions can only be created for ongoing courses (IN_PROGRESS)."
-            );
-         }
+      // Commitment must be active
+      if (commitment.status !== "active") {
+         throw new BadRequestError(
+            "Sessions can only be created for active learning commitments."
+         );
       }
 
-      // --- NEW: check overlapping sessions for tutor AND for the student assigned to the request
+      // Must be fully paid before creating sessions
+      if ((commitment.studentPaidAmount || 0) < (commitment.totalAmount || 0)) {
+         throw new BadRequestError(
+            "Cannot create session: learning commitment is not fully paid."
+         );
+      }
+
       // Parse times
-      const newStart = new Date(data.startTime);
-      const newEnd = new Date(data.endTime);
+      const newStart = new Date((data as any).startTime);
+      const newEnd = new Date((data as any).endTime);
       if (!(newStart < newEnd)) {
          throw new BadRequestError("startTime must be before endTime");
+      }
+
+      // Must be within commitment window (compare by Vietnam timezone, inclusive by day)
+      const vnStart = moment(newStart).tz("Asia/Ho_Chi_Minh");
+      const vnEnd = moment(newEnd).tz("Asia/Ho_Chi_Minh");
+      const commitmentStartVN = moment(commitment.startDate)
+         .tz("Asia/Ho_Chi_Minh")
+         .startOf("day");
+      const commitmentEndVN = moment(commitment.endDate)
+         .tz("Asia/Ho_Chi_Minh")
+         .endOf("day");
+
+      if (
+         vnStart.isBefore(commitmentStartVN) ||
+         vnEnd.isAfter(commitmentEndVN)
+      ) {
+         throw new BadRequestError(
+            "Session time must be within the learning commitment period."
+         );
       }
 
       // Prevent creating sessions in the past (use Vietnam time to be consistent)
@@ -127,65 +276,76 @@ class SessionService {
          throw new BadRequestError("Cannot create a session in the past.");
       }
 
-      // Tutor conflicts: find all teachingRequest ids assigned to this tutor
-      const tutorRequests = await TeachingRequest.find({ tutorId: tutor._id })
+      // Enforce session count within commitment
+      // const scheduledCount = await Session.countDocuments({
+      //    learningCommitmentId: commitment._id,
+      //    isDeleted: { $ne: true },
+      //    status: { $nin: [SessionStatus.REJECTED, SessionStatus.CANCELLED] },
+      // });
+      const completed = commitment.completedSessions || 0;
+      const total = commitment.totalSessions;
+      // if (scheduledCount + completed >= total) {
+      //    throw new BadRequestError(
+      //       "Number of sessions exceeds the commitment's total sessions."
+      //    );
+      // }
+      if (completed >= total) {
+         throw new BadRequestError(
+            "Number of sessions exceeds the commitment's total sessions."
+         );
+      }
+
+      // Conflict checks for tutor and student across their commitments
+      const tutorCommitments = await LearningCommitment.find({
+         tutor: commitment.tutor,
+         status: { $in: ["active", "pending_agreement", "in_dispute"] },
+      })
          .select("_id")
          .lean();
-      const tutorReqIds = tutorRequests.map((r) => r._id);
+      const tutorCommitmentIds = tutorCommitments.map((c) => c._id);
 
       const tutorConflict = await Session.findOne({
-         teachingRequestId: { $in: tutorReqIds },
-         isDeleted: { $ne: true }, // exclude soft-deleted
-         status: { $nin: [SessionStatus.REJECTED, SessionStatus.CANCELLED] }, // exclude non-active sessions
+         learningCommitmentId: { $in: tutorCommitmentIds },
+         isDeleted: { $ne: true },
+         status: { $nin: [SessionStatus.REJECTED, SessionStatus.CANCELLED] },
          $or: [{ startTime: { $lt: newEnd }, endTime: { $gt: newStart } }],
       }).lean();
-
       if (tutorConflict) {
          throw new BadRequestError(
             "You have a conflicting session at this time (tutor)."
          );
       }
 
-      // Student conflicts: find student record for the request.studentId (may be ObjectId)
-      const studentIdObj = request.studentId;
-      if (studentIdObj) {
-         // get all teachingRequest ids for that student
-         const studentRequests = await TeachingRequest.find({
-            studentId: studentIdObj,
-         })
-            .select("_id")
-            .lean();
-         const studentReqIds = studentRequests.map((r) => r._id);
-
-         const studentConflict = await Session.findOne({
-            teachingRequestId: { $in: studentReqIds },
-            isDeleted: { $ne: true }, // exclude soft-deleted
-            status: { $nin: [SessionStatus.REJECTED, SessionStatus.CANCELLED] }, // exclude non-active sessions
-            $or: [{ startTime: { $lt: newEnd }, endTime: { $gt: newStart } }],
-         }).lean();
-
-         if (studentConflict) {
-            throw new BadRequestError(
-               "Student has a conflicting session at this time."
-            );
-         }
+      const studentCommitments = await LearningCommitment.find({
+         student: commitment.student,
+         status: { $in: ["active", "pending_agreement", "in_dispute"] },
+      })
+         .select("_id")
+         .lean();
+      const studentCommitmentIds = studentCommitments.map((c) => c._id);
+      const studentConflict = await Session.findOne({
+         learningCommitmentId: { $in: studentCommitmentIds },
+         isDeleted: { $ne: true },
+         status: { $nin: [SessionStatus.REJECTED, SessionStatus.CANCELLED] },
+         $or: [{ startTime: { $lt: newEnd }, endTime: { $gt: newStart } }],
+      }).lean();
+      if (studentConflict) {
+         throw new BadRequestError(
+            "Student has a conflicting session at this time."
+         );
       }
-      // --- END NEW
 
       const newSession = await Session.create({
-         ...data,
-         createdBy: currentUser._id, // Lưu thông tin gia sư tạo session
-         // studentConfirmation sẽ có default status: "PENDING"
+         learningCommitmentId: commitment._id,
+         startTime: newStart,
+         endTime: newEnd,
+         isTrial: (data as any).isTrial || false,
+         createdBy: currentUser._id,
+         attendanceWindow: {
+            tutorDeadline: new Date(newEnd.getTime() + 15 * 60 * 1000),
+            studentDeadline: new Date(newEnd.getTime() + 30 * 60 * 1000),
+         },
       });
-
-      // Cập nhật trạng thái của teaching request nếu cần
-      if (
-         data.isTrial &&
-         request.status === TeachingRequestStatus.TRIAL_ACCEPTED
-      ) {
-         request.status = TeachingRequestStatus.TRIAL_SCHEDULED;
-         await request.save();
-      }
 
       return newSession;
    }
@@ -193,23 +353,23 @@ class SessionService {
    async getById(sessionId: string, userId: string) {
       const session = await Session.findById(sessionId)
          .populate({
-            path: "teachingRequestId",
-            select: "studentId tutorId subject level",
+            path: "learningCommitmentId",
+            select: "student tutor",
             populate: [
                {
-                  path: "studentId",
+                  path: "student",
                   select: "userId",
                   populate: {
                      path: "userId",
-                     select: "_id name avatarUrl email", // Thêm email
+                     select: "_id name avatarUrl email",
                   },
                },
                {
-                  path: "tutorId",
+                  path: "tutor",
                   select: "userId",
                   populate: {
                      path: "userId",
-                     select: "_id name avatarUrl email", // Thêm email
+                     select: "_id name avatarUrl email",
                   },
                },
             ],
@@ -217,17 +377,19 @@ class SessionService {
          .populate({
             path: "cancellation.cancelledBy",
             select: "_id name email avatarUrl",
-         })
-         .lean();
+         });
 
       if (!session) throw new NotFoundError("Session not found");
 
-      // Ensure userId is converted to string before passing to checkParticipant
-      await this.checkParticipant(
-         session.teachingRequestId._id.toString(),
+      // Ensure userId is participant of the commitment
+      await this.checkParticipantByCommitment(
+         (session.learningCommitmentId as any)._id.toString(),
          userId.toString()
       );
-      return session;
+      // Auto-finalize based on time windows when viewing
+      await this.autoFinalizeAttendanceIfDue(session as any);
+      await session.save();
+      return session.toObject();
    }
 
    // --- NEW: Student confirms session participation
@@ -240,8 +402,8 @@ class SessionService {
       if (!session) throw new NotFoundError("Session not found");
 
       // Verify student is participant
-      await this.checkParticipant(
-         session.teachingRequestId.toString(),
+      await this.checkParticipantByCommitment(
+         session.learningCommitmentId.toString(),
          studentUserId
       );
 
@@ -273,7 +435,10 @@ class SessionService {
       const session = await Session.findById(sessionId);
       if (!session) throw new NotFoundError("Session not found");
 
-      await this.checkParticipant(session.teachingRequestId.toString(), userId);
+      await this.checkParticipantByCommitment(
+         session.learningCommitmentId.toString(),
+         userId
+      );
 
       // Cho phép điểm danh khi session đã được confirm
       if (session.status !== SessionStatus.CONFIRMED) {
@@ -297,6 +462,43 @@ class SessionService {
 
       const now = new Date();
 
+      // Ensure deadlines
+      const tutorDeadline =
+         session.attendanceWindow?.tutorDeadline ||
+         new Date(
+            session.endTime.getTime() +
+               this.TUTOR_CHECKIN_GRACE_MINUTES * 60 * 1000
+         );
+      const studentDeadline =
+         session.attendanceWindow?.studentDeadline ||
+         new Date(
+            session.endTime.getTime() +
+               this.STUDENT_CHECKIN_GRACE_MINUTES * 60 * 1000
+         );
+      session.attendanceWindow = { tutorDeadline, studentDeadline };
+
+      // Enforce order: student can only confirm after tutor
+      if (
+         userRole === Role.STUDENT &&
+         session.attendanceConfirmation.tutor.status !== "ACCEPTED"
+      ) {
+         throw new BadRequestError(
+            "Student can confirm only after tutor has checked in."
+         );
+      }
+
+      // Time window enforcement
+      if (userRole === Role.TUTOR && now > tutorDeadline) {
+         await this.autoFinalizeAttendanceIfDue(session);
+         await session.save();
+         throw new BadRequestError("Tutor check-in window has passed");
+      }
+      if (userRole === Role.STUDENT && now > studentDeadline) {
+         await this.autoFinalizeAttendanceIfDue(session);
+         await session.save();
+         throw new BadRequestError("Student check-in window has passed");
+      }
+
       // Update confirmation based on user role
       if (userRole === Role.TUTOR) {
          if (session.attendanceConfirmation.tutor.status !== "PENDING") {
@@ -304,12 +506,14 @@ class SessionService {
          }
          session.attendanceConfirmation.tutor.status = "ACCEPTED";
          session.attendanceConfirmation.tutor.decidedAt = now;
+         this.appendLog(session, { userRole: "TUTOR", action: "CHECKED_IN" });
       } else if (userRole === Role.STUDENT) {
          if (session.attendanceConfirmation.student.status !== "PENDING") {
             throw new BadRequestError("Student attendance already confirmed");
          }
          session.attendanceConfirmation.student.status = "ACCEPTED";
          session.attendanceConfirmation.student.decidedAt = now;
+         this.appendLog(session, { userRole: "STUDENT", action: "CHECKED_IN" });
       }
 
       // Check if both have responded
@@ -331,25 +535,35 @@ class SessionService {
             // Both confirmed attendance
             session.attendanceConfirmation.isAttended = true;
             session.status = SessionStatus.COMPLETED;
+            // Increment completed sessions on the related learning commitment
+            const commitment = await LearningCommitment.findById(
+               session.learningCommitmentId
+            );
+            if (commitment) {
+               commitment.completedSessions =
+                  (commitment.completedSessions || 0) + 1;
+               // Auto-complete commitment if reached totalSessions
+               if (
+                  commitment.completedSessions >= commitment.totalSessions &&
+                  commitment.status === "active"
+               ) {
+                  commitment.status = "completed" as any;
+               }
+               await commitment.save();
+            }
          } else {
             // At least one did not attend
             session.attendanceConfirmation.isAttended = false;
             session.status = SessionStatus.NOT_CONDUCTED;
+            // NEW: Extend commitment for absences
+            await this.extendCommitmentForAbsences(
+               session.learningCommitmentId.toString()
+            );
          }
 
          // --- NEW: If this is a trial session and now completed, increment trial counter on TeachingRequest
          if (session.isTrial && session.status === SessionStatus.COMPLETED) {
-            const request = await TeachingRequest.findById(
-               session.teachingRequestId
-            );
-            if (request) {
-               request.trialSessionsCompleted =
-                  (request.trialSessionsCompleted || 0) + 1;
-               if (request.trialSessionsCompleted >= 2) {
-                  request.status = TeachingRequestStatus.TRIAL_COMPLETED;
-               }
-               await request.save();
-            }
+            // No-op or future logic for trial sessions under commitments
          }
       }
 
@@ -358,11 +572,19 @@ class SessionService {
    }
 
    // Reject attendance after session
-   async rejectAttendance(sessionId: string, userId: string, userRole: Role) {
+   async rejectAttendance(
+      sessionId: string,
+      userId: string,
+      userRole: Role,
+      payload?: { reason?: string; evidenceUrls?: string[] }
+   ) {
       const session = await Session.findById(sessionId);
       if (!session) throw new NotFoundError("Session not found");
 
-      await this.checkParticipant(session.teachingRequestId.toString(), userId);
+      await this.checkParticipantByCommitment(
+         session.learningCommitmentId.toString(),
+         userId
+      );
 
       // Cho phép từ chối điểm danh chỉ khi session đã được confirm
       if (session.status !== SessionStatus.CONFIRMED) {
@@ -386,6 +608,21 @@ class SessionService {
 
       const now = new Date();
 
+      // Ensure deadlines
+      const tutorDeadline =
+         session.attendanceWindow?.tutorDeadline ||
+         new Date(
+            session.endTime.getTime() +
+               this.TUTOR_CHECKIN_GRACE_MINUTES * 60 * 1000
+         );
+      const studentDeadline =
+         session.attendanceWindow?.studentDeadline ||
+         new Date(
+            session.endTime.getTime() +
+               this.STUDENT_CHECKIN_GRACE_MINUTES * 60 * 1000
+         );
+      session.attendanceWindow = { tutorDeadline, studentDeadline };
+
       // Update rejection based on user role
       if (userRole === Role.TUTOR) {
          if (session.attendanceConfirmation.tutor.status !== "PENDING") {
@@ -393,12 +630,70 @@ class SessionService {
          }
          session.attendanceConfirmation.tutor.status = "REJECTED";
          session.attendanceConfirmation.tutor.decidedAt = now;
+         // Tutor marking absent means session is absent immediately
+         session.absence = session.absence || {};
+         session.absence.tutorAbsent = true;
+         session.absence.decidedAt = now;
+         session.status = SessionStatus.NOT_CONDUCTED;
+         // NEW: Extend commitment for absences
+         await this.extendCommitmentForAbsences(
+            session.learningCommitmentId.toString()
+         );
+         this.appendLog(session, {
+            userRole: "TUTOR",
+            action: "ABSENT_MANUAL",
+            note: payload?.reason,
+         });
       } else if (userRole === Role.STUDENT) {
          if (session.attendanceConfirmation.student.status !== "PENDING") {
             throw new BadRequestError("Student attendance already decided");
          }
-         session.attendanceConfirmation.student.status = "REJECTED";
-         session.attendanceConfirmation.student.decidedAt = now;
+         // If tutor has accepted and student rejects -> open dispute (evidence required)
+         const tutorAccepted =
+            session.attendanceConfirmation.tutor.status === "ACCEPTED";
+         if (tutorAccepted) {
+            if (
+               !payload?.evidenceUrls ||
+               payload.evidenceUrls.length === 0 ||
+               !payload?.reason
+            ) {
+               throw new BadRequestError(
+                  "Evidence and reason are required to dispute after tutor check-in"
+               );
+            }
+            session.attendanceConfirmation.student.status = "REJECTED";
+            session.attendanceConfirmation.student.decidedAt = now;
+            session.dispute = {
+               status: "OPEN",
+               openedBy: new mongoose.Types.ObjectId(userId),
+               reason: payload.reason,
+               evidenceUrls: payload.evidenceUrls,
+               openedAt: now,
+            } as any;
+            session.status = SessionStatus.DISPUTED;
+            this.appendLog(session, {
+               userRole: "STUDENT",
+               action: "DISPUTE_OPENED",
+               note: payload.reason,
+            });
+         } else {
+            // Student rejects before tutor check-in -> treat as student absent for now
+            session.attendanceConfirmation.student.status = "REJECTED";
+            session.attendanceConfirmation.student.decidedAt = now;
+            session.absence = session.absence || {};
+            session.absence.studentAbsent = true;
+            session.absence.decidedAt = now;
+            session.status = SessionStatus.NOT_CONDUCTED;
+            // NEW: Extend commitment for absences
+            await this.extendCommitmentForAbsences(
+               session.learningCommitmentId.toString()
+            );
+            this.appendLog(session, {
+               userRole: "STUDENT",
+               action: "ABSENT_MANUAL",
+               note: payload?.reason,
+            });
+         }
       }
 
       // Check if both have responded
@@ -423,7 +718,10 @@ class SessionService {
          } else {
             // At least one did not attend
             session.attendanceConfirmation.isAttended = false;
-            session.status = SessionStatus.NOT_CONDUCTED;
+            // Keep DISPUTED if dispute already opened
+            if (session.status !== SessionStatus.DISPUTED) {
+               session.status = SessionStatus.NOT_CONDUCTED;
+            }
          }
       }
 
@@ -496,6 +794,48 @@ class SessionService {
       return sessions;
    }
 
+   // List sessions by learning commitment for a participant
+   async listByLearningCommitment(
+      learningCommitmentId: string,
+      userId: string
+   ) {
+      await this.checkParticipantByCommitment(learningCommitmentId, userId);
+      const sessions = await Session.find({
+         learningCommitmentId,
+         isDeleted: { $ne: true },
+         status: { $ne: SessionStatus.CANCELLED },
+      })
+         .populate({
+            path: "learningCommitmentId",
+            select: "student tutor",
+            populate: [
+               {
+                  path: "student",
+                  select: "userId",
+                  populate: {
+                     path: "userId",
+                     select: "_id name avatarUrl email",
+                  },
+               },
+               {
+                  path: "tutor",
+                  select: "userId",
+                  populate: {
+                     path: "userId",
+                     select: "_id name avatarUrl email",
+                  },
+               },
+            ],
+         })
+         .populate({
+            path: "cancellation.cancelledBy",
+            select: "_id name email avatarUrl",
+         })
+         .sort({ startTime: "asc" });
+      return sessions;
+   }
+
+   // ...existing code...
    async listForUser(userId: string) {
       // find tutor and student records (either can be present)
       const tutor = await Tutor.findOne({ userId }).select("_id").lean();
@@ -505,22 +845,39 @@ class SessionService {
       if (tutor) requestFilters.push({ tutorId: tutor._id });
       if (student) requestFilters.push({ studentId: student._id });
 
-      if (requestFilters.length === 0) {
-         // user has neither student nor tutor profile -> no sessions
-         return [];
+      // Collect teachingRequest ids (if any)
+      let requestIds: any[] = [];
+      if (requestFilters.length > 0) {
+         const requests = await TeachingRequest.find({ $or: requestFilters })
+            .select("_id")
+            .lean();
+         requestIds = requests.map((r) => r._id);
       }
 
-      // Find teachingRequest ids matching either role
-      const requests = await TeachingRequest.find({ $or: requestFilters })
-         .select("_id")
-         .lean();
-      const requestIds = requests.map((r) => r._id);
+      // Collect learningCommitment ids for the user (if any)
+      const commitmentFilters: any[] = [];
+      if (tutor) commitmentFilters.push({ tutor: tutor._id });
+      if (student) commitmentFilters.push({ student: student._id });
 
-      if (requestIds.length === 0) return [];
+      let commitmentIds: any[] = [];
+      if (commitmentFilters.length > 0) {
+         const commitments = await LearningCommitment.find({
+            $or: commitmentFilters,
+         })
+            .select("_id")
+            .lean();
+         commitmentIds = commitments.map((c) => c._id);
+      }
 
-      // Return sessions for those teaching requests, sorted
+      // If no related requests or commitments -> empty
+      if (requestIds.length === 0 && commitmentIds.length === 0) return [];
+
+      // Return sessions for those teaching requests OR those commitments
       const sessions = await Session.find({
-         teachingRequestId: { $in: requestIds },
+         $or: [
+            { teachingRequestId: { $in: requestIds } },
+            { learningCommitmentId: { $in: commitmentIds } },
+         ],
          isDeleted: { $ne: true },
          status: { $ne: SessionStatus.CANCELLED },
       })
@@ -547,6 +904,28 @@ class SessionService {
             ],
          })
          .populate({
+            path: "learningCommitmentId",
+            select: "student tutor",
+            populate: [
+               {
+                  path: "student",
+                  select: "userId",
+                  populate: {
+                     path: "userId",
+                     select: "_id name avatarUrl email",
+                  },
+               },
+               {
+                  path: "tutor",
+                  select: "userId",
+                  populate: {
+                     path: "userId",
+                     select: "_id name avatarUrl email",
+                  },
+               },
+            ],
+         })
+         .populate({
             path: "cancellation.cancelledBy",
             select: "_id name email avatarUrl",
          })
@@ -554,6 +933,7 @@ class SessionService {
 
       return sessions;
    }
+   // ...existing code...
 
    async update(
       sessionId: string,
@@ -569,9 +949,14 @@ class SessionService {
             "Cannot update a session that has already started."
          );
       }
-
+      // NEW: Prevent updates for completed sessions
+      if (session.status === SessionStatus.COMPLETED) {
+         throw new BadRequestError(
+            "Cannot update a session that has already been completed."
+         );
+      }
       await this.checkParticipant(
-         session.teachingRequestId.toString(),
+         (session.learningCommitmentId as any)!.toString(),
          (currentUser._id as mongoose.Types.ObjectId | string).toString()
       );
 
@@ -607,7 +992,10 @@ class SessionService {
       const session = await Session.findById(sessionId);
       if (!session) throw new NotFoundError("Session not found");
 
-      await this.checkParticipant(session.teachingRequestId.toString(), userId);
+      await this.checkParticipant(
+         (session.learningCommitmentId as any)!.toString(),
+         userId
+      );
 
       if (session.status !== SessionStatus.SCHEDULED) {
          throw new BadRequestError("Only scheduled sessions can be deleted.");
@@ -622,7 +1010,19 @@ class SessionService {
       if (!session) throw new NotFoundError("Session not found");
 
       // Check if the user is a participant in the session
-      await this.checkParticipant(session.teachingRequestId.toString(), userId);
+      if (session.learningCommitmentId) {
+         await this.checkParticipantByCommitment(
+            (session.learningCommitmentId as any).toString(),
+            userId
+         );
+      } else if (session.teachingRequestId) {
+         await this.checkParticipant(
+            (session.teachingRequestId as any).toString(),
+            userId
+         );
+      } else {
+         throw new BadRequestError("Session is missing participant linkage.");
+      }
 
       // Only confirmed sessions can be cancelled
       if (session.status !== SessionStatus.CONFIRMED) {
@@ -723,12 +1123,20 @@ class SessionService {
          .select("_id")
          .lean();
       const requestIds = requests.map((r) => r._id);
-      if (requestIds.length === 0) return [];
-
+      // Lấy các learning commitments của user (đang active hoặc đã từng có)
+      const commitments = await LearningCommitment.find({
+         $or: [{ tutor: tutor?._id }, { student: student?._id }],
+      })
+         .select("_id")
+         .lean();
+      const commitmentIds = commitments.map((c) => c._id);
       const sessions = await Session.find({
-         teachingRequestId: { $in: requestIds },
          status: SessionStatus.REJECTED,
          isDeleted: true,
+         $or: [
+            { teachingRequestId: { $in: requestIds } },
+            { learningCommitmentId: { $in: commitmentIds } },
+         ],
       })
          .populate({
             path: "teachingRequestId",
@@ -778,15 +1186,16 @@ class SessionService {
 
       if (requestFilters.length === 0) return [];
 
-      const requests = await TeachingRequest.find({ $or: requestFilters })
+      const commitments = await LearningCommitment.find({
+         $or: [{ tutor: tutor?._id }, { student: student?._id }],
+      })
          .select("_id")
          .lean();
-      const requestIds = requests.map((r) => r._id);
-      if (requestIds.length === 0) return [];
+      const commitmentIds = commitments.map((c) => c._id);
 
       const sessions = await Session.find({
-         teachingRequestId: { $in: requestIds },
          status: SessionStatus.CANCELLED,
+         $or: [{ learningCommitmentId: { $in: commitmentIds } }],
       })
          .populate({
             path: "teachingRequestId",

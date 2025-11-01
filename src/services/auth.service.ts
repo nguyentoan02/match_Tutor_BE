@@ -2,6 +2,7 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { OAuth2Client } from "google-auth-library";
 import User from "../models/user.model";
+import Wallet from "../models/wallet.model"; // Add this import
 
 import {
    BadRequestError,
@@ -61,6 +62,10 @@ export class AuthService {
       user.emailVerificationExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
       await user.save();
+
+      // Create a wallet for the new user
+      const wallet = new Wallet({ userId: user._id });
+      await wallet.save();
 
       // Send verification email
       const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
@@ -165,7 +170,9 @@ export class AuthService {
       }
 
       if (user.isBanned) {
-         throw new UnauthorizedError("Your account has been suspended. Please contact support for assistance.");
+         throw new UnauthorizedError(
+            "Your account has been suspended. Please contact support for assistance."
+         );
       }
 
       const token = this.createToken(user);
@@ -199,7 +206,9 @@ export class AuthService {
       }
 
       if (user.isBanned) {
-         throw new UnauthorizedError("Your account has been suspended. Please contact support for assistance.");
+         throw new UnauthorizedError(
+            "Your account has been suspended. Please contact support for assistance."
+         );
       }
 
       const token = this.createToken(user);
@@ -224,11 +233,13 @@ export class AuthService {
          if (!user) {
             throw new UnauthorizedError("User not found");
          }
-         
+
          if (user.isBanned) {
-            throw new UnauthorizedError("Your account has been suspended. Please contact support for assistance.");
+            throw new UnauthorizedError(
+               "Your account has been suspended. Please contact support for assistance."
+            );
          }
-         
+
          return { token, user };
       } catch (err) {
          throw new UnauthorizedError("Invalid or expired token");
