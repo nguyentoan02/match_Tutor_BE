@@ -195,15 +195,15 @@ export const getPendingTutorsSchema = z.object({
 
 export const createPackageSchema = z.object({
 	body: z.object({
-		name: z.string().min(1),
-		description: z.array(z.string()).optional(),
-		price: z.number().nonnegative(),
+		name: z.string().min(1, "Name is required").max(100, "Name must not exceed 100 characters"),
+		description: z.array(z.string().max(500, "Each description item must not exceed 500 characters")).optional(),
+		price: z.number().nonnegative("Price must be non-negative").max(1000000000, "Price must not exceed 1 billion"),
 		features: z
 			.object({
 				boostVisibility: z.boolean().optional(),
 				priorityRanking: z.boolean().optional(),
-                maxStudents: z.number().int().nonnegative().optional(),
-                maxQuiz: z.number().int().nonnegative().optional(),
+                maxStudents: z.number().int().nonnegative("maxStudents must be non-negative integer").max(10000, "maxStudents must not exceed 10000").optional(),
+                maxQuiz: z.number().int().nonnegative("maxQuiz must be non-negative integer").max(10000, "maxQuiz must not exceed 10000").optional(),
 				featuredProfile: z.boolean().optional(),
 			})
 			.optional(),
@@ -216,15 +216,15 @@ export const updatePackageSchema = z.object({
 	params: z.object({ id: z.string().min(1) }),
 	body: z
 		.object({
-			name: z.string().min(1).optional(),
-			description: z.array(z.string()).optional(),
-			price: z.number().nonnegative().optional(),
+			name: z.string().min(1, "Name must not be empty").max(100, "Name must not exceed 100 characters").optional(),
+			description: z.array(z.string().max(500, "Each description item must not exceed 500 characters")).optional(),
+			price: z.number().nonnegative("Price must be non-negative").max(1000000000, "Price must not exceed 1 billion").optional(),
 			features: z
 				.object({
 					boostVisibility: z.boolean().optional(),
 					priorityRanking: z.boolean().optional(),
-                    maxStudents: z.number().int().nonnegative().optional(),
-                    maxQuiz: z.number().int().nonnegative().optional(),
+                    maxStudents: z.number().int().nonnegative("maxStudents must be non-negative integer").max(10000, "maxStudents must not exceed 10000").optional(),
+                    maxQuiz: z.number().int().nonnegative("maxQuiz must be non-negative integer").max(10000, "maxQuiz must not exceed 10000").optional(),
 					featuredProfile: z.boolean().optional(),
 				})
 				.optional(),
