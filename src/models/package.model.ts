@@ -5,11 +5,18 @@ import { getVietnamTime } from "../utils/date.util";
 const PackageSchema: Schema<IPackage> = new Schema(
    {
       name: { type: String, required: true },
-      description: { type: String },
-      price: { type: Number, required: true },
-      durationWeeks: { type: Number },
-      sessionsIncluded: { type: Number },
+      description: { type: [String], default: [] },
+      price: { type: Number, required: true, min: 0 },
+      features: {
+         boostVisibility: { type: Boolean, default: false },
+         priorityRanking: { type: Boolean, default: false },
+         featuredProfile: { type: Boolean, default: false },
+         // Usage caps within features
+         maxStudents: { type: Number, default: 0 },
+         maxQuiz: { type: Number, default: 0 },
+      },
       isActive: { type: Boolean, default: true },
+      popular: { type: Boolean, default: false },
    },
    {
       timestamps: {

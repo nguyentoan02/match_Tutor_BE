@@ -15,6 +15,12 @@ import {
    acceptTutorSchema,
    rejectTutorSchema,
    getPendingTutorsSchema,
+   createPackageSchema,
+   updatePackageSchema,
+   listPackagesSchema,
+   getPackageByIdSchema,
+   getTutorsUsingPackageSchema,
+   updatePackageStatusSchema,
 } from "../schemas/admin.schema";
 
 const router = Router();
@@ -82,5 +88,19 @@ router.get(
 );
 router.get("/tutors/mapping", adminController.getTutorsWithMapping);
 router.get("/tutor/:id", adminController.getTutorProfile);
+
+// ========== PACKAGE MANAGEMENT ==========
+// New preferred routes
+router.post("/packages", validate(createPackageSchema), adminController.createTutorPackage);
+router.get("/packages", validate(listPackagesSchema), adminController.getAllTutorPackages);
+router.get("/packages/stats", adminController.getTutorPackageStats);
+// Routes với path cụ thể phải đặt trước route /packages/:id
+router.patch("/packages/:id/status", validate(updatePackageStatusSchema), adminController.updateTutorPackageStatus);
+router.get("/packages/:id/tutors", validate(getTutorsUsingPackageSchema), adminController.getTutorsUsingPackage);
+// Routes generic
+router.get("/packages/:id", validate(getPackageByIdSchema), adminController.getTutorPackageById);
+router.put("/packages/:id", validate(updatePackageSchema), adminController.updateTutorPackage);
+router.delete("/packages/:id", validate(getPackageByIdSchema), adminController.deleteTutorPackage);
+
 
 export default router;
