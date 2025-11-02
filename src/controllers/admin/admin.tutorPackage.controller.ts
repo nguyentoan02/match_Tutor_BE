@@ -88,25 +88,6 @@ class AdminTutorPackageController {
       }
    }
 
-   // Xóa gói
-   async deleteTutorPackage(req: Request, res: Response, next: NextFunction) {
-      try {
-         const currentUser = req.user;
-         if (!currentUser || !currentUser._id) {
-            throw new UnauthorizedError("Not authenticated");
-         }
-
-         const { id } = req.params;
-         await adminService.deleteTutorPackage(id);
-
-         new OK({
-            message: "Tutor package deleted successfully",
-         }).send(res);
-      } catch (err) {
-         next(err);
-      }
-   }
-
    // Lấy thống kê
    async getTutorPackageStats(req: Request, res: Response, next: NextFunction) {
       try {

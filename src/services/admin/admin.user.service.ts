@@ -281,6 +281,28 @@ export class AdminUserService {
       isActive?: boolean;
       popular?: boolean;
    }) {
+      // Kiểm tra giới hạn số gói hoạt động (tối đa 4)
+      const isActive = packageData.isActive !== undefined ? packageData.isActive : true; // default true
+      if (isActive) {
+         const activePackagesCount = await Package.countDocuments({ isActive: true });
+         if (activePackagesCount >= 4) {
+            throw new BadRequestError(
+               "Maximum 4 active packages allowed. Please deactivate another package first."
+            );
+         }
+      }
+
+      // Kiểm tra giới hạn số gói phổ biến (tối đa 1)
+      const isPopular = packageData.popular === true;
+      if (isPopular) {
+         const popularPackagesCount = await Package.countDocuments({ popular: true });
+         if (popularPackagesCount >= 1) {
+            throw new BadRequestError(
+               "Maximum 1 popular package allowed. Please remove popular flag from another package first."
+            );
+         }
+      }
+
       const tutorPackage = new Package(packageData);
       return await tutorPackage.save();
    }
@@ -334,15 +356,43 @@ export class AdminUserService {
       packageId: string,
       updateData: any
    ) {
+      // Kiểm tra package tồn tại trước
+      const existingPackage = await Package.findById(packageId);
+      if (!existingPackage) {
+         throw new NotFoundError("Tutor package not found");
+      }
+
+      // Kiểm tra giới hạn số gói hoạt động (tối đa 4)
+      if (updateData.isActive === true) {
+         const activePackagesCount = await Package.countDocuments({ 
+            isActive: true,
+            _id: { $ne: packageId } // Loại trừ package hiện tại
+         });
+         if (activePackagesCount >= 4) {
+            throw new BadRequestError(
+               "Maximum 4 active packages allowed. Please deactivate another package first."
+            );
+         }
+      }
+
+      // Kiểm tra giới hạn số gói phổ biến (tối đa 1)
+      if (updateData.popular === true) {
+         const popularPackagesCount = await Package.countDocuments({ 
+            popular: true,
+            _id: { $ne: packageId } // Loại trừ package hiện tại
+         });
+         if (popularPackagesCount >= 1) {
+            throw new BadRequestError(
+               "Maximum 1 popular package allowed. Please remove popular flag from another package first."
+            );
+         }
+      }
+
       const tutorPackage = await Package.findByIdAndUpdate(
          packageId,
          updateData,
          { new: true, runValidators: true }
       );
-
-      if (!tutorPackage) {
-         throw new NotFoundError("Tutor package not found");
-      }
 
       return tutorPackage;
    }

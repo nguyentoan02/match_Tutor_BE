@@ -34,7 +34,6 @@ class AdminController {
    getTutorPackageById = adminTutorPackageController.getTutorPackageById;
    updateTutorPackage = adminTutorPackageController.updateTutorPackage;
    updateTutorPackageStatus = adminTutorPackageController.updateTutorPackageStatus;
-   deleteTutorPackage = adminTutorPackageController.deleteTutorPackage;
    getTutorPackageStats = adminTutorPackageController.getTutorPackageStats;
    getTutorsUsingPackage = adminTutorPackageController.getTutorsUsingPackage;
 }

@@ -100,7 +100,6 @@ router.get("/packages/:id/tutors", validate(getTutorsUsingPackageSchema), adminC
 // Routes generic
 router.get("/packages/:id", validate(getPackageByIdSchema), adminController.getTutorPackageById);
 router.put("/packages/:id", validate(updatePackageSchema), adminController.updateTutorPackage);
-router.delete("/packages/:id", validate(getPackageByIdSchema), adminController.deleteTutorPackage);
 
 
 export default router;
