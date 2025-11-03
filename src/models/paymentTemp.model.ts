@@ -1,16 +1,31 @@
 // filepath: d:\Test_SEP490_3\match_Tutor_BE\src\models\paymentTemp.model.ts
-import mongoose, { Schema, Document } from "mongoose";
+import { Document, model, Schema, Types } from "mongoose";
 
-interface IPaymentTemp extends Document {
+export interface IPaymentTemp extends Document {
+   userId: Types.ObjectId;
+   type: "package" | "learningCommitment";
+   referenceId?: Types.ObjectId; // ID của learningCommitment
+   packageId?: Types.ObjectId; // ID của package
    orderCode: number;
-   userId: string;
-   referenceId: string;
+   createdAt: Date;
+   updatedAt: Date;
 }
 
-const PaymentTempSchema = new Schema<IPaymentTemp>({
-   orderCode: { type: Number, required: true, unique: true },
-   userId: { type: String, required: true },
-   referenceId: { type: String, required: true },
-});
+const paymentTempSchema = new Schema<IPaymentTemp>(
+   {
+      userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+      type: {
+         type: String,
+         enum: ["package", "learningCommitment"],
+         required: true,
+      },
+      referenceId: { type: Schema.Types.ObjectId },
+      packageId: { type: Schema.Types.ObjectId, ref: "Package" },
+      orderCode: { type: Number, required: true, unique: true },
+   },
+   { timestamps: true }
+);
 
-export default mongoose.model<IPaymentTemp>("PaymentTemp", PaymentTempSchema);
+const PaymentTemp = model<IPaymentTemp>("PaymentTemp", paymentTempSchema);
+
+export default PaymentTemp;

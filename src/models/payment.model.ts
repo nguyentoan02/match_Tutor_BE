@@ -3,7 +3,8 @@ import { Document, model, Schema, Types } from "mongoose";
 export interface IPayment extends Document {
    userId: Types.ObjectId; // Người thanh toán (student)
    type: "package" | "learningCommitment"; // Loại thanh toán
-   referenceId: Types.ObjectId; // ID của package hoặc learningCommitment
+   referenceId: Types.ObjectId; // ID của learningCommitment (chỉ dùng khi type là "learningCommitment")
+   packageId?: Types.ObjectId; // ID của package (chỉ dùng khi type là "package")
    orderCode: number;
    amount: number;
    status: "PENDING" | "SUCCESS" | "FAILED";
@@ -20,7 +21,19 @@ const paymentSchema = new Schema<IPayment>(
          enum: ["package", "learningCommitment"],
          required: true,
       },
-      referenceId: { type: Schema.Types.ObjectId, required: true }, // Ref to Package or LearningCommitment
+      referenceId: {
+         type: Schema.Types.ObjectId,
+         required: function () {
+            return this.type === "learningCommitment";
+         },
+      },
+      packageId: {
+         type: Schema.Types.ObjectId,
+         ref: "Package",
+         required: function () {
+            return this.type === "package";
+         },
+      },
       orderCode: { type: Number, required: true, unique: true },
       amount: { type: Number, required: true },
       status: {

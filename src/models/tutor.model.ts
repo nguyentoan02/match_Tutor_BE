@@ -20,7 +20,7 @@ const TutorSchema: Schema<ITutor> = new Schema(
             institution: { type: String },
             degree: { type: String },
             fieldOfStudy: { type: String },
-            // store full dates for study period   
+            // store full dates for study period
             startDate: { type: Date },
             endDate: { type: Date },
             // short description
@@ -28,7 +28,7 @@ const TutorSchema: Schema<ITutor> = new Schema(
             _id: false,
          },
       ],
-      
+
       //ten, mo ta voi anh, de t them
       certifications: [
          {
@@ -58,17 +58,9 @@ const TutorSchema: Schema<ITutor> = new Schema(
          totalReviews: { type: Number, default: 0 },
          _id: false,
       },
-      // Tutor package info (derived from payments). Keep minimal snapshot if needed.
-      currentSubscription: {
-         packageId: { type: Schema.Types.ObjectId, ref: "Package" },
-         endDate: { type: Date },
-         features: {
-            boostVisibility: { type: Boolean, default: false },
-            priorityRanking: { type: Boolean, default: false },
-            maxStudents: { type: Number, default: 10 },
-            featuredProfile: { type: Boolean, default: false },
-         },
-      },
+
+      maxStudents: { type: Number, default: 10 },
+      maxQuiz: { type: Number, default: 10 },
    },
    {
       timestamps: {
