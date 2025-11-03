@@ -33,11 +33,7 @@ export interface IAttendanceWindow {
 
 export interface IAttendanceLogEntry {
    userRole: "TUTOR" | "STUDENT" | "SYSTEM";
-   action:
-      | "CHECKED_IN"
-      | "ABSENT_AUTO"
-      | "ABSENT_MANUAL"
-      | "DISPUTE_OPENED";
+   action: "CHECKED_IN" | "ABSENT_AUTO" | "ABSENT_MANUAL" | "DISPUTE_OPENED";
    note?: string;
    createdAt: Date;
 }
@@ -82,10 +78,10 @@ export interface ISession extends Document {
    // New fields
    studentConfirmation?: IStudentConfirmation;
    attendanceConfirmation?: IAttendanceConfirmation;
-  attendanceWindow?: IAttendanceWindow;
-  attendanceLogs?: IAttendanceLogEntry[];
-  absence?: IAbsenceInfo;
-  dispute?: IDisputeInfo;
+   attendanceWindow?: IAttendanceWindow;
+   attendanceLogs?: IAttendanceLogEntry[];
+   absence?: IAbsenceInfo;
+   dispute?: IDisputeInfo;
    cancellation?: ICancellationInfo;
    isDeleted?: boolean;
    deletedAt?: Date;
@@ -96,6 +92,7 @@ export interface ISession extends Document {
    reminders?: IReminder[];
    location?: string;
    notes?: string;
+   mcqQuizIds: Types.ObjectId[];
    createdAt?: Date;
    updatedAt?: Date;
 }

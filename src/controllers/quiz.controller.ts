@@ -220,6 +220,39 @@ class QuizController {
          metadata: quizzes,
       }).send(res);
    }
+
+   async getMCQInSessionDetail(req: Request, res: Response) {
+      const currentUser = req.user;
+      if (!currentUser || !currentUser._id) {
+         throw new UnauthorizedError("Not authenticated");
+      }
+      const sessionId = req.query.sessionId as string;
+      if (!sessionId) {
+         throw new BadRequestError("invalid sessionId");
+      }
+      const quizzes = await quizService.getMCQinSessionDetail(sessionId);
+      new OK({
+         message: "get quizzes in session detail success",
+         metadata: quizzes,
+      }).send(res);
+   }
+
+   async AsignMCQToSession(req: Request, res: Response) {
+      const currentUser = req.user;
+      if (!currentUser || !currentUser._id) {
+         throw new UnauthorizedError("Not authenticated");
+      }
+      const asignQuizPayload: AsignQuizToSessionBody = req.body;
+      console.log("asignQuizPayload:", asignQuizPayload);
+      const asignResult = await quizService.asignMCQToSession(
+         currentUser._id.toString(),
+         asignQuizPayload.quizIds,
+         asignQuizPayload.sessionId
+      );
+      new OK({ message: "asign quiz success", metadata: asignResult }).send(
+         res
+      );
+   }
 }
 
 export default new QuizController();

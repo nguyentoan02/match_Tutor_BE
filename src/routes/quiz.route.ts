@@ -94,4 +94,16 @@ router.get(
    quizController.getQuizzesInSessionDetail
 );
 
+router.get(
+   "/getMCQAssignedToSession",
+   authenticate,
+   quizController.getMCQInSessionDetail
+);
+
+router.post(
+   "/asignMCQToSession",
+   authenticate,
+   quizController.AsignMCQToSession
+);
+
 export default router;
