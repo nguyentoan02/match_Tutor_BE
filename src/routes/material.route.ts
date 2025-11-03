@@ -17,6 +17,8 @@ const upload = multer({
          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
          "application/vnd.ms-excel",
          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+         "application/vnd.ms-powerpoint",
+         "application/vnd.openxmlformats-officedocument.presentationml.presentation",
       ];
       if (allowedMimes.includes(file.mimetype)) {
          cb(null, true);

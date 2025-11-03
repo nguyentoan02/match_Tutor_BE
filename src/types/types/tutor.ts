@@ -44,17 +44,9 @@ export interface ITutor extends Document {
    rejectedReason?: string; // Lý do từ chối
    rejectedAt?: Date; // Thời điểm bị từ chối
    ratings?: IRating;
-   // Tutor package info (derived from payments)
-   currentSubscription?: {
-      packageId: Types.ObjectId;
-      endDate: Date;
-      features: {
-         boostVisibility: boolean;
-         priorityRanking: boolean;
-         maxStudents: number;
-         featuredProfile: boolean;
-      };
-   };
+
+   maxStudents: number;
+   maxQuiz: number;
    createdAt?: Date;
    updatedAt?: Date;
 }
