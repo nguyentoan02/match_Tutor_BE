@@ -29,6 +29,15 @@ const multipleChoiceQuestion = baseQuestion.extend({
    points: z.number().min(0, "points must be non-negative").optional(),
 });
 
+const shortAnswerQuestion = baseQuestion.extend({
+   questionType: z.literal(QuestionTypeEnum.SHORT_ANSWER),
+   questionText: z.string().min(1, "question text is required for short answer"),
+   acceptedAnswers: z.array(z.string()).min(1, "at least one accepted answer is required"),
+   caseSensitive: z.boolean().default(false),
+   points: z.number().min(0, "points must be non-negative").optional(),
+});
+
+
 export const createQuizBodySchema = z.object({
    body: z.object({
       title: z.string().min(1, "title is required"),
@@ -200,6 +209,84 @@ export const editMultipleChoiceQuizBodySchema = z.object({
    }),
 });
 
+
+export const createShortAnswerQuizBodySchema = z.object({
+   body: z.object({
+      title: z.string().min(1, "title is required"),
+      description: z.string().optional(),
+      quizMode: z.nativeEnum(QuizModeEnum, "invalid quiz mode"),
+      settings: z
+         .object({
+            shuffleQuestions: z.boolean().optional(),
+            showCorrectAnswersAfterSubmit: z.boolean().optional(),
+            timeLimitMinutes: z
+               .number()
+               .int()
+               .nonnegative()
+               .nullable()
+               .optional(),
+         })
+         .optional(),
+      tags: z.array(z.string()).optional(),
+      questionArr: z
+         .array(shortAnswerQuestion)
+         .min(
+            1,
+            "questionArr must contain at least one short answer question"
+         ),
+      quizType: z.literal(QuestionTypeEnum.SHORT_ANSWER).optional(),
+   }),
+});
+
+const editShortAnswerQuestion = shortAnswerQuestion.extend({
+   _id: z
+      .string()
+      .regex(/^[0-9a-fA-F]{24}$/, "question _id must be a valid ObjectId")
+      .optional(),
+});
+
+const deleteShortAnswerQuestion = z.object({
+   _id: z
+      .string()
+      .regex(/^[0-9a-fA-F]{24}$/, "question _id must be a valid ObjectId")
+      .optional(),
+});
+
+export const editShortAnswerQuizBodySchema = z.object({
+   body: z.object({
+      _id: z.string(),
+      title: z.string().min(1, "title is required"),
+      description: z.string().min(1, "description is required"),
+      sessionId: z
+         .string()
+         .regex(/^[0-9a-fA-F]{24}$/, "sessionId must be a valid ObjectId")
+         .optional(),
+      quizMode: z.nativeEnum(QuizModeEnum).optional(),
+      settings: z
+         .object({
+            shuffleQuestions: z.boolean().optional(),
+            showCorrectAnswersAfterSubmit: z.boolean().optional(),
+            timeLimitMinutes: z
+               .number()
+               .int()
+               .nonnegative()
+               .nullable()
+               .optional(),
+         })
+         .optional(),
+      tags: z.array(z.string()).optional(),
+      editShortAnswerQuizQuestionsArr: z
+         .array(editShortAnswerQuestion)
+         .optional(),
+      newShortAnswerQuizQuestionsArr: z
+         .array(shortAnswerQuestion)
+         .optional(),
+      deleteShortAnswerQuizQuestionsArr: z
+         .array(deleteShortAnswerQuestion)
+         .optional(),
+   }),
+});
+
 export const asignQuizToSessionSchema = z.object({
    body: z.object({
       quizIds: z.array(
@@ -234,6 +321,11 @@ export type DeleteMultipleChoiceQuestion = z.infer<
 export type editMultipleChoiceQuizBody = z.infer<
    typeof editMultipleChoiceQuizBodySchema
 >["body"];
+export type ShortAnswerQuestionType = z.infer<typeof shortAnswerQuestion>;
+export type EditShortAnswerQuestion = z.infer<typeof editShortAnswerQuestion>;
+export type DeleteShortAnswerQuestion = z.infer<typeof deleteShortAnswerQuestion>;
+export type CreateShortAnswerQuizBody = z.infer<typeof createShortAnswerQuizBodySchema>["body"];
+export type editShortAnswerQuizBody = z.infer<typeof editShortAnswerQuizBodySchema>["body"];
 export type AsignQuizToSessionBody = z.infer<
    typeof asignQuizToSessionSchema
 >["body"];

@@ -379,21 +379,147 @@ export class ReviewService {
     }
 
     /**
-     * Get all reviews written by a student (for sidebar)
+     * Get all reviews written by a student with filtering
      */
-    async getStudentReviewHistory(studentUserId: string): Promise<IReview[]> {
-        const reviews = await Review.find({
+    async getStudentReviewHistory(
+        studentUserId: string,
+        filters?: {
+            page?: number;
+            limit?: number;
+            keyword?: string; // search by tutor name or comment
+            subjects?: string[];
+            levels?: string[];
+            minRating?: number;
+            maxRating?: number;
+            sort?: "newest" | "oldest";
+            rating?: string; // specific rating filter
+        }
+    ) {
+        const {
+            page = 1,
+            limit = 10,
+            keyword = "",
+            subjects = [],
+            levels = [],
+            minRating = 0,
+            maxRating = 5,
+            sort = "newest",
+            rating,
+        } = filters || {};
+
+        const skip = (page - 1) * limit;
+
+        // Build match conditions
+        const match: any = {
             reviewerId: new Types.ObjectId(studentUserId),
             isVisible: true,
-        })
-            .populate("revieweeId", "name avatarUrl") // Tutor info
-            .populate("teachingRequestId", "subject level status")
-            .sort({ createdAt: -1 })
-            .lean();
+        };
 
-        return reviews as IReview[];
+        // Rating filtering
+        if (rating) {
+            match.rating = Number(rating);
+        } else {
+            match.rating = { $gte: minRating, $lte: maxRating };
+        }
+
+        // Build aggregate pipeline
+        const pipeline: any[] = [
+            { $match: match },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "revieweeId",
+                    foreignField: "_id",
+                    as: "revieweeId",
+                },
+            },
+            { $unwind: "$revieweeId" },
+            {
+                $lookup: {
+                    from: "teaching_requests",
+                    localField: "teachingRequestId",
+                    foreignField: "_id",
+                    as: "teachingRequestId",
+                },
+            },
+            { $unwind: { path: "$teachingRequestId", preserveNullAndEmptyArrays: true } },
+        ];
+
+        // Filter by subject, level, and keyword
+        const andConditions: any[] = [];
+
+        // Normalize subjects and levels
+        const normalizedSubjects = Array.isArray(subjects) ? subjects :
+            (typeof subjects === 'string' && subjects ? [subjects] : []);
+        const normalizedLevels = Array.isArray(levels) ? levels :
+            (typeof levels === 'string' && levels ? [levels] : []);
+
+        if (normalizedSubjects.length > 0) {
+            andConditions.push({
+                "teachingRequestId.subject": { $in: normalizedSubjects },
+            });
+        }
+
+        if (normalizedLevels.length > 0) {
+            andConditions.push({
+                "teachingRequestId.level": { $in: normalizedLevels },
+            });
+        }
+
+        // Keyword search in tutor name or comment
+        if (keyword) {
+            andConditions.push({
+                $or: [
+                    { "revieweeId.name": { $regex: keyword, $options: "i" } },
+                    { "comment": { $regex: keyword, $options: "i" } }
+                ],
+            });
+        }
+
+        if (andConditions.length > 0) {
+            pipeline.push({ $match: { $and: andConditions } });
+        }
+
+        // Add sort
+        pipeline.push({
+            $sort: { createdAt: sort === "newest" ? -1 : 1 },
+        });
+
+        // Count total before pagination
+        const countPipeline = [...pipeline];
+        countPipeline.push({ $count: "total" });
+        const countResult = await Review.aggregate(countPipeline);
+        const total = countResult[0]?.total || 0;
+
+        // Apply pagination
+        pipeline.push({ $skip: skip });
+        pipeline.push({ $limit: limit });
+
+        // Select fields to return
+        pipeline.push({
+            $project: {
+                _id: 1,
+                rating: 1,
+                comment: 1,
+                createdAt: 1,
+                "revieweeId._id": 1,
+                "revieweeId.name": 1,
+                "revieweeId.avatarUrl": 1,
+                "teachingRequestId.subject": 1,
+                "teachingRequestId.level": 1,
+            },
+        });
+
+        const reviews = await Review.aggregate(pipeline);
+
+        return {
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit),
+            reviews,
+        };
     }
-
 
 }
 

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { authenticate } from "../middlewares/auth.middleware";
 import quizController from "../controllers/quiz.controller";
+import ShortAnswerQuizController from "../controllers/shortAnswerQuiz.controller";
 import { validate } from "../middlewares/validation.middleware";
 import {
    createMultipleChoiceQuizBodySchema,
@@ -10,6 +11,8 @@ import {
    editQuizBodySchema,
    quizQuerySchema,
    quizTutorIdQuerySchema,
+   createShortAnswerQuizBodySchema,
+   editShortAnswerQuizBodySchema,
 } from "../schemas/quiz.schema";
 
 const router = Router();
@@ -93,5 +96,41 @@ router.get(
    authenticate,
    quizController.getQuizzesInSessionDetail
 );
+
+// Short Answer Quiz Routes
+router.post(
+   "/short-answer",
+   authenticate,
+   validate(createShortAnswerQuizBodySchema),
+   ShortAnswerQuizController.CreateShortAnswerQuiz
+);
+
+router.get(
+   "/short-answer",
+   authenticate,
+   validate(quizQuerySchema),
+   ShortAnswerQuizController.GetShortAnswerQuizByQuizId
+);
+
+router.put(
+   "/short-answer",
+   authenticate,
+   validate(editShortAnswerQuizBodySchema),
+   ShortAnswerQuizController.editShortAnswerQuizByTutor
+);
+
+router.get(
+   "/short-answer/tutor",
+   authenticate,
+   ShortAnswerQuizController.GetShortAnswerQuizesByTutor
+);
+
+router.delete(
+   "/short-answer",
+   authenticate,
+   validate(deleteQuizBodySchema),
+   ShortAnswerQuizController.DeleteShortAnswerQuiz
+);
+
 
 export default router;
