@@ -3,7 +3,8 @@ import quizSubmissionModel from "../models/quizSubmission.model";
 import quizQuestionModel from "../models/quizQuestion.model";
 import { QuestionTypeEnum } from "../types/enums";
 import quizModel from "../models/quiz.model";
-import { BadRequestError } from "../utils/error.response";
+import { BadRequestError, NotFoundError } from "../utils/error.response";
+import studentModel from "../models/student.model";
 
 class doQuizService {
    private async gradeQuestions(answers: IAnswer[]): Promise<IAnswer[]> {
@@ -56,10 +57,11 @@ class doQuizService {
       return gradedAnswers;
    }
    async submitMCQ(quizData: IQuizSubmission, studentId: string) {
-      const existedSub = await quizSubmissionModel.find({
+      const existedSub = await quizSubmissionModel.findOne({
          studentId: studentId,
+         quizId: quizData.quizId,
       });
-      if (existedSub.length > 0) {
+      if (existedSub) {
          throw new BadRequestError("Student already taken this test");
       }
       const graded = await this.gradeQuestions(quizData.answers!);
@@ -75,6 +77,47 @@ class doQuizService {
          gradedBy: tutorId?.createdBy,
       });
       return createdQuizSubmision;
+   }
+
+   async getSubmitMCQList(userId: string): Promise<IQuizSubmission[]> {
+      const list = await quizSubmissionModel
+         .find({ studentId: userId })
+         .populate({
+            path: "quizId",
+            select: "title description quizMode quizType totalQuestions -_id",
+         })
+         .populate({ path: "studentId", select: "name email -_id" })
+         .populate({
+            path: "answers.questionId",
+            select:
+               "-_id order questionText options correctAnswer explanation points",
+         });
+      return list;
+   }
+
+   async getSubmitMCQ(
+      userId: string,
+      quizId: string
+   ): Promise<IQuizSubmission> {
+      const mcq = await quizSubmissionModel
+         .findOne({
+            studentId: userId,
+            _id: quizId,
+         })
+         .populate({
+            path: "quizId",
+            select: "title description quizMode quizType totalQuestions -_id",
+         })
+         .populate({ path: "studentId", select: "name email -_id" })
+         .populate({
+            path: "answers.questionId",
+            select:
+               "-_id order questionText options correctAnswer explanation points",
+         });
+      if (!mcq) {
+         throw new NotFoundError("not found this quiz submission");
+      }
+      return mcq;
    }
 }
 

@@ -30,5 +30,16 @@ export const submitQuizBodySchema = z.object({
    }),
 });
 
+export const submitQuizIdQuerySchema = z.object({
+   query: z.object({
+      quizId: z.string().regex(/^[0-9a-fA-F]{24}$/, {
+         message: "tutorId must be a valid MongoDB ObjectId",
+      }),
+   }),
+});
+
 // Export types
 export type SubmitQuizBody = z.infer<typeof submitQuizBodySchema>["body"];
+export type SubmitQUizIdQuery = z.infer<
+   typeof submitQuizIdQuerySchema
+>["query"];
