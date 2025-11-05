@@ -61,6 +61,12 @@ router.get(
     reviewController.getStudentReviewHistory
 );
 
-
+// Check review eligibility for current student
+router.get(
+    "/check-eligibility/:tutorUserId",
+    authenticate,
+    isRole(Role.STUDENT),
+    reviewController.checkReviewEligibility
+);
 
 export default router;

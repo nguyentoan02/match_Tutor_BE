@@ -267,6 +267,32 @@ class ReviewController {
         }
     }
 
+    /**
+ * GET /api/review/check-eligibility/:tutorUserId
+ * Check if current student can review a tutor (has completed learning commitments)
+ */
+    async checkReviewEligibility(req: Request, res: Response, next: NextFunction) {
+        try {
+            const currentUser = req.user;
+            if (!currentUser || !currentUser._id) {
+                throw new Error("Not authenticated");
+            }
+            console.log("Current User ID:", currentUser._id);
+            const { tutorUserId } = req.params;
+
+            const eligibility = await reviewService.checkReviewEligibility(
+                currentUser._id.toString(),
+                tutorUserId
+            );
+
+            new OK({
+                message: "Review eligibility checked successfully",
+                metadata: { eligibility },
+            }).send(res);
+        } catch (err) {
+            next(err);
+        }
+    }
 }
 
 export default new ReviewController();

@@ -1,6 +1,8 @@
 import Review from "../models/review.model";
 import TeachingRequest from "../models/teachingRequest.model";
 import Tutor from "../models/tutor.model";
+import Student from "../models/student.model";
+import LearningCommitment from "../models/learningCommitment.model"; // Import LearningCommitment
 import { IReview } from "../types/types/review";
 import { ReviewTypeEnum } from "../types/enums/review.enum";
 import { TeachingRequestStatus } from "../types/enums/teachingRequest.enum";
@@ -16,7 +18,7 @@ import { ITutor } from "../types/types/tutor";
 
 export class ReviewService {
     /**
-     * Create a review for a completed teaching request
+     * Create a review for a completed learning commitment
      */
     async createReview(
         teachingRequestId: string,
@@ -24,7 +26,7 @@ export class ReviewService {
         rating: number,
         comment?: string
     ): Promise<IReview> {
-        // Validate teaching request exists and is completed
+        // Validate teaching request exists
         const teachingRequest = await TeachingRequest.findById(teachingRequestId)
             .populate({
                 path: "studentId",
@@ -40,12 +42,6 @@ export class ReviewService {
             throw new NotFoundError("Teaching request not found");
         }
 
-        // Check if teaching request is completed
-        if (teachingRequest.status !== TeachingRequestStatus.COMPLETED) {
-            throw new BadRequestError(
-                `Can only review completed teaching requests. Current status: ${teachingRequest.status}`
-            );
-        }
         type PopulatedTeachingRequest = ITeachingRequest & {
             studentId: IStudent & { userId: { _id: Types.ObjectId } };
             tutorId: ITutor & { userId: { _id: Types.ObjectId } };
@@ -64,15 +60,34 @@ export class ReviewService {
 
         const tutorId = tr.tutorId.userId._id;
 
+        // Find the learning commitment for this teaching request
+        const learningCommitment = await LearningCommitment.findOne({
+            teachingRequest: new Types.ObjectId(teachingRequestId),
+            student: tr.studentId._id,
+            tutor: tr.tutorId._id
+        });
+
+        if (!learningCommitment) {
+            throw new NotFoundError("Learning commitment not found for this teaching request");
+        }
+
+        // Check if learning commitment is completed
+        if (learningCommitment.status !== "completed") {
+            throw new BadRequestError(
+                `Can only review completed learning commitments. Current status: ${learningCommitment.status}`
+            );
+        }
+
         // Check if review already exists for this teaching request
         const existingReview = await Review.findOne({
             reviewerId: new Types.ObjectId(reviewerId),
             revieweeId: tutorId,
+            teachingRequestId: new Types.ObjectId(teachingRequestId),
             isVisible: true,
         });
 
         if (existingReview) {
-            throw new BadRequestError("You have already reviewed this teaching request");
+            throw new BadRequestError("You have already reviewed this");
         }
 
         // Create the review
@@ -209,11 +224,11 @@ export class ReviewService {
             });
         }
 
-        // Keyword search in reviewer name or comment
+        // Keyword search in reviewer name 
         if (keyword) {
             andConditions.push({
                 $or: [
-                    { "reviewerId.name": { $regex: keyword, $options: "i" } }
+                    { "reviewerId.name": { $regex: keyword, $options: "i" } },
                 ],
             });
         }
@@ -262,6 +277,7 @@ export class ReviewService {
             reviews,
         };
     }
+
     /**
      * Update a review
      */
@@ -466,12 +482,11 @@ export class ReviewService {
             });
         }
 
-        // Keyword search in tutor name or comment
+        // Keyword search in tutor name 
         if (keyword) {
             andConditions.push({
                 $or: [
                     { "revieweeId.name": { $regex: keyword, $options: "i" } },
-                    { "comment": { $regex: keyword, $options: "i" } }
                 ],
             });
         }
@@ -520,9 +535,39 @@ export class ReviewService {
             reviews,
         };
     }
+    /**
+     * Check if student has completed learning commitments with a tutor
+     */
+    async checkReviewEligibility(
+        studentUserId: string,
+        tutorUserId: string
+    ): Promise<{
+        hasCompleted: boolean;
+        teachingRequestIds: string[];
+        learningCommitments?: any[];
+    }> {
+        const student = await Student.findOne({ userId: new Types.ObjectId(studentUserId) }).select("_id");
+        if (!student) {
+            throw new NotFoundError("Student profile not found");
+        }
 
+        // Find completed learning commitments between this student and tutor
+        const completedCommitments = await LearningCommitment.find({
+            student: student._id,
+            tutor: tutorUserId,
+            status: "completed"
+        }).populate("teachingRequest", "_id").lean();
+
+        const teachingRequestIds = completedCommitments
+            .filter(commitment => commitment.teachingRequest)
+            .map(commitment => commitment.teachingRequest._id.toString());
+
+        return {
+            hasCompleted: completedCommitments.length > 0,
+            teachingRequestIds,
+            learningCommitments: completedCommitments
+        };
+    }
 }
-
-
 
 export default new ReviewService();
