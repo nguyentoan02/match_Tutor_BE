@@ -277,7 +277,6 @@ class ReviewController {
             if (!currentUser || !currentUser._id) {
                 throw new Error("Not authenticated");
             }
-            console.log("Current User ID:", currentUser._id);
             const { tutorUserId } = req.params;
 
             const eligibility = await reviewService.checkReviewEligibility(
