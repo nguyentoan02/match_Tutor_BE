@@ -1,6 +1,8 @@
 import Review from "../models/review.model";
 import TeachingRequest from "../models/teachingRequest.model";
 import Tutor from "../models/tutor.model";
+import Student from "../models/student.model";
+import LearningCommitment from "../models/learningCommitment.model"; // Import LearningCommitment
 import { IReview } from "../types/types/review";
 import { ReviewTypeEnum } from "../types/enums/review.enum";
 import { TeachingRequestStatus } from "../types/enums/teachingRequest.enum";
@@ -16,7 +18,7 @@ import { ITutor } from "../types/types/tutor";
 
 export class ReviewService {
     /**
-     * Create a review for a completed teaching request
+     * Create a review for a completed learning commitment
      */
     async createReview(
         teachingRequestId: string,
@@ -24,7 +26,7 @@ export class ReviewService {
         rating: number,
         comment?: string
     ): Promise<IReview> {
-        // Validate teaching request exists and is completed
+        // Validate teaching request exists
         const teachingRequest = await TeachingRequest.findById(teachingRequestId)
             .populate({
                 path: "studentId",
@@ -40,12 +42,6 @@ export class ReviewService {
             throw new NotFoundError("Teaching request not found");
         }
 
-        // Check if teaching request is completed
-        if (teachingRequest.status !== TeachingRequestStatus.COMPLETED) {
-            throw new BadRequestError(
-                `Can only review completed teaching requests. Current status: ${teachingRequest.status}`
-            );
-        }
         type PopulatedTeachingRequest = ITeachingRequest & {
             studentId: IStudent & { userId: { _id: Types.ObjectId } };
             tutorId: ITutor & { userId: { _id: Types.ObjectId } };
@@ -64,15 +60,34 @@ export class ReviewService {
 
         const tutorId = tr.tutorId.userId._id;
 
+        // Find the learning commitment for this teaching request
+        const learningCommitment = await LearningCommitment.findOne({
+            teachingRequest: new Types.ObjectId(teachingRequestId),
+            student: tr.studentId._id,
+            tutor: tr.tutorId._id
+        });
+
+        if (!learningCommitment) {
+            throw new NotFoundError("Learning commitment not found for this teaching request");
+        }
+
+        // Check if learning commitment is completed
+        if (learningCommitment.status !== "completed") {
+            throw new BadRequestError(
+                `Can only review completed learning commitments. Current status: ${learningCommitment.status}`
+            );
+        }
+
         // Check if review already exists for this teaching request
         const existingReview = await Review.findOne({
             reviewerId: new Types.ObjectId(reviewerId),
             revieweeId: tutorId,
+            teachingRequestId: new Types.ObjectId(teachingRequestId),
             isVisible: true,
         });
 
         if (existingReview) {
-            throw new BadRequestError("You have already reviewed this teaching request");
+            throw new BadRequestError("You have already reviewed this");
         }
 
         // Create the review
@@ -209,11 +224,11 @@ export class ReviewService {
             });
         }
 
-        // Keyword search in reviewer name or comment
+        // Keyword search in reviewer name 
         if (keyword) {
             andConditions.push({
                 $or: [
-                    { "reviewerId.name": { $regex: keyword, $options: "i" } }
+                    { "reviewerId.name": { $regex: keyword, $options: "i" } },
                 ],
             });
         }
@@ -262,6 +277,7 @@ export class ReviewService {
             reviews,
         };
     }
+
     /**
      * Update a review
      */
@@ -379,24 +395,179 @@ export class ReviewService {
     }
 
     /**
-     * Get all reviews written by a student (for sidebar)
+     * Get all reviews written by a student with filtering
      */
-    async getStudentReviewHistory(studentUserId: string): Promise<IReview[]> {
-        const reviews = await Review.find({
+    async getStudentReviewHistory(
+        studentUserId: string,
+        filters?: {
+            page?: number;
+            limit?: number;
+            keyword?: string; // search by tutor name or comment
+            subjects?: string[];
+            levels?: string[];
+            minRating?: number;
+            maxRating?: number;
+            sort?: "newest" | "oldest";
+            rating?: string; // specific rating filter
+        }
+    ) {
+        const {
+            page = 1,
+            limit = 10,
+            keyword = "",
+            subjects = [],
+            levels = [],
+            minRating = 0,
+            maxRating = 5,
+            sort = "newest",
+            rating,
+        } = filters || {};
+
+        const skip = (page - 1) * limit;
+
+        // Build match conditions
+        const match: any = {
             reviewerId: new Types.ObjectId(studentUserId),
             isVisible: true,
-        })
-            .populate("revieweeId", "name avatarUrl") // Tutor info
-            .populate("teachingRequestId", "subject level status")
-            .sort({ createdAt: -1 })
-            .lean();
+        };
 
-        return reviews as IReview[];
+        // Rating filtering
+        if (rating) {
+            match.rating = Number(rating);
+        } else {
+            match.rating = { $gte: minRating, $lte: maxRating };
+        }
+
+        // Build aggregate pipeline
+        const pipeline: any[] = [
+            { $match: match },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "revieweeId",
+                    foreignField: "_id",
+                    as: "revieweeId",
+                },
+            },
+            { $unwind: "$revieweeId" },
+            {
+                $lookup: {
+                    from: "teaching_requests",
+                    localField: "teachingRequestId",
+                    foreignField: "_id",
+                    as: "teachingRequestId",
+                },
+            },
+            { $unwind: { path: "$teachingRequestId", preserveNullAndEmptyArrays: true } },
+        ];
+
+        // Filter by subject, level, and keyword
+        const andConditions: any[] = [];
+
+        // Normalize subjects and levels
+        const normalizedSubjects = Array.isArray(subjects) ? subjects :
+            (typeof subjects === 'string' && subjects ? [subjects] : []);
+        const normalizedLevels = Array.isArray(levels) ? levels :
+            (typeof levels === 'string' && levels ? [levels] : []);
+
+        if (normalizedSubjects.length > 0) {
+            andConditions.push({
+                "teachingRequestId.subject": { $in: normalizedSubjects },
+            });
+        }
+
+        if (normalizedLevels.length > 0) {
+            andConditions.push({
+                "teachingRequestId.level": { $in: normalizedLevels },
+            });
+        }
+
+        // Keyword search in tutor name 
+        if (keyword) {
+            andConditions.push({
+                $or: [
+                    { "revieweeId.name": { $regex: keyword, $options: "i" } },
+                ],
+            });
+        }
+
+        if (andConditions.length > 0) {
+            pipeline.push({ $match: { $and: andConditions } });
+        }
+
+        // Add sort
+        pipeline.push({
+            $sort: { createdAt: sort === "newest" ? -1 : 1 },
+        });
+
+        // Count total before pagination
+        const countPipeline = [...pipeline];
+        countPipeline.push({ $count: "total" });
+        const countResult = await Review.aggregate(countPipeline);
+        const total = countResult[0]?.total || 0;
+
+        // Apply pagination
+        pipeline.push({ $skip: skip });
+        pipeline.push({ $limit: limit });
+
+        // Select fields to return
+        pipeline.push({
+            $project: {
+                _id: 1,
+                rating: 1,
+                comment: 1,
+                createdAt: 1,
+                "revieweeId._id": 1,
+                "revieweeId.name": 1,
+                "revieweeId.avatarUrl": 1,
+                "teachingRequestId.subject": 1,
+                "teachingRequestId.level": 1,
+            },
+        });
+
+        const reviews = await Review.aggregate(pipeline);
+
+        return {
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit),
+            reviews,
+        };
     }
+    /**
+     * Check if student has completed learning commitments with a tutor
+     */
+    async checkReviewEligibility(
+        studentUserId: string,
+        tutorUserId: string
+    ): Promise<{
+        hasCompleted: boolean;
+        teachingRequestIds: string[];
+        learningCommitments?: any[];
+    }> {
+        const student = await Student.findOne({ userId: new Types.ObjectId(studentUserId) }).select("_id");
+        if (!student) {
+            throw new NotFoundError("Student profile not found");
+        }
 
+        // Find completed learning commitments between this student and tutor
+        const completedCommitments = await LearningCommitment.find({
+            student: student._id,
+            tutor: tutorUserId,
+            status: "completed"
+        }).populate("teachingRequest", "_id").lean();
 
+        const teachingRequestIds = completedCommitments
+            .filter(commitment => commitment.teachingRequest)
+            .map(commitment => commitment.teachingRequest._id.toString());
+
+        return {
+            hasCompleted: completedCommitments.length > 0,
+            teachingRequestIds,
+            learningCommitments: completedCommitments
+        };
+    }
 }
-
-
 
 export default new ReviewService();

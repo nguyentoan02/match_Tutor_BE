@@ -79,19 +79,38 @@ class ReviewController {
             minRating,
             maxRating,
             sort,
-            rating, // specific rating filter
+            rating,
         } = req.query;
+
+        // Handle both array and comma-separated formats for subjects and levels
+        let subjectsArray: string[] = [];
+        if (subjects) {
+            if (Array.isArray(subjects)) {
+                subjectsArray = subjects as string[];
+            } else {
+                subjectsArray = String(subjects).split(',');
+            }
+        }
+
+        let levelsArray: string[] = [];
+        if (levels) {
+            if (Array.isArray(levels)) {
+                levelsArray = levels as string[];
+            } else {
+                levelsArray = String(levels).split(',');
+            }
+        }
 
         const filters = {
             page: page ? Number(page) : 1,
             limit: limit ? Number(limit) : 10,
             keyword: keyword ? String(keyword) : "",
-            subjects: subjects ? String(subjects).split(",") : [],
-            levels: levels ? String(levels).split(",") : [],
+            subjects: subjectsArray,
+            levels: levelsArray,
             minRating: minRating ? Number(minRating) : 0,
             maxRating: maxRating ? Number(maxRating) : 5,
             sort: (sort === "oldest" ? "oldest" : "newest") as "oldest" | "newest",
-            rating: rating ? String(rating) : undefined, // specific rating
+            rating: rating ? String(rating) : undefined,
         };
 
         const reviews = await reviewService.getTutorReviewsByUserId(
@@ -104,7 +123,6 @@ class ReviewController {
             metadata: reviews,
         }).send(res);
     }
-
     /**
      * PUT /api/reviews/:reviewId
      * Update a review
@@ -181,9 +199,9 @@ class ReviewController {
     }
 
     /**
- * GET /api/reviews/student/history
- * Get all reviews written by the current student
- */
+     * GET /api/reviews/student/history
+     * Get all reviews written by the current student with filtering
+     */
     async getStudentReviewHistory(req: Request, res: Response, next: NextFunction) {
         try {
             const currentUser = req.user;
@@ -191,18 +209,89 @@ class ReviewController {
                 throw new Error("Not authenticated");
             }
 
-            const reviews = await reviewService.getStudentReviewHistory(currentUser._id.toString());
+            // Extract query parameters
+            const {
+                page,
+                limit,
+                keyword,
+                subjects,
+                levels,
+                minRating,
+                maxRating,
+                sort,
+                rating,
+            } = req.query;
+
+            // Handle both array and comma-separated formats
+            let subjectsArray: string[] = [];
+            if (subjects) {
+                if (Array.isArray(subjects)) {
+                    subjectsArray = subjects as string[];
+                } else {
+                    subjectsArray = String(subjects).split(',');
+                }
+            }
+
+            let levelsArray: string[] = [];
+            if (levels) {
+                if (Array.isArray(levels)) {
+                    levelsArray = levels as string[];
+                } else {
+                    levelsArray = String(levels).split(',');
+                }
+            }
+
+            const filters = {
+                page: page ? Number(page) : 1,
+                limit: limit ? Number(limit) : 10,
+                keyword: keyword ? String(keyword) : "",
+                subjects: subjectsArray,
+                levels: levelsArray,
+                minRating: minRating ? Number(minRating) : 0,
+                maxRating: maxRating ? Number(maxRating) : 5,
+                sort: (sort === "oldest" ? "oldest" : "newest") as "oldest" | "newest",
+                rating: rating ? String(rating) : undefined,
+            };
+
+            const result = await reviewService.getStudentReviewHistory(
+                currentUser._id.toString(),
+                filters
+            );
 
             new OK({
                 message: "Student review history retrieved successfully",
-                metadata: { reviews },
+                metadata: result,
             }).send(res);
         } catch (err) {
             next(err);
         }
     }
 
+    /**
+ * GET /api/review/check-eligibility/:tutorUserId
+ * Check if current student can review a tutor (has completed learning commitments)
+ */
+    async checkReviewEligibility(req: Request, res: Response, next: NextFunction) {
+        try {
+            const currentUser = req.user;
+            if (!currentUser || !currentUser._id) {
+                throw new Error("Not authenticated");
+            }
+            const { tutorUserId } = req.params;
 
+            const eligibility = await reviewService.checkReviewEligibility(
+                currentUser._id.toString(),
+                tutorUserId
+            );
+
+            new OK({
+                message: "Review eligibility checked successfully",
+                metadata: { eligibility },
+            }).send(res);
+        } catch (err) {
+            next(err);
+        }
+    }
 }
 
 export default new ReviewController();
