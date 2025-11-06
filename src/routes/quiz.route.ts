@@ -97,6 +97,18 @@ router.get(
    quizController.getQuizzesInSessionDetail
 );
 
+router.get(
+   "/getMCQAssignedToSession",
+   authenticate,
+   quizController.getMCQInSessionDetail
+);
+
+router.post(
+   "/asignMCQToSession",
+   authenticate,
+   quizController.AsignMCQToSession
+);
+
 // Short Answer Quiz Routes
 router.post(
    "/short-answer",
@@ -131,6 +143,5 @@ router.delete(
    validate(deleteQuizBodySchema),
    ShortAnswerQuizController.DeleteShortAnswerQuiz
 );
-
 
 export default router;

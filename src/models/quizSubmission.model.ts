@@ -7,7 +7,7 @@ const QuizSubmissionSchema: Schema<IQuizSubmission> = new Schema(
       quizId: { type: Schema.Types.ObjectId, ref: "Quiz", required: true },
       studentId: {
          type: Schema.Types.ObjectId,
-         ref: "Student",
+         ref: "User",
          required: true,
       },
       answers: [
