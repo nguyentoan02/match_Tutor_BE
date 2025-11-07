@@ -3,6 +3,7 @@ import doQuizController from "../controllers/doQuiz.controller";
 import { authenticate } from "../middlewares/auth.middleware";
 import { validate } from "../middlewares/validation.middleware";
 import {
+   attemptQuizSubmissionQuerySchema,
    submitQuizBodySchema,
    submitQuizIdQuerySchema,
 } from "../schemas/doQuiz.schema";
@@ -27,6 +28,13 @@ router.get(
    authenticate,
    validate(submitQuizIdQuerySchema),
    doQuizController.submitedMCQ
+);
+
+router.get(
+   "/getAttemptMCQ",
+   authenticate,
+   validate(attemptQuizSubmissionQuerySchema),
+   doQuizController.getNumberOfAttempt
 );
 
 export default router;
