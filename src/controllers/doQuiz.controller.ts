@@ -35,10 +35,7 @@ class DoQuizController {
          throw new UnauthorizedError("Not authenticated");
       }
       const { quizId } = req.query as { quizId: string };
-      const submited = await doQuizService.getSubmitMCQ(
-         currentUser._id.toString(),
-         quizId!
-      );
+      const submited = await doQuizService.getSubmitMCQ(quizId!);
       new OK({ message: "get mcq history success", metadata: submited }).send(
          res
       );
@@ -57,6 +54,21 @@ class DoQuizController {
          sessionId
       );
       new OK({ message: "get attempt success", metadata: attempt }).send(res);
+   }
+
+   async getStudentSubmitedMCQ(req: Request, res: Response) {
+      const currentUser = req.user;
+      if (!currentUser || !currentUser._id) {
+         throw new UnauthorizedError("Not authenticated");
+      }
+      const submitedList = await doQuizService.studentSubmissions(
+         currentUser._id.toString()
+      );
+
+      new OK({
+         message: "found submissions of students",
+         metadata: submitedList,
+      }).send(res);
    }
 }
 

@@ -7,10 +7,12 @@ import quizSubmissionModel from "../models/quizSubmission.model";
 import quizQuestionModel from "../models/quizQuestion.model";
 import { QuestionTypeEnum } from "../types/enums";
 import quizModel from "../models/quiz.model";
-import { BadRequestError, NotFoundError } from "../utils/error.response";
+import { NotFoundError } from "../utils/error.response";
 import studentModel from "../models/student.model";
 import sessionModel from "../models/session.model";
 import { Types } from "mongoose";
+import teachingRequestModel from "../models/teachingRequest.model";
+import tutorModel from "../models/tutor.model";
 
 class doQuizService {
    private async gradeQuestions(answers: IAnswer[]): Promise<IAnswer[]> {
@@ -100,13 +102,9 @@ class doQuizService {
       return list;
    }
 
-   async getSubmitMCQ(
-      userId: string,
-      quizId: string
-   ): Promise<IQuizSubmission> {
+   async getSubmitMCQ(quizId: string): Promise<IQuizSubmission> {
       const mcq = await quizSubmissionModel
          .findOne({
-            studentId: userId,
             _id: quizId,
          })
          .populate({
@@ -165,6 +163,46 @@ class doQuizService {
       });
 
       return result;
+   }
+
+   async studentSubmissions(userId: string) {
+      const tutorId = await tutorModel.exists({ userId });
+      const students = await teachingRequestModel
+         .find({ tutorId: tutorId })
+         .select("studentId -_id");
+      if (!students) {
+         throw new NotFoundError("u dont have any student ");
+      }
+
+      const studentIds = students.map((s) => new Types.ObjectId(s.studentId));
+
+      const users = await studentModel
+         .find({
+            _id: { $in: studentIds },
+         })
+         .select("userId -_id");
+
+      const userIds = users.map((u) => new Types.ObjectId(u.userId));
+
+      const subs = await quizSubmissionModel
+         .find({
+            studentId: { $in: userIds },
+         })
+         .populate({
+            path: "studentId",
+            select: "name email",
+         })
+         .select("-answers")
+         .populate({
+            path: "quizId",
+            select:
+               "title description quizMode quizType totalQuestions createdAt updatedAt tags",
+         });
+      if (!subs) {
+         throw new NotFoundError("can not found any submission");
+      }
+
+      return subs;
    }
 }
 

@@ -37,4 +37,10 @@ router.get(
    doQuizController.getNumberOfAttempt
 );
 
+router.get(
+   "/getAllStudenSubmitedMCQ",
+   authenticate,
+   doQuizController.getStudentSubmitedMCQ
+);
+
 export default router;

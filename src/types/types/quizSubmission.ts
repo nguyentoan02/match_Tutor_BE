@@ -27,3 +27,5 @@ export interface IQuizAttempt {
    attempt: number;
    quizSubmissionIds: Types.ObjectId[];
 }
+
+export interface IStudentMCQHistory {}
