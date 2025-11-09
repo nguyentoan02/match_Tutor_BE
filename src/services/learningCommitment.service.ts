@@ -10,6 +10,8 @@ import Tutor from "../models/tutor.model";
 import Wallet from "../models/wallet.model";
 import AdminWallet from "../models/adminWallet.model";
 import mongoose from "mongoose";
+import Session from "../models/session.model";
+import { SessionStatus } from "../types/enums/session.enum";
 
 export const createLearningCommitment = async (data: {
    tutor: string;
@@ -158,6 +160,32 @@ export const requestCancellation = async (
    ) {
       // Cả hai đồng ý -> Hủy
       commitment.status = "cancelled";
+
+      // Tìm và xử lý các buổi học liên quan
+      const relatedSessions = await Session.find({
+         learningCommitmentId: commitment._id,
+         startTime: { $gt: new Date() }, // Chỉ xử lý các buổi học trong tương lai
+      });
+
+      for (const session of relatedSessions) {
+         // Nếu học viên chưa xác nhận, tự động từ chối
+         if (session.studentConfirmation?.status === "PENDING") {
+            session.studentConfirmation.status = "REJECTED";
+            session.studentConfirmation.confirmedAt = new Date();
+         }
+         const cancelledByUserId = isStudent
+            ? commitment.student
+            : commitment.tutor;
+         // Hủy buổi học
+         session.status = SessionStatus.CANCELLED;
+         session.cancellation = {
+            cancelledBy: cancelledByUserId, // Hủy do thỏa thuận, không có người dùng cụ thể
+            reason: "Learning commitment was cancelled by mutual agreement.",
+            cancelledAt: new Date(),
+         };
+         await session.save();
+      }
+
       // Lưu vào lịch sử
       if (commitment.cancellationDecision) {
          commitment.cancellationDecisionHistory?.push({
@@ -277,21 +305,19 @@ async function processMoneyTransfer(commitment: ILearningCommitment) {
       }
 
       if (status === "completed") {
-         tutorWallet.balance += studentPaidAmount;
+         // Hoàn thành: 90% cho gia sư, 10% cho admin
+         const amountForTutor = studentPaidAmount * 0.9;
+         const amountForAdmin = studentPaidAmount * 0.1;
+
+         tutorWallet.balance += amountForTutor;
+         adminWallet.balance += amountForAdmin;
+
          await tutorWallet.save({ session });
+         await adminWallet.save({ session });
       } else if (status === "cancelled") {
          if (totalSessions === 0) {
             await session.abortTransaction();
             return;
-         }
-         const pricePerSession = studentPaidAmount / totalSessions;
-
-         const amountForTaughtSessions = completedSessions * pricePerSession;
-         const amountForRemainingSessions =
-            studentPaidAmount - amountForTaughtSessions;
-
-         if (amountForTaughtSessions > 0) {
-            tutorWallet.balance += amountForTaughtSessions;
          }
 
          const lastCancellation =
@@ -299,15 +325,39 @@ async function processMoneyTransfer(commitment: ILearningCommitment) {
                cancellationDecisionHistory.length - 1
             ];
          const cancelledByTutor = lastCancellation?.requestedBy === "tutor";
+         const pricePerSession = studentPaidAmount / totalSessions;
+
+         const amountForTaughtSessions = completedSessions * pricePerSession;
+         const amountForUntrainedSessions =
+            studentPaidAmount - amountForTaughtSessions;
 
          if (cancelledByTutor) {
-            if (amountForRemainingSessions > 0) {
-               studentWallet.balance += amountForRemainingSessions;
+            // Gia sư huỷ: 90% tiền buổi hoàn thành cho gia sư, 10% cho admin, tiền buổi chưa học cho học sinh
+            const tutorAmount = amountForTaughtSessions * 0.9;
+            const adminAmountFromTaught = amountForTaughtSessions * 0.1;
+
+            if (tutorAmount > 0) {
+               tutorWallet.balance += tutorAmount;
+            }
+            if (adminAmountFromTaught > 0) {
+               adminWallet.balance += adminAmountFromTaught;
+            }
+            if (amountForUntrainedSessions > 0) {
+               studentWallet.balance += amountForUntrainedSessions;
             }
          } else {
-            // Student cancelled
-            if (amountForRemainingSessions > 0) {
-               adminWallet.balance += amountForRemainingSessions;
+            // Học sinh huỷ: tiền buổi hoàn thành 90% cho gia sư 10% cho admin, tiền buổi chưa học về admin
+            const tutorAmount = amountForTaughtSessions * 0.9;
+            const adminAmountFromTaught = amountForTaughtSessions * 0.1;
+
+            if (tutorAmount > 0) {
+               tutorWallet.balance += tutorAmount;
+            }
+            if (adminAmountFromTaught > 0) {
+               adminWallet.balance += adminAmountFromTaught;
+            }
+            if (amountForUntrainedSessions > 0) {
+               adminWallet.balance += amountForUntrainedSessions;
             }
          }
 

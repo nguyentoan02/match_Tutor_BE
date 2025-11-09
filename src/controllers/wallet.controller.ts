@@ -1,5 +1,11 @@
 import { Request, Response } from "express";
-import { getWalletByUserId } from "../services/wallet.service";
+import {
+   getWalletByUserId,
+   withdrawFromWallet,
+} from "../services/wallet.service";
+
+import { OK } from "../utils/success.response";
+import { NextFunction } from "express";
 
 export const getWallet = async (req: Request, res: Response) => {
    try {
@@ -25,5 +31,37 @@ export const getWallet = async (req: Request, res: Response) => {
          success: false,
          message: error.message || "Failed to retrieve wallet",
       });
+   }
+};
+
+export const withdraw = async (
+   req: Request,
+   res: Response,
+   next: NextFunction
+) => {
+   try {
+      const userId = req.user?.id || req.user?._id;
+      if (!userId) {
+         return res
+            .status(401)
+            .json({ success: false, message: "User not authenticated" });
+      }
+
+      const { amount, toBin, toAccountNumber, description } = req.body;
+
+      const result = await withdrawFromWallet(
+         userId,
+         amount,
+         toBin,
+         toAccountNumber,
+         description
+      );
+
+      new OK({
+         message: "Withdrawal request created successfully",
+         metadata: result,
+      }).send(res);
+   } catch (error: any) {
+      next(error);
    }
 };

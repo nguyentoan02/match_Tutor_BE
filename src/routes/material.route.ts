@@ -57,4 +57,11 @@ router.delete(
    materialController.removeMaterialFromSession
 );
 
+router.get(
+   "/sessions/:sessionId/materials",
+   authenticate,
+   isRole(Role.TUTOR, Role.STUDENT),
+   materialController.getMaterialsBySession
+);
+
 export default router;
