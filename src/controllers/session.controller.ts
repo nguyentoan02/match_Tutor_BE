@@ -4,6 +4,7 @@ import { CREATED, OK } from "../utils/success.response";
 import { UnauthorizedError } from "../utils/error.response";
 import { IUser } from "../types/types/user";
 import { Role } from "../types/enums";
+import sessionWrongService from "../services/sessionWrong.service";
 // Import Role type
 
 class SessionController {
@@ -44,46 +45,6 @@ class SessionController {
 
          new OK({
             message: "Session retrieved successfully",
-            metadata: result,
-         }).send(res);
-      } catch (err) {
-         next(err);
-      }
-   }
-
-   async listByLearningCommitment(
-      req: Request,
-      res: Response,
-      next: NextFunction
-   ) {
-      try {
-         if (!req.user?._id) {
-            throw new UnauthorizedError("Authentication required");
-         }
-         const sessions = await sessionService.listByLearningCommitment(
-            req.params.learningCommitmentId,
-            req.user._id.toString()
-         );
-         new OK({ message: "Sessions by learning commitment", metadata: sessions }).send(res);
-      } catch (err) {
-         next(err);
-      }
-   }
-
-   async listByTeachingRequest(
-      req: Request,
-      res: Response,
-      next: NextFunction
-   ) {
-      try {
-         if (!req.user) throw new UnauthorizedError("Authentication required");
-         const currentUser = req.user as IUser;
-         const result = await sessionService.listByTeachingRequest(
-            req.params.teachingRequestId,
-            currentUser._id as string
-         );
-         new OK({
-            message: "Sessions for the request fetched successfully",
             metadata: result,
          }).send(res);
       } catch (err) {
@@ -229,31 +190,7 @@ class SessionController {
       }
    }
 
-   // GET /api/sessions/deleted/:id
-   async getDeletedRejectedById(
-      req: Request,
-      res: Response,
-      next: NextFunction
-   ) {
-      try {
-         if (!req.user?._id)
-            throw new UnauthorizedError("Authentication required");
-
-         const result = await sessionService.getDeletedRejectedSessionById(
-            req.params.id,
-            req.user._id.toString()
-         );
-
-         new OK({
-            message: "Deleted rejected session retrieved successfully",
-            metadata: result,
-         }).send(res);
-      } catch (err) {
-         next(err);
-      }
-   }
-
-   // GET /api/sessions/me/deleted
+   // GET /api/session/me/deleted
    async listDeletedForUser(req: Request, res: Response, next: NextFunction) {
       try {
          if (!req.user?._id)
@@ -271,7 +208,7 @@ class SessionController {
       }
    }
 
-   // NEW: GET /api/sessions/me/cancelled
+   // NEW: GET /api/session/me/cancelled
    async listCancelledForUser(req: Request, res: Response, next: NextFunction) {
       try {
          if (!req.user?._id)
@@ -282,6 +219,47 @@ class SessionController {
          );
          new OK({
             message: "Cancelled sessions for user fetched successfully",
+            metadata: result,
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   async listAbsenceSessionsForUser(
+      req: Request,
+      res: Response,
+      next: NextFunction
+   ) {
+      try {
+         if (!req.user?._id)
+            throw new UnauthorizedError("Authentication required");
+         const currentUser = req.user as IUser;
+         const result = await sessionWrongService.listAbsenceSessionsForUser(
+            (currentUser._id as string).toString()
+         );
+         new OK({
+            message: "Absence sessions fetched successfully",
+            metadata: result,
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   // GET /api/session/commitment/:commitmentId
+   async listByCommitment(req: Request, res: Response, next: NextFunction) {
+      try {
+         if (!req.user?._id) {
+            throw new UnauthorizedError("Authentication required");
+         }
+         const { commitmentId } = req.params;
+         const result = await sessionService.listByCommitment(
+            commitmentId,
+            req.user._id.toString()
+         );
+         new OK({
+            message: "Sessions for the commitment fetched successfully",
             metadata: result,
          }).send(res);
       } catch (err) {

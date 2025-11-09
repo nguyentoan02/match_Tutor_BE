@@ -3,6 +3,7 @@ import * as learningCommitmentService from "../services/learningCommitment.servi
 import { OK, CREATED } from "../utils/success.response";
 import { UnauthorizedError, BadRequestError } from "../utils/error.response";
 import TeachingRequest from "../models/teachingRequest.model";
+import Tutor from "../models/tutor.model"; // Thêm dòng này
 
 class LearningCommitmentController {
    async createLearningCommitment(
@@ -25,14 +26,13 @@ class LearningCommitmentController {
          }
 
          // Get Tutor ID from current user
-         const Tutor = require("../models/tutor.model").default;
-         const tutorData = await Tutor.findOne({ userId });
+         const tutorData = await Tutor.findOne({ userId }); // Thay thế
 
          if (!tutorData) {
             throw new UnauthorizedError("User is not a tutor");
          }
 
-         const tutorId = tutorData._id.toString();
+         const tutorId = String(tutorData._id);
 
          // Verify teaching request belongs to this tutor
          const tr = await TeachingRequest.findById(teachingRequest);
@@ -209,15 +209,13 @@ class LearningCommitmentController {
       next: NextFunction
    ) {
       try {
-         const userId = req.user?.id; // User ID từ middleware auth
+         const userId = req.user?.id;
 
          if (!userId) {
             throw new UnauthorizedError("User not authenticated");
          }
 
          // Bước 1: Tìm tutor dựa trên userId
-         // Giả sử có relationship giữa User và Tutor model
-         const Tutor = require("../models/tutor.model").default;
          const tutor = await Tutor.findOne({ userId });
 
          if (!tutor) {
@@ -226,16 +224,85 @@ class LearningCommitmentController {
 
          const tutorId = tutor._id;
 
-         // Bước 2: Lấy danh sách teaching requests dựa trên tutorId
-         const teachingRequests = await TeachingRequest.find({ tutorId })
+         // Bước 2: Lấy danh sách teaching requests với status ACCEPTED
+         const teachingRequests = await TeachingRequest.find({
+            tutorId,
+            status: "ACCEPTED",
+         })
             .select(
-               "_id subject level budget hours description status createdAt"
+               "_id subject level budget hours description status createdAt studentId"
             )
+            .populate({
+               path: "studentId",
+               select: "userId",
+               populate: {
+                  path: "userId",
+                  select: "name email",
+                  model: "User",
+               },
+            })
             .lean();
 
          new OK({
             message: "Teaching requests retrieved successfully",
             metadata: { teachingRequests, count: teachingRequests.length },
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   async getActiveLearningCommitmentsByTutor(
+      req: Request,
+      res: Response,
+      next: NextFunction
+   ) {
+      try {
+         const userId = req.user?.id;
+
+         if (!userId) {
+            throw new UnauthorizedError("User not authenticated");
+         }
+
+         const commitments =
+            await learningCommitmentService.getActiveLearningCommitmentsByTutor(
+               userId
+            );
+
+         new OK({
+            message: "Active learning commitments retrieved successfully",
+            metadata: {
+               commitments,
+               count: commitments.length,
+            },
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   async rejectLearningCommitment(
+      req: Request,
+      res: Response,
+      next: NextFunction
+   ) {
+      try {
+         const { id } = req.params;
+         const userId = req.user?.id;
+
+         if (!userId) {
+            throw new UnauthorizedError("User not authenticated");
+         }
+
+         const commitment =
+            await learningCommitmentService.rejectLearningCommitment(
+               id,
+               userId
+            );
+
+         new OK({
+            message: "Learning commitment rejected successfully",
+            metadata: commitment,
          }).send(res);
       } catch (err) {
          next(err);

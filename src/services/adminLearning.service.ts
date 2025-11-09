@@ -2,6 +2,7 @@ import LearningCommitment, {
    ILearningCommitment,
    CancellationStatus,
 } from "../models/learningCommitment.model";
+import Session from "../models/session.model";
 import { Types } from "mongoose";
 
 export class AdminLearningService {
@@ -56,7 +57,53 @@ export class AdminLearningService {
          throw new Error("Learning commitment not found");
       }
 
-      return commitment;
+      // Get all sessions for this commitment
+      const sessions = await Session.find({
+         learningCommitmentId: commitmentId,
+      })
+         .select(
+            "startTime endTime status absence attendanceConfirmation isTrial"
+         )
+         .lean();
+
+      // Calculate absence statistics
+      const absenceStats = {
+         totalSessions: sessions.length,
+         studentAbsent: 0,
+         tutorAbsent: 0,
+         sessionDetails: [] as any[],
+      };
+
+      sessions.forEach((session) => {
+         const sessionDetail: any = {
+            _id: session._id,
+            startTime: session.startTime,
+            endTime: session.endTime,
+            status: session.status,
+            isTrial: session.isTrial,
+            studentAbsent: false,
+            tutorAbsent: false,
+         };
+
+         if (session.absence) {
+            if (session.absence.studentAbsent) {
+               absenceStats.studentAbsent++;
+               sessionDetail.studentAbsent = true;
+            }
+            if (session.absence.tutorAbsent) {
+               absenceStats.tutorAbsent++;
+               sessionDetail.tutorAbsent = true;
+            }
+            sessionDetail.absenceReason = session.absence.reason;
+         }
+
+         absenceStats.sessionDetails.push(sessionDetail);
+      });
+
+      return {
+         ...commitment,
+         absenceStats,
+      };
    }
 
    // Handle cancellation when both parties don't agree
@@ -149,8 +196,39 @@ export class AdminLearningService {
          "cancellationDecision.adminReviewRequired": true,
       });
 
+      // Enhance cases with absence statistics
+      const enhancedCases = await Promise.all(
+         cases.map(async (commitment) => {
+            const sessions = await Session.find({
+               learningCommitmentId: commitment._id,
+            }).lean();
+
+            const absenceStats = {
+               totalSessions: sessions.length,
+               studentAbsent: 0,
+               tutorAbsent: 0,
+            };
+
+            sessions.forEach((session) => {
+               if (session.absence) {
+                  if (session.absence.studentAbsent) {
+                     absenceStats.studentAbsent++;
+                  }
+                  if (session.absence.tutorAbsent) {
+                     absenceStats.tutorAbsent++;
+                  }
+               }
+            });
+
+            return {
+               ...commitment.toObject(),
+               absenceStats,
+            };
+         })
+      );
+
       return {
-         data: cases,
+         data: enhancedCases,
          pagination: {
             total,
             page,
