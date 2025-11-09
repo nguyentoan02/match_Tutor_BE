@@ -116,3 +116,20 @@ export const removeMaterialFromSession = async (
 
    return updatedSession;
 };
+
+export const getMaterialsBySessionId = async (sessionId: Types.ObjectId) => {
+   const session = await Session.findById(sessionId).populate({
+      path: "materials",
+      select: "title description fileUrl uploadedAt uploadedBy",
+      populate: {
+         path: "uploadedBy",
+         select: "name email",
+      },
+   });
+
+   if (!session) {
+      throw new NotFoundError("Session not found.");
+   }
+
+   return session.materials || [];
+};

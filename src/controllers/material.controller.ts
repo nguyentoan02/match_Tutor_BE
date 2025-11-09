@@ -111,3 +111,24 @@ export const removeMaterialFromSession = async (
       next(error);
    }
 };
+
+export const getMaterialsBySession = async (
+   req: Request,
+   res: Response,
+   next: NextFunction
+) => {
+   try {
+      const { sessionId } = req.params;
+
+      const materials = await materialService.getMaterialsBySessionId(
+         new Types.ObjectId(sessionId)
+      );
+
+      new OK({
+         message: "Materials in session retrieved successfully!",
+         metadata: materials,
+      }).send(res);
+   } catch (error) {
+      next(error);
+   }
+};
