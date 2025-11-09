@@ -14,6 +14,12 @@ router.get(
 // GET  - Lấy danh sách
 router.get("/", learningCommitmentController.listLearningCommitments);
 
+// GET - Lấy danh sách learning commitments active của tutor hiện tại
+router.get(
+   "/tutor/active-commitments",
+   learningCommitmentController.getActiveLearningCommitmentsByTutor
+);
+
 // POST - Tạo mới
 router.post("/", learningCommitmentController.createLearningCommitment);
 
@@ -34,5 +40,11 @@ router.post("/:id/payment", learningCommitmentController.initiatePayment);
 
 // GET  - Lấy chi tiết
 router.get("/:id", learningCommitmentController.getLearningCommitment);
+
+// POST - Từ chối learning commitment (khi pending_agreement)
+router.post(
+   "/:id/reject",
+   learningCommitmentController.rejectLearningCommitment
+);
 
 export default router;

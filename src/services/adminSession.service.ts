@@ -32,7 +32,9 @@ class AdminSessionService {
 
    async getDisputeBySessionId(sessionId: string) {
       const session = await Session.findById(sessionId)
-         .select("learningCommitmentId startTime endTime status dispute attendanceConfirmation absence")
+         .select(
+            "learningCommitmentId startTime endTime status dispute attendanceConfirmation absence"
+         )
          .populate({
             path: "learningCommitmentId",
             select: "student tutor",
@@ -50,7 +52,8 @@ class AdminSessionService {
             ],
          });
       if (!session) throw new NotFoundError("Session not found");
-      if (!session.dispute) throw new NotFoundError("No dispute for this session");
+      if (!session.dispute)
+         throw new NotFoundError("No dispute for this session");
       return session;
    }
 
@@ -71,11 +74,13 @@ class AdminSessionService {
       // Apply decision
       if (decision === SessionStatus.COMPLETED) {
          // Mark attendance as accepted
-         session.attendanceConfirmation = session.attendanceConfirmation || {
-            tutor: { status: "PENDING" },
-            student: { status: "PENDING" },
-            isAttended: false,
-         } as any;
+         session.attendanceConfirmation =
+            session.attendanceConfirmation ||
+            ({
+               tutor: { status: "PENDING" },
+               student: { status: "PENDING" },
+               isAttended: false,
+            } as any);
          const ac1 = session.attendanceConfirmation!;
          ac1.tutor.status = "ACCEPTED";
          ac1.student.status = "ACCEPTED";
@@ -104,15 +109,29 @@ class AdminSessionService {
             }
          }
       } else {
-         // NOT_CONDUCTED
-         session.attendanceConfirmation = session.attendanceConfirmation || {
-            tutor: { status: "PENDING" },
-            student: { status: "PENDING" },
-            isAttended: false,
-         } as any;
+         // NOT_CONDUCTED - vắng mặt
+         session.attendanceConfirmation =
+            session.attendanceConfirmation ||
+            ({
+               tutor: { status: "PENDING" },
+               student: { status: "PENDING" },
+               isAttended: false,
+            } as any);
          const ac2 = session.attendanceConfirmation!;
          ac2.isAttended = false;
          session.status = SessionStatus.NOT_CONDUCTED;
+
+         //  Ghi thông tin vắng mặt vào absence object
+         const now = new Date();
+         session.absence = session.absence || {};
+         // Nếu student đã mở dispute (thường là student phàn nàn), thì cả hai vắng
+         // Nếu không, có thể chỉ tutor hoặc student vắng
+         session.absence.studentAbsent = true;
+         session.absence.tutorAbsent = true;
+         session.absence.decidedAt = now;
+         session.absence.reason =
+            adminNotes || "Admin resolved dispute: NOT_CONDUCTED";
+         session.absence.evidenceUrls = session.dispute?.evidenceUrls || [];
       }
 
       // Close dispute
@@ -128,5 +147,3 @@ class AdminSessionService {
 }
 
 export default new AdminSessionService();
-
-

@@ -70,6 +70,8 @@ class AdminLearningController {
             success: true,
             data: result.data,
             pagination: result.pagination,
+            message:
+               "Danh sách các case cần admin review với thống kê vắng mặt",
          });
       } catch (error) {
          next(error);

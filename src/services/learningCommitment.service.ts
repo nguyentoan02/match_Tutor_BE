@@ -9,6 +9,8 @@ import Student from "../models/student.model";
 import Tutor from "../models/tutor.model";
 import Wallet from "../models/wallet.model";
 import AdminWallet from "../models/adminWallet.model";
+import Session from "../models/session.model";
+import { SessionStatus } from "../types/enums/session.enum";
 import mongoose from "mongoose";
 
 export const createLearningCommitment = async (data: {
@@ -22,6 +24,24 @@ export const createLearningCommitment = async (data: {
    // Lấy teaching request để get studentId
    const teachingRequest = await TeachingRequest.findById(data.teachingRequest);
    if (!teachingRequest) throw new Error("Teaching request not found");
+
+   // Validate endDate phải nhỏ hơn hoặc bằng 2 tháng tính từ startDate
+   const startDate = new Date(data.startDate);
+   const endDate = new Date(data.endDate);
+   const twoMonthsLater = new Date(startDate);
+   twoMonthsLater.setMonth(twoMonthsLater.getMonth() + 2);
+
+   if (endDate > twoMonthsLater) {
+      throw new BadRequestError(
+         `End date must be within 2 months from start date. Start date: ${startDate.toISOString()}, Max end date: ${twoMonthsLater.toISOString()}`
+      );
+   }
+
+   if (endDate < startDate) {
+      throw new BadRequestError(
+         "End date must be greater than or equal to start date"
+      );
+   }
 
    const commitment = new LearningCommitment({
       ...data,
@@ -158,6 +178,22 @@ export const requestCancellation = async (
    ) {
       // Cả hai đồng ý -> Hủy
       commitment.status = "cancelled";
+
+      // Cancel all upcoming sessions
+      await Session.updateMany(
+         {
+            learningCommitmentId: commitmentId,
+            status: { $in: [SessionStatus.SCHEDULED, SessionStatus.CONFIRMED] },
+         },
+         {
+            status: SessionStatus.CANCELLED,
+            cancellation: {
+               reason: "Learning commitment cancelled",
+               cancelledAt: new Date(),
+            },
+         }
+      );
+
       // Lưu vào lịch sử
       if (commitment.cancellationDecision) {
          commitment.cancellationDecisionHistory?.push({
@@ -222,6 +258,45 @@ export const rejectCancellation = async (
    commitment.status = "admin_review";
    commitment.cancellationDecision.adminReviewRequired = true;
 
+   await commitment.save();
+   return commitment;
+};
+
+export const rejectLearningCommitment = async (
+   commitmentId: string,
+   userId: string
+) => {
+   const commitment = await LearningCommitment.findById(commitmentId);
+   if (!commitment) throw new BadRequestError("Learning commitment not found");
+
+   // Chỉ có thể từ chối khi ở trạng thái pending_agreement
+   if (commitment.status !== "pending_agreement") {
+      throw new BadRequestError(
+         `Cannot reject commitment with status: ${commitment.status}. Only pending agreements can be rejected.`
+      );
+   }
+
+   const studentProfile = (await Student.findOne({ userId }).select("_id")) as {
+      _id: string;
+   };
+   const isStudent =
+      studentProfile &&
+      commitment.student.toString() === studentProfile._id.toString();
+
+   const tutorProfile = (await Tutor.findOne({ userId }).select("_id")) as {
+      _id: string;
+   };
+   const isTutor =
+      tutorProfile &&
+      commitment.tutor.toString() === tutorProfile._id.toString();
+
+   if (!isStudent && !isTutor) {
+      throw new UnauthorizedError(
+         "User is not part of this learning commitment"
+      );
+   }
+
+   commitment.status = "rejected";
    await commitment.save();
    return commitment;
 };
@@ -403,4 +478,29 @@ export async function listLearningCommitments(opts: {
       limit,
       pages: Math.ceil(total / limit) || 0,
    };
+}
+
+export async function getActiveLearningCommitmentsByTutor(userId: string) {
+   const tutorProfile = await Tutor.findOne({ userId }).select("_id");
+   if (!tutorProfile) {
+      throw new UnauthorizedError("User is not a tutor");
+   }
+
+   const commitments = await LearningCommitment.find({
+      tutor: tutorProfile._id,
+      status: "active",
+   })
+      .populate({
+         path: "student",
+         populate: { path: "userId", select: "name email avatarUrl" },
+      })
+      .populate({
+         path: "tutor",
+         populate: { path: "userId", select: "name email avatarUrl" },
+      })
+      .populate("teachingRequest")
+      .sort({ createdAt: -1 })
+      .lean();
+
+   return commitments;
 }

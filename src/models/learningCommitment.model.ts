@@ -40,7 +40,8 @@ export interface ILearningCommitment extends Document {
       | "completed"
       | "cancelled"
       | "cancellation_pending"
-      | "admin_review";
+      | "admin_review"
+      | "rejected"; // Thêm trạng thái này
    cancellationReason?: string;
    completedSessions: number;
    absentSessions: number;
@@ -75,6 +76,7 @@ const learningCommitmentSchema = new Schema<ILearningCommitment>(
             "cancelled",
             "cancellation_pending",
             "admin_review",
+            "rejected", // Thêm trạng thái này
          ],
          default: "pending_agreement",
       },

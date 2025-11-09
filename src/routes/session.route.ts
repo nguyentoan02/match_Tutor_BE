@@ -16,6 +16,9 @@ const router = Router();
 // Tất cả các route trong file này đều yêu cầu đăng nhập
 router.use(authenticate, isRole(Role.STUDENT, Role.TUTOR));
 
+// GET sessions for a specific learning commitment
+router.get("/commitment/:commitmentId", controller.listByCommitment);
+
 // Lấy tất cả session của user hiện tại (student hoặc tutor)
 router.get("/me", controller.listForUser);
 
@@ -25,17 +28,11 @@ router.get("/me/deleted", controller.listDeletedForUser);
 // NEW: Lấy các session CANCELLED của user hiện tại
 router.get("/me/cancelled", controller.listCancelledForUser);
 
+// NEW: Lấy các buổi học vắng của user
+router.get("/me/absences", controller.listAbsenceSessionsForUser);
+
 // Tạo một session mới cho một learning commitment
 router.post("/", validate(createSessionSchema), controller.create);
-
-// Lấy danh sách các session theo learning commitment
-router.get("/commitment/:learningCommitmentId", controller.listByLearningCommitment);
-
-// (Legacy) Lấy danh sách các session của một teaching request
-router.get("/request/:teachingRequestId", controller.listByTeachingRequest);
-
-// NEW: Lấy chi tiết session đã bị REJECTED & soft-deleted (participant access)
-router.get("/deleted/:id", controller.getDeletedRejectedById);
 
 // Lấy chi tiết một session
 router.get("/:id", controller.getById);
