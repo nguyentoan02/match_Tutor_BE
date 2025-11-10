@@ -91,6 +91,48 @@ class ShortAnswerQuizController {
         new OK({ message: "delete short answer quiz success" }).send(res);
     }
 
+
+    async AsignShortAnswerQuizToSession(req: Request, res: Response) {
+        const currentUser = req.user;
+        if (!currentUser || !currentUser._id) {
+            throw new UnauthorizedError("Not authenticated");
+        }
+
+        const { quizIds, sessionId } = req.body;
+
+        if (!quizIds || !sessionId) {
+            throw new BadRequestError("quizIds and sessionId are required");
+        }
+
+        const session = await shortAnswerQuizService.asignShortAnswerQuizToSession(
+            currentUser._id.toString(),
+            Array.isArray(quizIds) ? quizIds : [quizIds],
+            sessionId.toString()
+        );
+
+        new OK({
+            message: "assign short answer quiz to session success",
+            metadata: session
+        }).send(res);
+    }
+
+    async getShortAnswerQuizzesInSessionDetail(req: Request, res: Response) {
+        const { sessionId } = req.query;
+
+        if (!sessionId) {
+            throw new BadRequestError("sessionId is required");
+        }
+
+        const quizzes = await shortAnswerQuizService.getShortAnswerQuizzesInSessionDetail(
+            sessionId.toString()
+        );
+
+        new OK({
+            message: "get short answer quizzes in session detail success",
+            metadata: quizzes,
+        }).send(res);
+    }
+
 }
 
 export default new ShortAnswerQuizController();

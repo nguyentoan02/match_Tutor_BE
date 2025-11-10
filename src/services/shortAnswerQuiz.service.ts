@@ -369,6 +369,50 @@ class ShortAnswerQuizService {
         }
     }
 
+    async asignShortAnswerQuizToSession(
+        tutorId: string,
+        quizIds: string[],
+        sessionId: string
+    ): Promise<ISession> {
+        const session = await sessionModel.findById(sessionId);
+        if (!session) {
+            throw new NotFoundError("can not find this session");
+        }
+
+        if (session.createdBy.toString() !== tutorId) {
+            throw new BadRequestError("you are not allowed to edit this session");
+        }
+
+        const quizIdsArr = Array.isArray(quizIds)
+            ? quizIds.filter((id) => !!id)
+            : [];
+
+        const savedSession = await sessionModel.findByIdAndUpdate(
+            sessionId,
+            { $set: { saqQuizIds: quizIdsArr } },
+            { new: true }
+        );
+        return savedSession as ISession;
+    }
+
+    async getShortAnswerQuizzesInSessionDetail(sessionId: string): Promise<IQuiz[]> {
+        const session = await sessionModel.findById(sessionId);
+        if (!session) {
+            throw new NotFoundError("can not find this session");
+        }
+
+        const quizIds = session.saqQuizIds;
+        if (!quizIds || quizIds.length === 0) {
+            return [];
+        }
+
+        const quizzes = await quizModel.find({
+            _id: { $in: quizIds },
+        });
+
+        return quizzes as IQuiz[];
+    }
+
 }
 
 export default new ShortAnswerQuizService();
