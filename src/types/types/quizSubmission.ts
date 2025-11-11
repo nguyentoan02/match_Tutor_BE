@@ -17,6 +17,15 @@ export interface IQuizSubmission extends Document {
       quizMode?: string;
       settings?: any;
    };
+   attempt: number;
    gradedBy?: Types.ObjectId;
    gradedAt?: Date;
 }
+
+export interface IQuizAttempt {
+   quizId: Types.ObjectId;
+   attempt: number;
+   quizSubmissionIds: Types.ObjectId[];
+}
+
+export interface IStudentMCQHistory {}

@@ -1,10 +1,18 @@
-import { IAnswer, IQuizSubmission } from "../types/types/quizSubmission";
+import {
+   IAnswer,
+   IQuizAttempt,
+   IQuizSubmission,
+} from "../types/types/quizSubmission";
 import quizSubmissionModel from "../models/quizSubmission.model";
 import quizQuestionModel from "../models/quizQuestion.model";
 import { QuestionTypeEnum } from "../types/enums";
 import quizModel from "../models/quiz.model";
-import { BadRequestError, NotFoundError } from "../utils/error.response";
+import { NotFoundError } from "../utils/error.response";
 import studentModel from "../models/student.model";
+import sessionModel from "../models/session.model";
+import { Types } from "mongoose";
+import teachingRequestModel from "../models/teachingRequest.model";
+import tutorModel from "../models/tutor.model";
 
 class doQuizService {
    private async gradeQuestions(answers: IAnswer[]): Promise<IAnswer[]> {
@@ -61,9 +69,7 @@ class doQuizService {
          studentId: studentId,
          quizId: quizData.quizId,
       });
-      if (existedSub) {
-         throw new BadRequestError("Student already taken this test");
-      }
+
       const graded = await this.gradeQuestions(quizData.answers!);
       const score = graded.reduce((sum, g) => sum + (g.obtainedPoints ?? 0), 0);
       const tutorId = await quizModel.findById(quizData.quizId);
@@ -75,6 +81,7 @@ class doQuizService {
          quizSnapshot: quizData.quizSnapshot,
          gradedAt: new Date(),
          gradedBy: tutorId?.createdBy,
+         attempt: existedSub ? existedSub.attempt + 1 : 1,
       });
       return createdQuizSubmision;
    }
@@ -95,13 +102,9 @@ class doQuizService {
       return list;
    }
 
-   async getSubmitMCQ(
-      userId: string,
-      quizId: string
-   ): Promise<IQuizSubmission> {
+   async getSubmitMCQ(quizId: string): Promise<IQuizSubmission> {
       const mcq = await quizSubmissionModel
          .findOne({
-            studentId: userId,
             _id: quizId,
          })
          .populate({
@@ -118,6 +121,88 @@ class doQuizService {
          throw new NotFoundError("not found this quiz submission");
       }
       return mcq;
+   }
+
+   async attempt(
+      studentId: string,
+      sessionId: string
+   ): Promise<IQuizAttempt[]> {
+      const session = await sessionModel.findById(sessionId);
+      if (!session) {
+         throw new NotFoundError("can not find this session");
+      }
+
+      const quizIds = Array.isArray((session as any).mcqQuizIds)
+         ? (session as any).mcqQuizIds
+         : [];
+      if (quizIds.length === 0) return [];
+
+      const studentSubmissions = await quizSubmissionModel
+         .find({
+            studentId: studentId,
+            quizId: { $in: quizIds },
+         })
+         .select("_id quizId");
+
+      const grouped = new Map<string, Types.ObjectId[]>();
+      studentSubmissions.forEach((s: any) => {
+         const qid = String(s.quizId);
+         const sid = s._id as Types.ObjectId;
+         if (!grouped.has(qid)) grouped.set(qid, []);
+         grouped.get(qid)!.push(sid);
+      });
+
+      const result: IQuizAttempt[] = quizIds.map((q: any) => {
+         const key = String(q);
+         const subIds = grouped.get(key) ?? [];
+         return {
+            quizId: q,
+            attempt: subIds.length,
+            submissionIds: subIds,
+         } as unknown as IQuizAttempt;
+      });
+
+      return result;
+   }
+
+   async studentSubmissions(userId: string) {
+      const tutorId = await tutorModel.exists({ userId });
+      const students = await teachingRequestModel
+         .find({ tutorId: tutorId })
+         .select("studentId -_id");
+      if (!students) {
+         throw new NotFoundError("u dont have any student ");
+      }
+
+      const studentIds = students.map((s) => new Types.ObjectId(s.studentId));
+
+      const users = await studentModel
+         .find({
+            _id: { $in: studentIds },
+         })
+         .select("userId -_id");
+
+      const userIds = users.map((u) => new Types.ObjectId(u.userId));
+
+      const subs = await quizSubmissionModel
+         .find({
+            studentId: { $in: userIds },
+         })
+         .populate({
+            path: "studentId",
+            select: "name email",
+         })
+         .select("-answers")
+         .populate({
+            path: "quizId",
+            select:
+               "title description quizMode quizType totalQuestions createdAt updatedAt tags",
+         });
+      if (!subs) {
+         throw new NotFoundError("can not found any submission");
+      }
+
+      return subs;
    }
 }
 
