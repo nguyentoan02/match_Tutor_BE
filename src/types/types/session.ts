@@ -93,6 +93,7 @@ export interface ISession extends Document {
    location?: string;
    notes?: string;
    mcqQuizIds: Types.ObjectId[];
+   saqQuizIds: Types.ObjectId[];
    createdAt?: Date;
    updatedAt?: Date;
 }

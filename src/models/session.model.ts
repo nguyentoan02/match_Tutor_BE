@@ -143,6 +143,7 @@ const SessionSchema: Schema<ISession> = new Schema(
       location: { type: String },
       notes: { type: String },
       mcqQuizIds: { type: [Schema.Types.ObjectId], ref: "Quiz", default: [] },
+      saqQuizIds: { type: [Schema.Types.ObjectId], ref: "Quiz", default: [] },
    },
    {
       timestamps: {
