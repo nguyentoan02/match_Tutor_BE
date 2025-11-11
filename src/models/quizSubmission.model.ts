@@ -31,6 +31,7 @@ const QuizSubmissionSchema: Schema<IQuizSubmission> = new Schema(
       },
       gradedBy: { type: Schema.Types.ObjectId, ref: "User" },
       gradedAt: { type: Date },
+      attempt: { type: Number, default: 0 },
    },
    {
       collection: "quiz_submissions",

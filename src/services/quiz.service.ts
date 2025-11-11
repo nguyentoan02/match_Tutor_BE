@@ -24,6 +24,8 @@ import { IQuizQuestion, IQuizQuestionInfo } from "../types/types/quizQuestion";
 import sessionModel from "../models/session.model";
 import { QuestionTypeEnum } from "../types/enums";
 import { ISession } from "../types/types/session";
+import quizSubmissionModel from "../models/quizSubmission.model";
+import tutorModel from "../models/tutor.model";
 
 class QuizService {
    async createQuiz(
@@ -34,6 +36,17 @@ class QuizService {
       const session = await mongoose.startSession();
       try {
          session.startTransaction();
+
+         const tutor = await tutorModel.findById(tutorId);
+
+         if (!tutor) throw new NotFoundError("not found this tutor");
+
+         if (tutor.maxQuiz === 0)
+            throw new BadRequestError("reach max quiz Created");
+
+         tutor.maxQuiz = Math.max(0, tutor.maxQuiz - 1);
+
+         await tutor.save({ session });
          const createdQuiz = await quizModel.create(
             [
                {
@@ -374,6 +387,7 @@ class QuizService {
          }
 
          await quizModel.deleteOne({ _id: quizId }, { session });
+         await quizSubmissionModel.deleteMany({ quizId });
          await session.commitTransaction();
       } catch (error) {
          await session.abortTransaction();
@@ -391,6 +405,18 @@ class QuizService {
       const session = await mongoose.startSession();
       try {
          session.startTransaction();
+
+         const tutor = await tutorModel.findById(tutorId);
+
+         if (!tutor) throw new NotFoundError("not found this tutor");
+
+         if (tutor.maxQuiz === 0)
+            throw new BadRequestError("reach max quiz Created");
+
+         tutor.maxQuiz = Math.max(0, tutor.maxQuiz - 1);
+
+         await tutor.save({ session });
+
          const createdQuizArr = await quizModel.create(
             [
                {

@@ -144,4 +144,23 @@ router.delete(
    ShortAnswerQuizController.DeleteShortAnswerQuiz
 );
 
+router.post(
+   "/asignShortAnswerQuizToSession",
+   authenticate,
+   ShortAnswerQuizController.AsignShortAnswerQuizToSession
+);
+
+router.get(
+   "/getShortAnswerQuizzesAssignedToSession",
+   authenticate,
+   ShortAnswerQuizController.getShortAnswerQuizzesInSessionDetail
+);
+
+router.get(
+   "/getSessionsAssignedForSAQ",
+   authenticate,
+   ShortAnswerQuizController.getSessionsAssignedForSAQ
+);
+
+
 export default router;
