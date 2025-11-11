@@ -16,9 +16,6 @@ const router = Router();
 // Tất cả các route trong file này đều yêu cầu đăng nhập
 router.use(authenticate, isRole(Role.STUDENT, Role.TUTOR));
 
-// GET sessions for a specific learning commitment
-router.get("/commitment/:commitmentId", controller.listByCommitment);
-
 // Lấy tất cả session của user hiện tại (student hoặc tutor)
 router.get("/me", controller.listForUser);
 

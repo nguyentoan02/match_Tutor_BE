@@ -239,8 +239,16 @@ class SessionService {
          throw new BadRequestError("startTime must be before endTime");
       }
 
+      // Kiểm tra session phải nằm trong cùng một ngày (Vietnam timezone)
       const vnStart = moment(newStart).tz("Asia/Ho_Chi_Minh");
       const vnEnd = moment(newEnd).tz("Asia/Ho_Chi_Minh");
+
+      if (!vnStart.isSame(vnEnd, "day")) {
+         throw new BadRequestError(
+            "Session must be scheduled within the same day. Start time and end time cannot span across different dates."
+         );
+      }
+
       const commitmentStartVN = moment(commitment.startDate)
          .tz("Asia/Ho_Chi_Minh")
          .startOf("day");
@@ -314,6 +322,7 @@ class SessionService {
          startTime: newStart,
          endTime: newEnd,
          location: (data as any).location,
+         notes: (data as any).notes,
          createdBy: currentUser._id,
          attendanceWindow: {
             tutorDeadline: new Date(newEnd.getTime() + 15 * 60 * 1000),
@@ -328,7 +337,7 @@ class SessionService {
       const session = await Session.findById(sessionId)
          .populate({
             path: "learningCommitmentId",
-            select: "student tutor",
+            select: "student tutor teachingRequest",
             populate: [
                {
                   path: "student",
@@ -345,6 +354,10 @@ class SessionService {
                      path: "userId",
                      select: "_id name avatarUrl email",
                   },
+               },
+               {
+                  path: "teachingRequest",
+                  select: "subject level status", // Thêm level và status
                },
             ],
          })
@@ -749,6 +762,11 @@ class SessionService {
             "Cannot update a session that has already been completed."
          );
       }
+      if (session.status === SessionStatus.CONFIRMED) {
+         throw new BadRequestError(
+            "Cannot update a session that has been confirmed."
+         );
+      }
       await this.checkParticipantByCommitment(
          (session.learningCommitmentId as any).toString(),
          (currentUser._id as mongoose.Types.ObjectId | string).toString()
@@ -913,69 +931,6 @@ class SessionService {
          })
          .sort({ "cancellation.cancelledAt": -1 })
          .lean();
-
-      return sessions;
-   }
-
-   async listByCommitment(commitmentId: string, userId: string) {
-      // 1. Check if the user is a participant of this commitment
-      const commitment = await this.checkParticipantByCommitment(
-         commitmentId,
-         userId
-      );
-
-      // 2. Check if the commitment is active
-      if (commitment.status !== "active") {
-         throw new BadRequestError(
-            "Can only retrieve sessions for an active learning commitment."
-         );
-      }
-
-      // 3. Find all sessions for this commitment
-      const sessions = await Session.find({
-         learningCommitmentId: commitmentId,
-         isDeleted: { $ne: true }, // Exclude rejected sessions
-      })
-         .populate({
-            path: "learningCommitmentId",
-            select: "student tutor teachingRequest",
-            populate: [
-               {
-                  path: "student",
-                  select: "userId",
-                  populate: {
-                     path: "userId",
-                     select: "_id name avatarUrl email",
-                  },
-               },
-               {
-                  path: "tutor",
-                  select: "userId",
-                  populate: {
-                     path: "userId",
-                     select: "_id name avatarUrl email",
-                  },
-               },
-               {
-                  path: "teachingRequest",
-                  select: "subject",
-               },
-            ],
-         })
-         .populate({
-            path: "cancellation.cancelledBy",
-            select: "_id name email avatarUrl",
-         })
-         .sort({ startTime: "asc" });
-
-      // 4. Run auto-finalization logic for consistency
-      for (const session of sessions) {
-         await this.autoFinalizeStudentConfirmationIfDue(session as any);
-         await this.autoFinalizeAttendanceIfDue(session as any);
-      }
-
-      // Save any changes made during auto-finalization
-      await Promise.all(sessions.map((s) => (s as any).save()));
 
       return sessions;
    }

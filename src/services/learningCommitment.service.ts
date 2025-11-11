@@ -25,8 +25,39 @@ export const createLearningCommitment = async (data: {
    const teachingRequest = await TeachingRequest.findById(data.teachingRequest);
    if (!teachingRequest) throw new Error("Teaching request not found");
 
-   // Validate endDate phải nhỏ hơn hoặc bằng 2 tháng tính từ startDate
+   // Kiểm tra xem tutor và student có active commitment nào không
+   const existingActiveCommitment = await LearningCommitment.findOne({
+      tutor: teachingRequest.tutorId,
+      student: teachingRequest.studentId,
+      status: {
+         $in: [
+            "pending_agreement",
+            "active",
+            "cancellation_pending",
+            "admin_review",
+         ],
+      },
+   });
+
+   if (existingActiveCommitment) {
+      throw new BadRequestError(
+         "Tutor and student already have an active learning commitment. Please wait for it to be completed or cancelled before creating a new one."
+      );
+   }
+
+   // Validate startDate không được nhỏ hơn ngày hiện tại
+   const currentDate = new Date();
    const startDate = new Date(data.startDate);
+   if (startDate < currentDate) {
+      throw new BadRequestError(
+         "Start date must not be in the past. Current date: " +
+            currentDate.toISOString() +
+            ", Start date: " +
+            startDate.toISOString()
+      );
+   }
+
+   // Validate endDate phải nhỏ hơn hoặc bằng 2 tháng tính từ startDate
    const endDate = new Date(data.endDate);
    const twoMonthsLater = new Date(startDate);
    twoMonthsLater.setMonth(twoMonthsLater.getMonth() + 2);

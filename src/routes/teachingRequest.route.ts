@@ -22,18 +22,7 @@ router.post(
    controller.create
 );
 
-// Get request details (accessible by both student and tutor involved)
-router.get("/:id", authenticate, controller.getById);
-
-// Tutor responds to a request (Accept/Reject)
-router.patch(
-   "/:id/respond",
-   authenticate,
-   isRole(Role.TUTOR),
-   validate(respondToRequestSchema),
-   controller.respondToRequest
-);
-
+// Đặt các route cụ thể trước route động
 router.get(
    "/student/me",
    authenticate,
@@ -46,6 +35,26 @@ router.get(
    authenticate,
    isRole(Role.TUTOR),
    controller.getMyRequestsAsTutor
+);
+
+// Tutor view student profile (full info)
+router.get(
+   "/student-profile/:studentUserId",
+   authenticate,
+   isRole(Role.TUTOR),
+   controller.getStudentProfile
+);
+
+// Get request details (accessible by both student and tutor involved)
+router.get("/:id", authenticate, controller.getById);
+
+// Tutor responds to a request (Accept/Reject)
+router.patch(
+   "/:id/respond",
+   authenticate,
+   isRole(Role.TUTOR),
+   validate(respondToRequestSchema),
+   controller.respondToRequest
 );
 
 export default router;

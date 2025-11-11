@@ -42,6 +42,11 @@ class TeachingRequestService {
       if (!newRequest) {
          throw new InternalServerError("Failed to create teaching request");
       }
+
+      // Giảm maxStudents của tutor đi 1
+      tutor.maxStudents = Math.max(0, tutor.maxStudents - 1);
+      await tutor.save();
+
       return newRequest;
    }
 
@@ -120,6 +125,15 @@ class TeachingRequestService {
             populate: { path: "userId", select: "name avatarUrl" },
          })
          .sort({ createdAt: -1 });
+   }
+
+   async getStudentProfile(studentId: string) {
+      const student = await Student.findById(studentId).populate({
+         path: "userId",
+         select: "name email phone avatarUrl gender address",
+      });
+      if (!student) throw new NotFoundError("Student profile not found");
+      return student;
    }
 }
 
