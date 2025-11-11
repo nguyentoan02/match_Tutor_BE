@@ -133,6 +133,23 @@ class ShortAnswerQuizController {
         }).send(res);
     }
 
+    async getSessionsAssignedForSAQ(req: Request, res: Response) {
+        const { quizId } = req.query;
+
+        if (!quizId) {
+            throw new BadRequestError("quizId is required");
+        }
+
+        const sessions = await shortAnswerQuizService.getSessionsAssignedForSAQ(
+            quizId.toString()
+        );
+
+        new OK({
+            message: "get sessions assigned for short answer quiz success",
+            metadata: sessions,
+        }).send(res);
+    }
+
 }
 
 export default new ShortAnswerQuizController();

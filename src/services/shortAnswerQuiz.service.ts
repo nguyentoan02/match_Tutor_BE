@@ -413,6 +413,30 @@ class ShortAnswerQuizService {
         return quizzes as IQuiz[];
     }
 
+    async getSessionsAssignedForSAQ(quizId: string): Promise<ISession[]> {
+        const sessions = await sessionModel
+            .find({
+                saqQuizIds: new Types.ObjectId(quizId),
+            })
+            .select(
+                "-saqQuizIds -createdBy -updatedAt -__v -studentConfirmation -attendanceConfirmation -cancellation -isDeleted -deletedAt -deletedBy -materials -reminders -location -notes"
+            )
+            .populate({
+                path: "teachingRequestId",
+                select: "title subject level studentId",
+                populate: {
+                    path: "studentId",
+                    select: "userId",
+                    populate: {
+                        path: "userId",
+                        select: "name email ",
+                    },
+                },
+            });
+
+        return sessions as ISession[];
+    }
+
 }
 
 export default new ShortAnswerQuizService();

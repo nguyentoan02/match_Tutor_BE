@@ -156,5 +156,11 @@ router.get(
    ShortAnswerQuizController.getShortAnswerQuizzesInSessionDetail
 );
 
+router.get(
+   "/getSessionsAssignedForSAQ",
+   authenticate,
+   ShortAnswerQuizController.getSessionsAssignedForSAQ
+);
+
 
 export default router;
