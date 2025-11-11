@@ -249,7 +249,7 @@ export class TutorService {
       const tutors = await Tutor.find(query)
          .populate({
             path: "userId",
-            select: "name gender address.city",
+            select: "name gender address.city avatarUrl",
          })
          .sort({ createdAt: -1 })
          .skip(skip)
