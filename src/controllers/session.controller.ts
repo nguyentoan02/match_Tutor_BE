@@ -246,26 +246,6 @@ class SessionController {
          next(err);
       }
    }
-
-   // GET /api/session/commitment/:commitmentId
-   async listByCommitment(req: Request, res: Response, next: NextFunction) {
-      try {
-         if (!req.user?._id) {
-            throw new UnauthorizedError("Authentication required");
-         }
-         const { commitmentId } = req.params;
-         const result = await sessionService.listByCommitment(
-            commitmentId,
-            req.user._id.toString()
-         );
-         new OK({
-            message: "Sessions for the commitment fetched successfully",
-            metadata: result,
-         }).send(res);
-      } catch (err) {
-         next(err);
-      }
-   }
 }
 
 export default new SessionController();

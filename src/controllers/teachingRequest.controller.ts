@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import teachingRequestService from "../services/teachingRequest.service";
 import { CREATED, OK } from "../utils/success.response";
-import { UnauthorizedError } from "../utils/error.response";
+import { UnauthorizedError, BadRequestError } from "../utils/error.response";
 
 class TeachingRequestController {
    async create(req: Request, res: Response, next: NextFunction) {
@@ -93,6 +93,29 @@ class TeachingRequestController {
          );
          new OK({
             message: "Tutor's teaching requests fetched successfully.",
+            metadata: result,
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   async getStudentProfile(req: Request, res: Response, next: NextFunction) {
+      try {
+         if (!req.user?._id) {
+            throw new UnauthorizedError(
+               "Authentication failed: User not found."
+            );
+         }
+         const studentUserId = req.params.studentUserId;
+         if (!studentUserId) {
+            throw new BadRequestError("studentUserId is required");
+         }
+         const result = await teachingRequestService.getStudentProfile(
+            studentUserId
+         );
+         new OK({
+            message: "Student profile fetched successfully.",
             metadata: result,
          }).send(res);
       } catch (err) {
