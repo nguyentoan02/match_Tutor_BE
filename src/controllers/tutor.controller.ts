@@ -3,6 +3,7 @@ import { SuccessResponse } from "../utils/success.response";
 import tutorService from "../services/tutor.service";
 import { CreateTutorInput, UpdateTutorInput } from "../schemas/tutor.schema";
 import { UnauthorizedError } from "../utils/error.response";
+import { addEmbeddingJob } from "../queues/embedding.queue";
 
 export class TutorController {
     // Get all tutors
@@ -112,6 +113,10 @@ export class TutorController {
             certificationFiles
         );
 
+        
+        // add create embeding job
+        await addEmbeddingJob(currentUser._id.toString());
+
         new SuccessResponse({
             message: "Tutor profile created successfully",
             metadata: newTutor,
@@ -142,6 +147,9 @@ export class TutorController {
             certificationFiles,
             avatarFile
         );
+
+        // add create embeding job
+        await addEmbeddingJob(userId.toString());
 
         new SuccessResponse({
             message: "Tutor profile updated successfully",

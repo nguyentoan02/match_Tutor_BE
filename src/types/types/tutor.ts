@@ -49,4 +49,6 @@ export interface ITutor extends Document {
    maxQuiz: number;
    createdAt?: Date;
    updatedAt?: Date;
+
+   embedding?: number[];
 }
