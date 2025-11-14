@@ -7,6 +7,7 @@ import { ICertification, ITutor } from "../types/types/tutor";
 import cloudinary from "../config/cloudinary";
 import userService from "./user.service";
 import { ClassType, Level, Subject, TimeSlot } from "../types/enums";
+import { addEmbeddingJob } from "../queues/embedding.queue";
 
 export class TutorService {
    // Get all tutors (approved and unapproved)
@@ -373,6 +374,12 @@ export class TutorService {
          classType: data.classType,
          availability: data.availability,
       });
+
+      //chỉ tạo embed cho tutor đã được approve
+      if(tutor.isApproved){
+         // add create embeding job
+         await addEmbeddingJob(userId.toString());
+      }
 
       await tutor.save();
 
