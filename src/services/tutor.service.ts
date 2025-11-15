@@ -375,12 +375,6 @@ export class TutorService {
          availability: data.availability,
       });
 
-      //chỉ tạo embed cho tutor đã được approve
-      if(tutor.isApproved){
-         // add create embeding job
-         await addEmbeddingJob(userId.toString());
-      }
-
       await tutor.save();
 
       return (await Tutor.findById(tutor._id)
@@ -573,6 +567,12 @@ export class TutorService {
       // Update the tutor's certifications
       if (Array.isArray(data.certifications)) {
          tutor.certifications = updatedCertifications as any;
+      }
+
+       //chỉ tạo embed cho tutor đã được approve
+      if(tutor.isApproved){
+         // add create embeding job
+         await addEmbeddingJob(userId.toString());
       }
 
       await tutor.save();
