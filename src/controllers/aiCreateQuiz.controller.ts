@@ -13,12 +13,21 @@ class AiCreateQuizController {
 
       const body: learningMaterial = req.body;
 
-      const flashcard = await aiCreateQuizService.create(
-         currentUser._id.toString(),
-         body.materialId
-      );
+      const flashcard = await aiCreateQuizService.create(body.materialId);
 
       new OK({ message: "created success", metadata: flashcard }).send(res);
+   }
+
+   async createMCQ(req: Request, res: Response) {
+      const currentUser = req.user;
+      if (!currentUser || !currentUser._id) {
+         throw new UnauthorizedError("Not authenticated");
+      }
+      const body: learningMaterial = req.body;
+
+      const mcq = await aiCreateQuizService.createMCQ(body.materialId);
+
+      new OK({ message: "created success", metadata: mcq }).send(res);
    }
 }
 
