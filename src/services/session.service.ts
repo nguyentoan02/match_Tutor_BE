@@ -31,7 +31,7 @@ class SessionService {
       }
    ) {
       if (!session.attendanceLogs) session.attendanceLogs = [];
-      session.attendanceLogs.push({ ...entry, createdAt: getVietnamTime() });
+      session.attendanceLogs.push({ ...entry, createdAt: new Date() });
    }
 
    private async extendCommitmentForAbsences(commitmentId: string) {
@@ -57,7 +57,7 @@ class SessionService {
    }
 
    private async autoFinalizeStudentConfirmationIfDue(session: any) {
-      const now = getVietnamTime();
+      const now = new Date();
       const start = session.startTime as Date;
 
       // 15 phút trước thời gian bắt đầu buổi học
@@ -88,7 +88,7 @@ class SessionService {
    }
 
    private async autoFinalizeAttendanceIfDue(session: any) {
-      const now = getVietnamTime();
+      const now = new Date();
       const end = session.endTime as Date;
 
       const tutorDeadline =
@@ -265,7 +265,7 @@ class SessionService {
          );
       }
 
-      const now = getVietnamTime();
+      const now = new Date();
       if (newStart < now) {
          throw new BadRequestError("Cannot create a session in the past.");
       }
@@ -806,7 +806,7 @@ class SessionService {
          throw new BadRequestError("Only confirmed sessions can be cancelled.");
       }
 
-      const now = getVietnamTime();
+      const now = new Date();
       const tenMinutesBeforeStart = new Date(
          session.startTime.getTime() - 10 * 60 * 1000
       );
