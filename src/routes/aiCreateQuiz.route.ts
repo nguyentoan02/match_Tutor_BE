@@ -13,4 +13,11 @@ router.post(
    aiCreateQuizController.createFlashcard
 );
 
+router.post(
+   "/createMCQ",
+   authenticate,
+   validate(learningMaterialSchema),
+   aiCreateQuizController.createMCQ
+);
+
 export default router;
