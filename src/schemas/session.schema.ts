@@ -80,19 +80,19 @@ export const confirmAttendanceSchema = z.object({
    params: z.object({
       sessionId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid session ID"),
    }),
-  body: z.object({}).optional(),
+   body: z.object({}).optional(),
 });
 
 export const rejectAttendanceSchema = z.object({
    params: z.object({
       sessionId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid session ID"),
    }),
-  body: z
-     .object({
-        reason: z.string().trim().min(10).max(1000).optional(),
-        evidenceUrls: z.array(z.string().url()).optional(),
-     })
-     .optional(),
+   body: z
+      .object({
+         reason: z.string().trim().min(10).max(1000).optional(),
+         evidenceUrls: z.array(z.string().url()).optional(),
+      })
+      .optional(),
 });
 
 export const cancelSessionSchema = z.object({

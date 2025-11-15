@@ -40,7 +40,9 @@ export const authenticate = async (
       const result = await authService.getUserFromToken(token);
       req.user = result.user as IUser;
       req.token = token;
-
+      // FIX: Ensure _id exists and convert to string
+      const userId = (result.user._id as any)?.toString() || result.user._id;
+      (req as any).userId = userId;
       next();
    } catch (err) {
       next(err);
@@ -73,4 +75,3 @@ export const isRole = (...allowedRoles: Role[]) => {
       }
    };
 };
-

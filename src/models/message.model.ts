@@ -1,10 +1,6 @@
 import mongoose, { Schema } from "mongoose";
 import { IMessage } from "../types/types/message";
 import { getVietnamTime } from "../utils/date.util";
-import {
-   MESSAGE_TYPE_VALUES,
-   MessageTypeEnum,
-} from "../types/enums/message.enum";
 
 const MessageSchema: Schema<IMessage> = new Schema(
    {
@@ -14,13 +10,7 @@ const MessageSchema: Schema<IMessage> = new Schema(
          required: true,
       },
       senderId: { type: Schema.Types.ObjectId, ref: "User", required: true },
-      content: { type: String },
-      attachments: [{ type: String }],
-      messageType: {
-         type: String,
-         enum: MESSAGE_TYPE_VALUES,
-         default: MessageTypeEnum.TEXT,
-      },
+      content: { type: String, required: true },
       isReadBy: [{ type: Schema.Types.ObjectId, ref: "User" }],
    },
    {
@@ -33,6 +23,7 @@ const MessageSchema: Schema<IMessage> = new Schema(
    }
 );
 
-MessageSchema.index({ conversationId: 1, createdAt: 1 });
+MessageSchema.index({ conversationId: 1, createdAt: -1 });
+MessageSchema.index({ senderId: 1 });
 
 export default mongoose.model<IMessage>("Message", MessageSchema);
