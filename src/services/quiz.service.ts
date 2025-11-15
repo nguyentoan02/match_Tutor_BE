@@ -37,7 +37,7 @@ class QuizService {
       try {
          session.startTransaction();
 
-         const tutor = await tutorModel.findById(tutorId);
+         const tutor = await tutorModel.findOne({userId: tutorId});
 
          if (!tutor) throw new NotFoundError("not found this tutor");
 
@@ -406,7 +406,7 @@ class QuizService {
       try {
          session.startTransaction();
 
-         const tutor = await tutorModel.findById(tutorId);
+         const tutor = await tutorModel.findOne({userId: tutorId});
 
          if (!tutor) throw new NotFoundError("not found this tutor");
 
@@ -476,7 +476,8 @@ class QuizService {
                : (createdQuiz as any)),
             quizQuestions: insertedQuestions,
          } as unknown as IQuiz;
-      } catch (error) {
+      } catch (error: any) {
+         console.log(error)
          await session.abortTransaction();
          throw new InternalServerError(
             "can not create multiple choice quiz and quiz questions"
