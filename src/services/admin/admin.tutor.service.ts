@@ -8,6 +8,7 @@ import {
    getTutorRejectionEmailTemplate
 } from "../../template/adminEmail";
 import { getVietnamTime } from "../../utils/date.util";
+import { addEmbeddingJob } from "../../queues/embedding.queue";
 
 export class AdminTutorService {
    // Accept tutor profile
@@ -26,6 +27,9 @@ export class AdminTutorService {
       if (user && user.isBanned) {
          throw new BadRequestError("Cannot approve tutor profile for banned user");
       }
+      
+      // add create embeding job
+      await addEmbeddingJob(user.toString());     
 
       // Update tutor approval status
       tutor.isApproved = true;
@@ -80,6 +84,9 @@ export class AdminTutorService {
       tutor.rejectedReason = reason;
       tutor.rejectedAt = getVietnamTime();
       tutor.approvedAt = undefined; // Xóa thời gian duyệt cũ (nếu có)
+      
+      // bỏ embed đi khi mà đã bị reject profile
+      tutor.embedding = []
       await tutor.save();
 
       // Send rejection notification email

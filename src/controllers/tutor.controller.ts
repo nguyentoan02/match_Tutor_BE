@@ -1,7 +1,6 @@
 import { Request, Response } from "express";
 import { SuccessResponse } from "../utils/success.response";
 import tutorService from "../services/tutor.service";
-import { CreateTutorInput, UpdateTutorInput } from "../schemas/tutor.schema";
 import { UnauthorizedError } from "../utils/error.response";
 
 export class TutorController {
@@ -142,6 +141,7 @@ export class TutorController {
             certificationFiles,
             avatarFile
         );
+
 
         new SuccessResponse({
             message: "Tutor profile updated successfully",

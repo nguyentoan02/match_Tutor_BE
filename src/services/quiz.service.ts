@@ -406,8 +406,6 @@ class QuizService {
       try {
          session.startTransaction();
 
-         console.log("tutorId", tutorId);
-
          const tutor = await tutorModel.findOne({ userId: tutorId });
 
          if (!tutor) throw new NotFoundError("not found this tutor");
