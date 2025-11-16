@@ -6,6 +6,7 @@ import adminBanController from "./admin.ban.controller";
 import adminUserController from "./admin.user.controller";
 import adminTutorController from "./admin.tutor.controller";
 import adminTutorPackageController from "./admin.tutorPackage.controller";
+import adminDashboardController from "./admin.dashboard.controller";
 
 class AdminController {
    // User Ban Management
@@ -36,6 +37,9 @@ class AdminController {
    updateTutorPackageStatus = adminTutorPackageController.updateTutorPackageStatus;
    getTutorPackageStats = adminTutorPackageController.getTutorPackageStats;
    getTutorsUsingPackage = adminTutorPackageController.getTutorsUsingPackage;
+
+   // Dashboard
+   getDashboardSummary = adminDashboardController.getSummary;
 }
 
 export default new AdminController();
