@@ -43,4 +43,32 @@ router.get(
    doQuizController.getStudentSubmitedMCQ
 );
 
+// Short Answer Quiz Routes
+router.post(
+   "/submitShortAnswer",
+   authenticate,
+   validate(submitQuizBodySchema),
+   doQuizController.submitShortAnswer
+);
+
+router.get(
+   "/getSubmitedShortAnswerList",
+   authenticate,
+   doQuizController.submitedShortAnswerList
+);
+
+router.get(
+   "/getSubmitedShortAnswer",
+   authenticate,
+   validate(submitQuizIdQuerySchema),
+   doQuizController.submitedShortAnswer
+);
+
+router.get(
+   "/getAllStudentSubmitedShortAnswer",
+   authenticate,
+   doQuizController.getStudentSubmitedShortAnswer
+);
+
+
 export default router;
