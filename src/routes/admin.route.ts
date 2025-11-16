@@ -29,6 +29,9 @@ const router = Router();
 router.use(authenticate);
 router.use(isRole(Role.ADMIN));
 
+// ========== DASHBOARD ==========
+router.get("/dashboard/summary", adminController.getDashboardSummary);
+
 // ========== BAN MANAGEMENT ==========
 router.post("/user/:id/ban", validate(banUserSchema), adminController.banUser);
 router.post(

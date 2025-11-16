@@ -415,29 +415,80 @@ export class AdminUserService {
     * Lấy thống kê package dựa trên Payment (PAID): tổng gói, gói active, lượt mua, lượt còn hiệu lực, doanh thu
     */
    async getTutorPackageStats() {
-
       const [totalPackages, activePackages] = await Promise.all([
          Package.countDocuments(),
          Package.countDocuments({ isActive: true }),
       ]);
 
-      // Tổng lượt mua gói = số payment PAID có packageId
-      const totalSubscriptions = await Payment.countDocuments({
+      const successfulPackageMatch = {
          packageId: { $ne: null },
-         status: PaymentStatusEnum.PAID,
-      });
+         type: "package" as const,
+         status: { $in: [PaymentStatusEnum.PAID, "SUCCESS"] },
+      };
 
-      // Không giới hạn thời gian => activeSubscriptions = totalSubscriptions
+      const totalSubscriptions = await Payment.countDocuments(successfulPackageMatch);
       const activeSubscriptions = totalSubscriptions;
 
-      // Doanh thu từ các payments PAID
       const revenueAgg = await Payment.aggregate([
-         { $match: { status: PaymentStatusEnum.PAID } },
+         { $match: successfulPackageMatch },
          { $group: { _id: null, totalRevenue: { $sum: "$amount" } } },
       ]);
       const revenue = revenueAgg.length > 0 ? revenueAgg[0].totalRevenue : 0;
 
-      return { totalPackages, activePackages, totalSubscriptions, activeSubscriptions, revenue };
+      const topPackageAgg = await Payment.aggregate([
+         { $match: successfulPackageMatch },
+         {
+            $group: {
+               _id: "$packageId",
+               purchaseCount: { $sum: 1 },
+               revenue: { $sum: "$amount" },
+               lastPurchaseAt: { $max: "$createdAt" },
+               uniqueTutors: { $addToSet: "$userId" },
+            },
+         },
+         {
+            $project: {
+               purchaseCount: 1,
+               revenue: 1,
+               lastPurchaseAt: 1,
+               tutorsCount: { $size: "$uniqueTutors" },
+            },
+         },
+         { $sort: { purchaseCount: -1, revenue: -1 } },
+         { $limit: 1 },
+         {
+            $lookup: {
+               from: "packages",
+               localField: "_id",
+               foreignField: "_id",
+               as: "package",
+            },
+         },
+         { $unwind: "$package" },
+         {
+            $project: {
+               packageId: "$_id",
+               name: "$package.name",
+               price: "$package.price",
+               isActive: "$package.isActive",
+               purchaseCount: 1,
+               revenue: 1,
+               tutorsCount: 1,
+               lastPurchaseAt: 1,
+            },
+         },
+      ]);
+
+      const topPackageSummary = topPackageAgg.length > 0 ? topPackageAgg[0] : null;
+
+      return {
+         totalPackages,
+         activePackages,
+         totalSubscriptions,
+         activeSubscriptions,
+         revenue,
+         topPackage: topPackageSummary,
+      };
    }
 
    /**
