@@ -64,6 +64,58 @@ class doQuizService {
 
       return gradedAnswers;
    }
+
+
+   private async gradeShortAnswerQuestions(answers: IAnswer[]): Promise<IAnswer[]> {
+      const ids = answers.map((a) => a.questionId);
+      const questions = await quizQuestionModel.find({ _id: { $in: ids } });
+      const questionMap = new Map<string, any>();
+      questions.forEach((q) => {
+         questionMap.set(String((q as any)._id), q);
+      });
+
+      const gradedAnswers = answers.map((answer) => {
+         const question = questionMap.get(answer.questionId.toString());
+
+         if (!question) {
+            return {
+               ...answer,
+               isCorrect: false,
+               obtainedPoints: 0,
+            };
+         }
+
+         let isCorrect = false;
+
+         if (question.questionType === QuestionTypeEnum.SHORT_ANSWER) {
+            const studentAnswer = answer.answer as string;
+            const acceptedAnswers = (question.acceptedAnswers || []) as string[];
+
+            if (question.caseSensitive) {
+               // Case sensitive comparison
+               isCorrect = acceptedAnswers.some(
+                  (accepted: string) => accepted === studentAnswer
+               );
+            } else {
+               // Case insensitive comparison
+               isCorrect = acceptedAnswers.some(
+                  (accepted: string) => accepted.toLowerCase() === studentAnswer.toLowerCase()
+               );
+            }
+         }
+
+         const obtainedPoints = isCorrect ? question.points || 0 : 0;
+
+         return {
+            ...answer,
+            isCorrect,
+            obtainedPoints,
+         };
+      });
+
+      return gradedAnswers;
+   }
+
    async submitMCQ(quizData: IQuizSubmission, studentId: string) {
       const existedSub = await quizSubmissionModel.findOne({
          studentId: studentId,
@@ -71,6 +123,28 @@ class doQuizService {
       });
 
       const graded = await this.gradeQuestions(quizData.answers!);
+      const score = graded.reduce((sum, g) => sum + (g.obtainedPoints ?? 0), 0);
+      const tutorId = await quizModel.findById(quizData.quizId);
+      const createdQuizSubmision = await quizSubmissionModel.create({
+         quizId: quizData.quizId,
+         studentId: studentId,
+         answers: graded,
+         score,
+         quizSnapshot: quizData.quizSnapshot,
+         gradedAt: new Date(),
+         gradedBy: tutorId?.createdBy,
+         attempt: existedSub ? existedSub.attempt + 1 : 1,
+      });
+      return createdQuizSubmision;
+   }
+
+   async submitShortAnswer(quizData: IQuizSubmission, studentId: string) {
+      const existedSub = await quizSubmissionModel.findOne({
+         studentId: studentId,
+         quizId: quizData.quizId,
+      });
+
+      const graded = await this.gradeShortAnswerQuestions(quizData.answers!);
       const score = graded.reduce((sum, g) => sum + (g.obtainedPoints ?? 0), 0);
       const tutorId = await quizModel.findById(quizData.quizId);
       const createdQuizSubmision = await quizSubmissionModel.create({
@@ -102,6 +176,24 @@ class doQuizService {
       return list;
    }
 
+   async getSubmitShortAnswerList(userId: string): Promise<IQuizSubmission[]> {
+      const list = await quizSubmissionModel
+         .find({ studentId: userId })
+         .populate({
+            path: "quizId",
+            match: { quizType: QuestionTypeEnum.SHORT_ANSWER },
+            select: "title description quizMode quizType totalQuestions -_id",
+         })
+         .populate({ path: "studentId", select: "name email -_id" })
+         .populate({
+            path: "answers.questionId",
+            select:
+               "-_id order questionText acceptedAnswers caseSensitive explanation points",
+         });
+      return list.filter(submission => submission.quizId !== null);
+   }
+
+
    async getSubmitMCQ(quizId: string): Promise<IQuizSubmission> {
       const mcq = await quizSubmissionModel
          .findOne({
@@ -123,6 +215,27 @@ class doQuizService {
       return mcq;
    }
 
+   async getSubmitShortAnswer(quizId: string): Promise<IQuizSubmission> {
+      const saq = await quizSubmissionModel
+         .findOne({
+            _id: quizId,
+         })
+         .populate({
+            path: "quizId",
+            select: "title description quizMode quizType totalQuestions -_id",
+         })
+         .populate({ path: "studentId", select: "name email -_id" })
+         .populate({
+            path: "answers.questionId",
+            select:
+               "-_id order questionText acceptedAnswers caseSensitive explanation points",
+         });
+      if (!saq) {
+         throw new NotFoundError("not found this quiz submission");
+      }
+      return saq;
+   }
+
    async attempt(
       studentId: string,
       sessionId: string
@@ -132,15 +245,21 @@ class doQuizService {
          throw new NotFoundError("can not find this session");
       }
 
-      const quizIds = Array.isArray((session as any).mcqQuizIds)
+      // Combine both MCQ and Short Answer quiz IDs
+      const mcqQuizIds = Array.isArray((session as any).mcqQuizIds)
          ? (session as any).mcqQuizIds
          : [];
-      if (quizIds.length === 0) return [];
+      const saqQuizIds = Array.isArray((session as any).saqQuizIds)
+         ? (session as any).saqQuizIds
+         : [];
+
+      const allQuizIds = [...mcqQuizIds, ...saqQuizIds];
+      if (allQuizIds.length === 0) return [];
 
       const studentSubmissions = await quizSubmissionModel
          .find({
             studentId: studentId,
-            quizId: { $in: quizIds },
+            quizId: { $in: allQuizIds },
          })
          .select("_id quizId");
 
@@ -152,7 +271,7 @@ class doQuizService {
          grouped.get(qid)!.push(sid);
       });
 
-      const result: IQuizAttempt[] = quizIds.map((q: any) => {
+      const result: IQuizAttempt[] = allQuizIds.map((q: any) => {
          const key = String(q);
          const subIds = grouped.get(key) ?? [];
          return {
@@ -204,6 +323,44 @@ class doQuizService {
 
       return subs;
    }
+
+
+   async getStudentShortAnswerSubmissions(userId: string) {
+      const tutorId = await tutorModel.exists({ userId });
+      const students = await teachingRequestModel
+         .find({ tutorId: tutorId })
+         .select("studentId -_id");
+      if (!students) {
+         throw new NotFoundError("u dont have any student ");
+      }
+
+      const studentIds = students.map((s) => new Types.ObjectId(s.studentId));
+
+      const users = await studentModel
+         .find({
+            _id: { $in: studentIds },
+         })
+         .select("userId -_id");
+
+      const userIds = users.map((u) => new Types.ObjectId(u.userId));
+
+      const subs = await quizSubmissionModel
+         .find({
+            studentId: { $in: userIds },
+         })
+         .populate({
+            path: "quizId",
+            match: { quizType: QuestionTypeEnum.SHORT_ANSWER },
+         })
+         .populate({
+            path: "studentId",
+            select: "name email",
+         })
+         .select("-answers");
+
+      return subs.filter(submission => submission.quizId !== null);
+   }
+
 }
 
 export default new doQuizService();
