@@ -253,6 +253,22 @@ class QuizController {
          res
       );
    }
+
+   async getMCQAssigned(req: Request, res: Response) {
+      const currentUser = req.user;
+      if (!currentUser || !currentUser._id) {
+         throw new UnauthorizedError("Not authenticated");
+      }
+      const quizId = req.query.quizId as string;
+      if (!quizId) {
+         throw new BadRequestError("invalid quizId");
+      }
+      const sessions = await quizService.getMCQAssigned(quizId);
+      new OK({
+         message: "get sessions assigned success",
+         metadata: sessions,
+      }).send(res);
+   }
 }
 
 export default new QuizController();

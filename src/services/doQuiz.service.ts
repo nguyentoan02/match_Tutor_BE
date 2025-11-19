@@ -65,8 +65,9 @@ class doQuizService {
       return gradedAnswers;
    }
 
-
-   private async gradeShortAnswerQuestions(answers: IAnswer[]): Promise<IAnswer[]> {
+   private async gradeShortAnswerQuestions(
+      answers: IAnswer[]
+   ): Promise<IAnswer[]> {
       const ids = answers.map((a) => a.questionId);
       const questions = await quizQuestionModel.find({ _id: { $in: ids } });
       const questionMap = new Map<string, any>();
@@ -89,7 +90,8 @@ class doQuizService {
 
          if (question.questionType === QuestionTypeEnum.SHORT_ANSWER) {
             const studentAnswer = answer.answer as string;
-            const acceptedAnswers = (question.acceptedAnswers || []) as string[];
+            const acceptedAnswers = (question.acceptedAnswers ||
+               []) as string[];
 
             if (question.caseSensitive) {
                // Case sensitive comparison
@@ -99,7 +101,8 @@ class doQuizService {
             } else {
                // Case insensitive comparison
                isCorrect = acceptedAnswers.some(
-                  (accepted: string) => accepted.toLowerCase() === studentAnswer.toLowerCase()
+                  (accepted: string) =>
+                     accepted.toLowerCase() === studentAnswer.toLowerCase()
                );
             }
          }
@@ -165,7 +168,7 @@ class doQuizService {
          .find({ studentId: userId })
          .populate({
             path: "quizId",
-            select: "title description quizMode quizType totalQuestions -_id",
+            select: "title description quizMode quizType totalQuestions",
          })
          .populate({ path: "studentId", select: "name email -_id" })
          .populate({
@@ -190,9 +193,8 @@ class doQuizService {
             select:
                "-_id order questionText acceptedAnswers caseSensitive explanation points",
          });
-      return list.filter(submission => submission.quizId !== null);
+      return list.filter((submission) => submission.quizId !== null);
    }
-
 
    async getSubmitMCQ(quizId: string): Promise<IQuizSubmission> {
       const mcq = await quizSubmissionModel
@@ -324,7 +326,6 @@ class doQuizService {
       return subs;
    }
 
-
    async getStudentShortAnswerSubmissions(userId: string) {
       const tutorId = await tutorModel.exists({ userId });
       const students = await teachingRequestModel
@@ -358,9 +359,8 @@ class doQuizService {
          })
          .select("-answers");
 
-      return subs.filter(submission => submission.quizId !== null);
+      return subs.filter((submission) => submission.quizId !== null);
    }
-
 }
 
 export default new doQuizService();

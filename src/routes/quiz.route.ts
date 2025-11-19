@@ -162,5 +162,10 @@ router.get(
    ShortAnswerQuizController.getSessionsAssignedForSAQ
 );
 
+router.get(
+   "/getMCQSessionsAssigned",
+   authenticate,
+   quizController.getMCQAssigned
+);
 
 export default router;
