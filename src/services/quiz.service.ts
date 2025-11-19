@@ -6,7 +6,6 @@ import mongoose, {
 import quizModel from "../models/quiz.model";
 import quizQuestionModel from "../models/quizQuestion.model";
 import {
-   CreateMultipleChoiceQuizBody,
    DeleteFlashCardQuestion,
    DeleteMultipleChoiceQuestion,
    EditFlashCardQuestion,
@@ -20,7 +19,7 @@ import {
    InternalServerError,
    NotFoundError,
 } from "../utils/error.response";
-import { IQuizQuestion, IQuizQuestionInfo } from "../types/types/quizQuestion";
+import { IQuizQuestionInfo } from "../types/types/quizQuestion";
 import sessionModel from "../models/session.model";
 import { QuestionTypeEnum } from "../types/enums";
 import { ISession } from "../types/types/session";
@@ -387,7 +386,7 @@ class QuizService {
          }
 
          await quizModel.deleteOne({ _id: quizId }, { session });
-         await quizSubmissionModel.deleteMany({ quizId });
+         await quizSubmissionModel.deleteMany({ quizId }, { session });
          await session.commitTransaction();
       } catch (error) {
          await session.abortTransaction();
@@ -816,6 +815,30 @@ class QuizService {
          { new: true }
       );
       return savedSession as ISession;
+   }
+
+   async getMCQAssigned(quizId: string): Promise<ISession[]> {
+      const sessions = await sessionModel
+         .find({
+            mcqQuizIds: new Types.ObjectId(quizId),
+         })
+         .select(
+            "-quizIds -createdBy -updatedAt -__v -studentConfirmation -attendanceConfirmation -cancellation -isDeleted -deletedAt -deletedBy -materials -reminders -location -notes"
+         )
+         .populate({
+            path: "teachingRequestId",
+            select: "title subject level studentId",
+            populate: {
+               path: "studentId",
+               select: "userId",
+               populate: {
+                  path: "userId",
+                  select: "name email ",
+               },
+            },
+         });
+
+      return sessions as ISession[];
    }
 }
 

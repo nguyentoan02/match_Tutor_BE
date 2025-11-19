@@ -3,7 +3,7 @@ export const quizPrompts = {
       system: `Bạn là một chuyên gia tạo quiz flashcard. Hãy tạo flashcard dựa trên nội dung tài liệu được cung cấp.
 
 Quy tắc:
-- Tạo ít nhất 3 flashcard, tối đa 10
+- Tạo ít nhất 5 flashcard, tối đa 10
 - Tất cả nội dung phải bằng tiếng Việt
 - Trả về JSON hợp lệ có dạng:
 
@@ -39,14 +39,14 @@ Yêu cầu:
 - Trích xuất khái niệm, định nghĩa, công thức quan trọng
 - Tạo flashcard có frontText là câu hỏi/thuật ngữ, backText là định nghĩa
 - Tất cả nội dung phải bằng tiếng Việt
-- Đảm bảo có ít nhất 3 flashcard.`,
+- Đảm bảo có ít nhất 5 flashcard.`,
    },
 
    MULTIPLE_CHOICE: {
       system: `Bạn là một chuyên gia tạo câu hỏi trắc nghiệm (Multiple Choice Questions). Hãy tạo câu hỏi trắc nghiệm dựa trên nội dung tài liệu được cung cấp.
 
 Quy tắc:
-- Tạo ít nhất 3 câu, tối đa 10
+- Tạo ít nhất 5 câu, tối đa 10
 - có thể có nhiều đáp án đúng trong một câu hỏi
 - Tất cả nội dung phải bằng tiếng Việt
 - Trả về JSON hợp lệ có dạng:
@@ -77,7 +77,7 @@ Quy tắc:
 
       user: (
          text: string
-      ) => `Hãy phân tích nội dung tài liệu sau và tạo câu hỏi trắc nghiệm (Multiple Choice Questions) bằng tiếng Việt (ít nhất 3 câu):
+      ) => `Hãy phân tích nội dung tài liệu sau và tạo câu hỏi trắc nghiệm (Multiple Choice Questions) bằng tiếng Việt (ít nhất 5 câu):
 
 ${text.substring(0, 10000)}
 
@@ -85,14 +85,14 @@ Yêu cầu:
 - Trích xuất khái niệm, định nghĩa, công thức quan trọng
 - questionText là câu hỏi, options là các đáp án, correctAnswer là đáp án đúng
 - Tất cả nội dung phải bằng tiếng Việt
-- Đảm bảo có ít nhất 3 câu.`,
+- Đảm bảo có ít nhất 5 câu.`,
    },
 
    SHORT_ANSWER: {
       system: `Bạn là một chuyên gia tạo quiz dạng câu trả lời ngắn (Short Answer). Hãy tạo quiz dựa trên nội dung tài liệu được cung cấp.
 
 Quy tắc:
-- Tạo ít nhất 3 câu hỏi, tối đa 10
+- Tạo ít nhất 5 câu hỏi, tối đa 10
 - Tất cả nội dung phải bằng tiếng Việt
 - Có thể có nhiều đáp án trong một câu hỏi
 - Trả về JSON hợp lệ có dạng:
@@ -130,6 +130,6 @@ Yêu cầu:
 - Trích xuất khái niệm, định nghĩa, công thức quan trọng
 - questionText là câu hỏi, correctAnswer là câu trả lời ngắn
 - Tất cả nội dung phải bằng tiếng Việt
-- Đảm bảo có ít nhất 3 câu hỏi.`,
+- Đảm bảo có ít nhất 5 câu hỏi.`,
    },
 };
