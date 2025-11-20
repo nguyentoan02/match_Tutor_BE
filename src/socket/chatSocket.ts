@@ -8,6 +8,7 @@ import { Server as HttpServer } from "http";
 import { IMessage } from "../types/types/message";
 import conversationModel from "../models/conversation.model";
 import { IConversation } from "../types/types/conversation";
+import notificationSocketService from "./notificationSocket";
 
 declare module "socket.io" {
    interface Socket {
@@ -38,6 +39,8 @@ class SocketService {
             credentials: true,
          },
       });
+
+      notificationSocketService.setIO(this.io);
 
       this.io.use(async (socket: Socket, next) => {
          try {

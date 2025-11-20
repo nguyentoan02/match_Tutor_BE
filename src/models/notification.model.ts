@@ -9,7 +9,6 @@ const NotificationSchema: Schema<INotification> = new Schema(
       type: { type: String, enum: NOTIFICATION_TYPE_VALUES },
       title: { type: String },
       message: { type: String },
-      data: { type: Object },
       isRead: { type: Boolean, default: false },
    },
    {

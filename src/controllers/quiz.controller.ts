@@ -11,6 +11,8 @@ import {
 import quizService from "../services/quiz.service";
 import { OK } from "../utils/success.response";
 import { QuestionTypeEnum } from "../types/enums";
+import notificationSocketService from "../socket/notificationSocket";
+
 
 class QuizController {
    async tutorCreateQuiz(req: Request, res: Response) {
