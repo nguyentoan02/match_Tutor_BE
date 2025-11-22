@@ -29,8 +29,8 @@ notificationSocketService.initialize(notificationNamespace);
 // socketService.initialize(server);
 
 server.listen(PORT, () => {
-   console.log(`🚀 Server running on port ${PORT}`);
-   console.log(`💬 Chat service initialized`);
-   console.log(`📢 Notification service initialized`);
-   console.log(`🌐 Socket.IO services available at ws://localhost:${PORT}`);
+   console.log(`Server running on port ${PORT}`);
+   console.log(`Chat service initialized`);
+   console.log(`Notification service initialized`);
+   console.log(`Socket.IO services available at ws://localhost:${PORT}`);
 });
