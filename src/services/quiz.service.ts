@@ -25,6 +25,7 @@ import { QuestionTypeEnum } from "../types/enums";
 import { ISession } from "../types/types/session";
 import quizSubmissionModel from "../models/quizSubmission.model";
 import tutorModel from "../models/tutor.model";
+import notificationSocketService from "../socket/notificationSocket";
 
 class QuizService {
    async createQuiz(

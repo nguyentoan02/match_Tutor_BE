@@ -13,6 +13,8 @@ import sessionModel from "../models/session.model";
 import { Types } from "mongoose";
 import teachingRequestModel from "../models/teachingRequest.model";
 import tutorModel from "../models/tutor.model";
+import userModel from "../models/user.model";
+import { addNotificationJob } from "../queues/notification.queue";
 
 class doQuizService {
    private async gradeQuestions(answers: IAnswer[]): Promise<IAnswer[]> {
@@ -120,47 +122,93 @@ class doQuizService {
    }
 
    async submitMCQ(quizData: IQuizSubmission, studentId: string) {
-      const existedSub = await quizSubmissionModel.findOne({
-         studentId: studentId,
-         quizId: quizData.quizId,
-      });
+      try {
+         const existedSub = await quizSubmissionModel.findOne({
+            studentId: studentId,
+            quizId: quizData.quizId,
+         });
 
-      const graded = await this.gradeQuestions(quizData.answers!);
-      const score = graded.reduce((sum, g) => sum + (g.obtainedPoints ?? 0), 0);
-      const tutorId = await quizModel.findById(quizData.quizId);
-      const createdQuizSubmision = await quizSubmissionModel.create({
-         quizId: quizData.quizId,
-         studentId: studentId,
-         answers: graded,
-         score,
-         quizSnapshot: quizData.quizSnapshot,
-         gradedAt: new Date(),
-         gradedBy: tutorId?.createdBy,
-         attempt: existedSub ? existedSub.attempt + 1 : 1,
-      });
-      return createdQuizSubmision;
+         const graded = await this.gradeQuestions(quizData.answers!);
+         const score = graded.reduce((sum, g) => sum + (g.obtainedPoints ?? 0), 0);
+         
+         const quiz = await quizModel.findById(quizData.quizId);
+         if (!quiz) {
+            throw new NotFoundError("Quiz not found");
+         }
+
+         const createdQuizSubmission = await quizSubmissionModel.create({
+            quizId: quizData.quizId,
+            studentId: studentId,
+            answers: graded,
+            score,
+            quizSnapshot: quizData.quizSnapshot,
+            gradedAt: new Date(),
+            gradedBy: quiz.createdBy,
+            attempt: existedSub ? existedSub.attempt + 1 : 1,
+         });
+
+         const student = await userModel.findById(studentId);
+         
+         // Send notification to the tutor who created the quiz
+         if (quiz.createdBy && student) {
+            await addNotificationJob(
+               quiz.createdBy.toString(), // Convert ObjectId to string
+               "Bài tập trắc nghiệm đã được hoàn thành",
+               `Quiz "${quiz.title || 'Untitled'}" đã được hoàn thành bởi ${student.name}`
+            );
+            console.log(`📨 Notification queued for tutor: ${quiz.createdBy}`);
+         }
+
+         return createdQuizSubmission;
+      } catch (error) {
+         console.error("Error in submitMCQ:", error);
+         throw error;
+      }
    }
 
    async submitShortAnswer(quizData: IQuizSubmission, studentId: string) {
-      const existedSub = await quizSubmissionModel.findOne({
-         studentId: studentId,
-         quizId: quizData.quizId,
-      });
+      try {
+         const existedSub = await quizSubmissionModel.findOne({
+            studentId: studentId,
+            quizId: quizData.quizId,
+         });
 
-      const graded = await this.gradeShortAnswerQuestions(quizData.answers!);
-      const score = graded.reduce((sum, g) => sum + (g.obtainedPoints ?? 0), 0);
-      const tutorId = await quizModel.findById(quizData.quizId);
-      const createdQuizSubmision = await quizSubmissionModel.create({
-         quizId: quizData.quizId,
-         studentId: studentId,
-         answers: graded,
-         score,
-         quizSnapshot: quizData.quizSnapshot,
-         gradedAt: new Date(),
-         gradedBy: tutorId?.createdBy,
-         attempt: existedSub ? existedSub.attempt + 1 : 1,
-      });
-      return createdQuizSubmision;
+         const graded = await this.gradeShortAnswerQuestions(quizData.answers!);
+         const score = graded.reduce((sum, g) => sum + (g.obtainedPoints ?? 0), 0);
+         
+         const quiz = await quizModel.findById(quizData.quizId);
+         if (!quiz) {
+            throw new NotFoundError("Quiz not found");
+         }
+
+         const createdQuizSubmission = await quizSubmissionModel.create({
+            quizId: quizData.quizId,
+            studentId: studentId,
+            answers: graded,
+            score,
+            quizSnapshot: quizData.quizSnapshot,
+            gradedAt: new Date(),
+            gradedBy: quiz.createdBy,
+            attempt: existedSub ? existedSub.attempt + 1 : 1,
+         });
+
+         const student = await userModel.findById(studentId);
+
+         // Send notification to the tutor who created the quiz
+         if (quiz.createdBy && student) {
+            await addNotificationJob(
+               quiz.createdBy.toString(), // Convert ObjectId to string
+               "Bài tập tự luận đã được hoàn thành",
+               `Quiz "${quiz.title || 'Untitled'}" đã được hoàn thành bởi ${student.name}`
+            );
+            console.log(`📨 Notification queued for tutor: ${quiz.createdBy}`);
+         }
+
+         return createdQuizSubmission;
+      } catch (error) {
+         console.error("Error in submitShortAnswer:", error);
+         throw error;
+      }
    }
 
    async getSubmitMCQList(userId: string): Promise<IQuizSubmission[]> {

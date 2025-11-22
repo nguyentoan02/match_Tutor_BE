@@ -1,5 +1,6 @@
 import { Server, Socket } from "socket.io";
 import jwt from "jsonwebtoken";
+import { Server as HttpServer } from "http";
 import User from "../models/user.model";
 import Notification from "../models/notification.model";
 import { INotification } from "../types/types/notification";
@@ -13,7 +14,6 @@ declare module "socket.io" {
 
 interface NotificationData {
    userId: string;
-   type: string;
    title: string;
    message: string;
 }
@@ -27,8 +27,78 @@ class NotificationSocketService {
       this.connectedUsers = new Map();
    }
 
-   setIO(io: Server) {
-      this.io = io;
+   // Initialize notification socket on separate port
+   initialize(server: HttpServer, port?: number) {
+      const notificationPort =
+         port || parseInt(process.env.NOTIFICATION_PORT || "3002");
+
+      this.io = new Server(server, {
+         cors: {
+            origin: [process.env.FRONTEND_URL || "http://localhost:5173"],
+            methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            credentials: true,
+            allowedHeaders: ["Authorization", "Content-Type"],
+         },
+         allowEIO3: true, // Allow Engine.IO v3 clients
+         transports: ["websocket", "polling"], // Allow both transports
+         pingTimeout: 60000,
+         pingInterval: 25000,
+      });
+
+      // Authentication middleware
+      this.io.use(async (socket: Socket, next) => {
+         try {
+            const auth = socket.handshake.auth || {};
+            const query = socket.handshake.query || {};
+            const headers = socket.handshake.headers || {};
+
+            // Get token from multiple sources
+            let token = auth.token || query.token || headers.authorization;
+
+            if (!token) {
+               return next(new Error("No token provided"));
+            }
+
+            const jwtSecret = process.env.JWT_SECRET;
+            if (!jwtSecret) {
+               return next(new Error("JWT secret is not configured"));
+            }
+
+            // Clean token if it has Bearer prefix
+            const rawToken =
+               typeof token === "string" && token.startsWith("Bearer ")
+                  ? token.split(" ")[1]
+                  : (token as string);
+
+            const decoded = jwt.verify(rawToken, jwtSecret) as { id: string };
+
+            const user = (await User.findById(decoded.id).select(
+               "-password"
+            )) as any;
+
+            if (!user) {
+               return next(new Error("User not found"));
+            }
+
+            if (user.isBanned) {
+               return next(new Error("User is banned"));
+            }
+
+            socket.userId = user._id.toString();
+            socket.user = user;
+
+            next();
+         } catch (error) {
+            console.error("Notification socket authentication error:", error);
+            if (error instanceof jwt.JsonWebTokenError) {
+               console.error("JWT Error details:", error.message);
+            }
+            next(
+               new Error("Authentication failed: " + (error as Error).message)
+            );
+         }
+      });
+
       this.setupNotificationHandlers();
    }
 
@@ -38,14 +108,28 @@ class NotificationSocketService {
       this.io.on("connection", (socket: Socket) => {
          const s = socket as Socket & { userId?: string; user?: any };
 
-         if (s.user && s.userId) {
+         // Check if user is authenticated
+         if (s.userId && s.user) {
             // Store connected user
             this.connectedUsers.set(s.userId, s.id);
 
             // Join user to their personal notification room
             s.join(`notifications_${s.userId}`);
 
-            console.log(`User ${s.userId} joined notification room`);
+            // Send current unread count when user connects
+            this.sendUnreadCount(s.userId).catch((err) =>
+               console.error("Error sending initial unread count:", err)
+            );
+
+            // Emit connection success
+            s.emit("notification_connected", {
+               message: "Connected to notification service",
+               userId: s.userId,
+            });
+         } else {
+            s.emit("notification_error", { message: "Authentication failed" });
+            s.disconnect(true);
+            return;
          }
 
          // Handle marking notification as read
@@ -53,16 +137,37 @@ class NotificationSocketService {
             await this.handleMarkAsRead(s, notificationId);
          });
 
+         // Handle marking all notifications as read
+         s.on("markAllNotificationsRead", async () => {
+            await this.handleMarkAllAsRead(s);
+         });
+
          // Handle getting unread notification count
          s.on("getUnreadCount", async () => {
             await this.handleGetUnreadCount(s);
          });
 
-         s.on("disconnect", () => {
+         // Handle getting notification list
+         s.on(
+            "getNotifications",
+            async (data: { page?: number; limit?: number }) => {
+               await this.handleGetNotifications(s, data);
+            }
+         );
+
+         // Handle ping/pong for connection health
+         s.on("ping", () => {
+            s.emit("pong");
+         });
+
+         s.on("disconnect", (reason) => {
             if (s.userId) {
                this.connectedUsers.delete(s.userId);
-               console.log(`User ${s.userId} disconnected from notifications`);
             }
+         });
+
+         s.on("error", (error) => {
+            console.error("Socket error:", error);
          });
       });
    }
@@ -74,19 +179,44 @@ class NotificationSocketService {
       try {
          if (!socket.userId) return;
 
-         await Notification.findByIdAndUpdate(
-            notificationId,
+         const notification = await Notification.findOneAndUpdate(
+            { _id: notificationId, userId: socket.userId },
             { isRead: true },
             { new: true }
          );
 
-         socket.emit("notificationMarkedRead", { notificationId });
+         if (!notification) {
+            socket.emit("notification_error", {
+               message: "Notification not found",
+            });
+            return;
+         }
 
+         socket.emit("notificationMarkedRead", { notificationId });
          await this.sendUnreadCount(socket.userId);
       } catch (error) {
          console.error("Error marking notification as read:", error);
          socket.emit("notification_error", {
             message: "Failed to mark notification as read",
+         });
+      }
+   }
+
+   private async handleMarkAllAsRead(socket: Socket & { userId?: string }) {
+      try {
+         if (!socket.userId) return;
+
+         await Notification.updateMany(
+            { userId: socket.userId, isRead: false },
+            { isRead: true }
+         );
+
+         socket.emit("allNotificationsMarkedRead");
+         await this.sendUnreadCount(socket.userId);
+      } catch (error) {
+         console.error("Error marking all notifications as read:", error);
+         socket.emit("notification_error", {
+            message: "Failed to mark all notifications as read",
          });
       }
    }
@@ -99,6 +229,49 @@ class NotificationSocketService {
          console.error("Error getting unread count:", error);
          socket.emit("notification_error", {
             message: "Failed to get unread count",
+         });
+      }
+   }
+
+   private async handleGetNotifications(
+      socket: Socket & { userId?: string },
+      data: { page?: number; limit?: number }
+   ) {
+      try {
+         if (!socket.userId) return;
+
+         const page = data.page || 1;
+         const limit = data.limit || 20;
+         const skip = (page - 1) * limit;
+
+         const notifications = await Notification.find({
+            userId: socket.userId,
+         })
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .populate({
+               path: "userId",
+               select: "name email avatarUrl",
+            });
+
+         const total = await Notification.countDocuments({
+            userId: socket.userId,
+         });
+
+         socket.emit("notificationList", {
+            notifications,
+            pagination: {
+               page,
+               limit,
+               total,
+               pages: Math.ceil(total / limit),
+            },
+         });
+      } catch (error) {
+         console.error("Error getting notifications:", error);
+         socket.emit("notification_error", {
+            message: "Failed to get notifications",
          });
       }
    }
@@ -127,7 +300,6 @@ class NotificationSocketService {
          // Create notification in database
          const notification = new Notification({
             userId: userId,
-            type: notificationData.type,
             title: notificationData.title,
             message: notificationData.message,
             isRead: false,
@@ -179,14 +351,43 @@ class NotificationSocketService {
       }
    }
 
+   // Public method to broadcast notification to all connected users
+   async broadcastNotification(
+      notificationData: Omit<NotificationData, "userId">
+   ) {
+      try {
+         const connectedUserIds = Array.from(this.connectedUsers.keys());
+
+         if (connectedUserIds.length === 0) return [];
+
+         return await this.sendNotificationToUsers(
+            connectedUserIds,
+            notificationData
+         );
+      } catch (error) {
+         console.error("Error broadcasting notification:", error);
+         throw error;
+      }
+   }
+
    // Check if user is online
    isUserOnline(userId: string): boolean {
       return this.connectedUsers.has(userId);
    }
 
+   // Get connected users count
+   getConnectedUsersCount(): number {
+      return this.connectedUsers.size;
+   }
+
    // Get all connected user IDs
    getConnectedUserIds(): string[] {
       return Array.from(this.connectedUsers.keys());
+   }
+
+   // Get socket instance for external usage
+   getIO(): Server | null {
+      return this.io;
    }
 }
 
