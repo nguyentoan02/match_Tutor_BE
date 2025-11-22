@@ -1,6 +1,5 @@
-import { Server, Socket } from "socket.io";
+import { Namespace, Socket } from "socket.io";
 import jwt from "jsonwebtoken";
-import { Server as HttpServer } from "http";
 import User from "../models/user.model";
 import Notification from "../models/notification.model";
 import { INotification } from "../types/types/notification";
@@ -19,34 +18,19 @@ interface NotificationData {
 }
 
 class NotificationSocketService {
-   private io: Server | null;
+   private notificationNamespace: Namespace | null;
    private connectedUsers: Map<string, string>;
 
    constructor() {
-      this.io = null;
+      this.notificationNamespace = null;
       this.connectedUsers = new Map();
    }
 
-   // Initialize notification socket on separate port
-   initialize(server: HttpServer, port?: number) {
-      const notificationPort =
-         port || parseInt(process.env.NOTIFICATION_PORT || "3002");
+   initialize(notificationNamespace: Namespace) {
+      this.notificationNamespace = notificationNamespace;
 
-      this.io = new Server(server, {
-         cors: {
-            origin: [process.env.FRONTEND_URL || "http://localhost:5173"],
-            methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            credentials: true,
-            allowedHeaders: ["Authorization", "Content-Type"],
-         },
-         allowEIO3: true, // Allow Engine.IO v3 clients
-         transports: ["websocket", "polling"], // Allow both transports
-         pingTimeout: 60000,
-         pingInterval: 25000,
-      });
-
-      // Authentication middleware
-      this.io.use(async (socket: Socket, next) => {
+      // Authentication middleware for notification namespace
+      this.notificationNamespace.use(async (socket: Socket, next) => {
          try {
             const auth = socket.handshake.auth || {};
             const query = socket.handshake.query || {};
@@ -71,7 +55,6 @@ class NotificationSocketService {
                   : (token as string);
 
             const decoded = jwt.verify(rawToken, jwtSecret) as { id: string };
-
             const user = (await User.findById(decoded.id).select(
                "-password"
             )) as any;
@@ -89,7 +72,6 @@ class NotificationSocketService {
 
             next();
          } catch (error) {
-            console.error("Notification socket authentication error:", error);
             if (error instanceof jwt.JsonWebTokenError) {
                console.error("JWT Error details:", error.message);
             }
@@ -103,9 +85,9 @@ class NotificationSocketService {
    }
 
    private setupNotificationHandlers() {
-      if (!this.io) return;
+      if (!this.notificationNamespace) return;
 
-      this.io.on("connection", (socket: Socket) => {
+      this.notificationNamespace.on("connection", (socket: Socket) => {
          const s = socket as Socket & { userId?: string; user?: any };
 
          // Check if user is authenticated
@@ -125,9 +107,14 @@ class NotificationSocketService {
             s.emit("notification_connected", {
                message: "Connected to notification service",
                userId: s.userId,
+               namespace: "notifications",
+               timestamp: new Date().toISOString(),
             });
          } else {
-            s.emit("notification_error", { message: "Authentication failed" });
+            s.emit("notification_error", {
+               message: "Authentication failed",
+               code: "AUTH_FAILED",
+            });
             s.disconnect(true);
             return;
          }
@@ -155,9 +142,9 @@ class NotificationSocketService {
             }
          );
 
-         // Handle ping/pong for connection health
-         s.on("ping", () => {
-            s.emit("pong");
+         // Handle ping/pong for notification service health
+         s.on("notificationPing", () => {
+            s.emit("notificationPong", { timestamp: new Date().toISOString() });
          });
 
          s.on("disconnect", (reason) => {
@@ -167,7 +154,7 @@ class NotificationSocketService {
          });
 
          s.on("error", (error) => {
-            console.error("Socket error:", error);
+            console.error("🚨 Notification socket error:", error);
          });
       });
    }
@@ -283,9 +270,11 @@ class NotificationSocketService {
             isRead: false,
          });
 
-         this.io?.to(`notifications_${userId}`).emit("unreadCount", {
-            count: unreadCount,
-         });
+         this.notificationNamespace
+            ?.to(`notifications_${userId}`)
+            .emit("unreadCount", {
+               count: unreadCount,
+            });
       } catch (error) {
          console.error("Error sending unread count:", error);
       }
@@ -314,9 +303,11 @@ class NotificationSocketService {
          });
 
          // Send to user's notification room
-         this.io?.to(`notifications_${userId}`).emit("newNotification", {
-            notification: notification.toObject(),
-         });
+         this.notificationNamespace
+            ?.to(`notifications_${userId}`)
+            .emit("newNotification", {
+               notification: notification.toObject(),
+            });
 
          // Send updated unread count
          await this.sendUnreadCount(userId);
@@ -385,9 +376,14 @@ class NotificationSocketService {
       return Array.from(this.connectedUsers.keys());
    }
 
-   // Get socket instance for external usage
-   getIO(): Server | null {
-      return this.io;
+   // Expose namespace for external usage
+   getNamespace(): Namespace | null {
+      return this.notificationNamespace;
+   }
+
+   // Legacy method for compatibility
+   getIO(): Namespace | null {
+      return this.notificationNamespace;
    }
 }
 
