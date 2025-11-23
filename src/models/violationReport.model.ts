@@ -15,11 +15,6 @@ const ViolationReportSchema: Schema<IViolationReport> = new Schema(
       },
       reporterId: { type: Schema.Types.ObjectId, ref: "User", required: true },
       reportedUserId: { type: Schema.Types.ObjectId, ref: "User" },
-      relatedReviewId: { type: Schema.Types.ObjectId, ref: "Review" },
-      relatedTeachingRequestId: {
-         type: Schema.Types.ObjectId,
-         ref: "TeachingRequest",
-      },
       reason: { type: String },
       evidenceFiles: [{ type: String }],
       status: {
