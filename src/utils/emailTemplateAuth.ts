@@ -1,35 +1,38 @@
 import { transporter } from "../config/mail";
 import {
-    getVerificationEmailTemplate,
-    getPasswordResetEmailTemplate,
+   getVerificationEmailTemplate,
+   getPasswordResetEmailTemplate,
 } from "../template/emailAuth";
+import { addEmailJob } from "../queues/email.queue";
 
 export const sendVerificationEmail = async (
-    to: string,
-    name: string,
-    verificationUrl: string
+   to: string,
+   name: string,
+   verificationUrl: string
 ) => {
-    const mailOptions = {
-        from: `"MatchTutor" <${process.env.EMAIL_USER}>`,
-        to,
-        subject: "Verify Your Email Address for MatchTutor",
-        html: getVerificationEmailTemplate(name, verificationUrl),
-    };
+   const mailOptions = {
+      from: `"MatchTutor" <${process.env.EMAIL_USER}>`,
+      to,
+      subject: "Verify Your Email Address for MatchTutor",
+      html: getVerificationEmailTemplate(name, verificationUrl),
+   };
 
-    await transporter.sendMail(mailOptions);
+   // Thay vì gửi trực tiếp, đẩy vào queue
+   await addEmailJob(mailOptions);
 };
 
 export const sendPasswordResetEmail = async (
-    to: string,
-    name: string,
-    resetUrl: string
+   to: string,
+   name: string,
+   resetUrl: string
 ) => {
-    const mailOptions = {
-        from: `"MatchTutor" <${process.env.EMAIL_USER}>`,
-        to,
-        subject: "Your Password Reset Link for MatchTutor",
-        html: getPasswordResetEmailTemplate(name, resetUrl),
-    };
+   const mailOptions = {
+      from: `"MatchTutor" <${process.env.EMAIL_USER}>`,
+      to,
+      subject: "Your Password Reset Link for MatchTutor",
+      html: getPasswordResetEmailTemplate(name, resetUrl),
+   };
 
-    await transporter.sendMail(mailOptions);
+   // Thay vì gửi trực tiếp, đẩy vào queue
+   await addEmailJob(mailOptions);
 };
