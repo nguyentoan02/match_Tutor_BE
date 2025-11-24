@@ -1,7 +1,6 @@
 export enum ViolationTypeEnum {
    SCAM_TUTOR = "SCAM_TUTOR",
-   FALSE_FEEDBACK = "FALSE_FEEDBACK",
-   SCAM_STUDENT = "SCAM_STUDENT",
+   OTHER = "OTHER",
 }
 
 export const VIOLATION_TYPE_VALUES = Object.values(
@@ -10,7 +9,6 @@ export const VIOLATION_TYPE_VALUES = Object.values(
 
 export enum ViolationStatusEnum {
    PENDING = "PENDING",
-   REVIEWED = "REVIEWED",
    RESOLVED = "RESOLVED",
    REJECTED = "REJECTED",
 }
