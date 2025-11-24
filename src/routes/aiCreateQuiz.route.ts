@@ -20,4 +20,11 @@ router.post(
    aiCreateQuizController.createMCQ
 );
 
+router.post(
+   "/createSAQ",
+   authenticate,
+   validate(learningMaterialSchema),
+   aiCreateQuizController.createSAQ
+);
+
 export default router;
