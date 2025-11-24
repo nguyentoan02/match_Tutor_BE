@@ -29,6 +29,19 @@ class AiCreateQuizController {
 
       new OK({ message: "created success", metadata: mcq }).send(res);
    }
+
+   async createSAQ(req: Request, res: Response) {
+      const currentUser = req.user;
+      if (!currentUser || !currentUser._id) {
+         throw new UnauthorizedError("Not authenticated");
+      }
+      const body: learningMaterial = req.body;
+
+      const saq = await aiCreateQuizService.createSAQ(body.materialId);
+
+      new OK({ message: "created success", metadata: saq }).send(res);
+   }
+
 }
 
 export default new AiCreateQuizController();
