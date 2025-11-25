@@ -1,9 +1,9 @@
-import mongoose, { Types } from "mongoose";
+import mongoose from "mongoose";
 import { connection } from "../config/redis";
 import { Worker } from "bullmq";
 import userModel from "../models/user.model";
 import { NotFoundError } from "../utils/error.response";
-import notificationSocketService from "../socket/notificationSocket";
+import { publishNotificationEvent } from "../events/notificationPubSub";
 
 const MONGO_URI = process.env.MONGO_URI;
 
@@ -37,15 +37,18 @@ const noti = new Worker(
             throw new NotFoundError(`User not found with userId: ${userId}`);
          }
 
-         await notificationSocketService.sendNotificationToUser(userId, {
-            message,
+         await publishNotificationEvent({
+            userId,
             title,
+            message,
          });
 
-         console.log(`✅ Notification sent successfully to user: ${userId}`);
+         console.log(
+            `✅ Notification event published successfully for user: ${userId}`
+         );
       } catch (error) {
          console.error(`❌ Error processing notification job:`, error);
-         throw error; // Re-throw to mark job as failed
+         throw error; 
       }
    },
    {
@@ -54,11 +57,11 @@ const noti = new Worker(
 );
 
 noti.on("completed", (job) =>
-   console.log(`🎉 Notification job ${job.id} completed successfully!`)
+   console.log(`Notification job ${job.id} completed successfully!`)
 );
 
 noti.on("failed", (job, err) =>
-   console.error(`💥 Notification job ${job?.id} failed:`, err.message)
+   console.error(`Notification job ${job?.id} failed:`, err.message)
 );
 
 export default noti;

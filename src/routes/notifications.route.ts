@@ -32,6 +32,12 @@ router.patch(
    notificationController.markAsRead
 );
 
+router.patch(
+   "/mark-all-read",
+   authenticate,
+   notificationController.markAllAsRead
+);
+
 // Mark all notifications as read
 router.put("/read-all", authenticate, notificationController.markAllAsRead);
 

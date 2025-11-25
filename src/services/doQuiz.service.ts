@@ -15,6 +15,7 @@ import teachingRequestModel from "../models/teachingRequest.model";
 import tutorModel from "../models/tutor.model";
 import userModel from "../models/user.model";
 import { addNotificationJob } from "../queues/notification.queue";
+import notificationSocketService from "../socket/notificationSocket";
 
 class doQuizService {
    private async gradeQuestions(answers: IAnswer[]): Promise<IAnswer[]> {
@@ -129,8 +130,11 @@ class doQuizService {
          });
 
          const graded = await this.gradeQuestions(quizData.answers!);
-         const score = graded.reduce((sum, g) => sum + (g.obtainedPoints ?? 0), 0);
-         
+         const score = graded.reduce(
+            (sum, g) => sum + (g.obtainedPoints ?? 0),
+            0
+         );
+
          const quiz = await quizModel.findById(quizData.quizId);
          if (!quiz) {
             throw new NotFoundError("Quiz not found");
@@ -148,13 +152,15 @@ class doQuizService {
          });
 
          const student = await userModel.findById(studentId);
-         
+
          // Send notification to the tutor who created the quiz
          if (quiz.createdBy && student) {
             await addNotificationJob(
-               quiz.createdBy.toString(), // Convert ObjectId to string
+               quiz.createdBy.toString(),
                "Bài tập trắc nghiệm đã được hoàn thành",
-               `Quiz "${quiz.title || 'Untitled'}" đã được hoàn thành bởi ${student.name}`
+               `Quiz "${quiz.title || "Untitled"}" đã được hoàn thành bởi ${
+                  student.name
+               }`
             );
             console.log(`📨 Notification queued for tutor: ${quiz.createdBy}`);
          }
@@ -174,8 +180,11 @@ class doQuizService {
          });
 
          const graded = await this.gradeShortAnswerQuestions(quizData.answers!);
-         const score = graded.reduce((sum, g) => sum + (g.obtainedPoints ?? 0), 0);
-         
+         const score = graded.reduce(
+            (sum, g) => sum + (g.obtainedPoints ?? 0),
+            0
+         );
+
          const quiz = await quizModel.findById(quizData.quizId);
          if (!quiz) {
             throw new NotFoundError("Quiz not found");
@@ -199,7 +208,9 @@ class doQuizService {
             await addNotificationJob(
                quiz.createdBy.toString(), // Convert ObjectId to string
                "Bài tập tự luận đã được hoàn thành",
-               `Quiz "${quiz.title || 'Untitled'}" đã được hoàn thành bởi ${student.name}`
+               `Quiz "${quiz.title || "Untitled"}" đã được hoàn thành bởi ${
+                  student.name
+               }`
             );
             console.log(`📨 Notification queued for tutor: ${quiz.createdBy}`);
          }

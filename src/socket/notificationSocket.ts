@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import User from "../models/user.model";
 import Notification from "../models/notification.model";
 import { INotification } from "../types/types/notification";
+import { subscribeNotificationEvents } from "../events/notificationPubSub";
 
 declare module "socket.io" {
    interface Socket {
@@ -48,7 +49,6 @@ class NotificationSocketService {
                return next(new Error("JWT secret is not configured"));
             }
 
-            // Clean token if it has Bearer prefix
             const rawToken =
                typeof token === "string" && token.startsWith("Bearer ")
                   ? token.split(" ")[1]
@@ -82,6 +82,37 @@ class NotificationSocketService {
       });
 
       this.setupNotificationHandlers();
+      this.setupPubSubBridge();
+   }
+
+   private setupPubSubBridge() {
+      subscribeNotificationEvents(async (payload) => {
+         if (!this.notificationNamespace) {
+            console.warn(
+               "Notification namespace not ready to deliver pub/sub event"
+            );
+            return;
+         }
+
+         try {
+            if ("userIds" in payload) {
+               await this.sendNotificationToUsers(payload.userIds, {
+                  title: payload.title,
+                  message: payload.message,
+               });
+            } else {
+               await this.sendNotificationToUser(payload.userId, {
+                  title: payload.title,
+                  message: payload.message,
+               });
+            }
+         } catch (error) {
+            console.error(
+               "Failed to deliver notification pub/sub event:",
+               error
+            );
+         }
+      });
    }
 
    private setupNotificationHandlers() {
@@ -90,20 +121,15 @@ class NotificationSocketService {
       this.notificationNamespace.on("connection", (socket: Socket) => {
          const s = socket as Socket & { userId?: string; user?: any };
 
-         // Check if user is authenticated
          if (s.userId && s.user) {
-            // Store connected user
             this.connectedUsers.set(s.userId, s.id);
 
-            // Join user to their personal notification room
             s.join(`notifications_${s.userId}`);
 
-            // Send current unread count when user connects
             this.sendUnreadCount(s.userId).catch((err) =>
                console.error("Error sending initial unread count:", err)
             );
 
-            // Emit connection success
             s.emit("notification_connected", {
                message: "Connected to notification service",
                userId: s.userId,
@@ -119,33 +145,16 @@ class NotificationSocketService {
             return;
          }
 
-         // Handle marking notification as read
-         s.on("markNotificationRead", async (notificationId: string) => {
-            await this.handleMarkAsRead(s, notificationId);
-         });
-
-         // Handle marking all notifications as read
-         s.on("markAllNotificationsRead", async () => {
-            await this.handleMarkAllAsRead(s);
-         });
-
-         // Handle getting unread notification count
          s.on("getUnreadCount", async () => {
             await this.handleGetUnreadCount(s);
          });
 
-         // Handle getting notification list
          s.on(
             "getNotifications",
             async (data: { page?: number; limit?: number }) => {
                await this.handleGetNotifications(s, data);
             }
          );
-
-         // Handle ping/pong for notification service health
-         s.on("notificationPing", () => {
-            s.emit("notificationPong", { timestamp: new Date().toISOString() });
-         });
 
          s.on("disconnect", (reason) => {
             if (s.userId) {
@@ -157,55 +166,6 @@ class NotificationSocketService {
             console.error("🚨 Notification socket error:", error);
          });
       });
-   }
-
-   private async handleMarkAsRead(
-      socket: Socket & { userId?: string },
-      notificationId: string
-   ) {
-      try {
-         if (!socket.userId) return;
-
-         const notification = await Notification.findOneAndUpdate(
-            { _id: notificationId, userId: socket.userId },
-            { isRead: true },
-            { new: true }
-         );
-
-         if (!notification) {
-            socket.emit("notification_error", {
-               message: "Notification not found",
-            });
-            return;
-         }
-
-         socket.emit("notificationMarkedRead", { notificationId });
-         await this.sendUnreadCount(socket.userId);
-      } catch (error) {
-         console.error("Error marking notification as read:", error);
-         socket.emit("notification_error", {
-            message: "Failed to mark notification as read",
-         });
-      }
-   }
-
-   private async handleMarkAllAsRead(socket: Socket & { userId?: string }) {
-      try {
-         if (!socket.userId) return;
-
-         await Notification.updateMany(
-            { userId: socket.userId, isRead: false },
-            { isRead: true }
-         );
-
-         socket.emit("allNotificationsMarkedRead");
-         await this.sendUnreadCount(socket.userId);
-      } catch (error) {
-         console.error("Error marking all notifications as read:", error);
-         socket.emit("notification_error", {
-            message: "Failed to mark all notifications as read",
-         });
-      }
    }
 
    private async handleGetUnreadCount(socket: Socket & { userId?: string }) {
@@ -296,20 +256,17 @@ class NotificationSocketService {
 
          await notification.save();
 
-         // Populate user data if needed
          await notification.populate({
             path: "userId",
             select: "name email avatarUrl",
          });
 
-         // Send to user's notification room
          this.notificationNamespace
             ?.to(`notifications_${userId}`)
             .emit("newNotification", {
                notification: notification.toObject(),
             });
 
-         // Send updated unread count
          await this.sendUnreadCount(userId);
 
          return notification;
