@@ -1,10 +1,9 @@
-import { Server, Socket } from "socket.io";
+import { Namespace, Socket } from "socket.io";
 import jwt from "jsonwebtoken";
 import { Types } from "mongoose";
 
 import Message from "../models/message.model";
 import User from "../models/user.model";
-import { Server as HttpServer } from "http";
 import { IMessage } from "../types/types/message";
 import conversationModel from "../models/conversation.model";
 import { IConversation } from "../types/types/conversation";
@@ -22,24 +21,19 @@ interface SendMessageData {
 }
 
 class SocketService {
-   private io: Server | null;
+   private chatNamespace: Namespace | null;
    private connectedUsers: Map<string, string>;
 
    constructor() {
-      this.io = null;
+      this.chatNamespace = null;
       this.connectedUsers = new Map();
    }
 
-   initialize(server: HttpServer) {
-      this.io = new Server(server, {
-         cors: {
-            origin: process.env.FRONTEND_URL || "http://localhost:5173",
-            methods: ["GET", "POST"],
-            credentials: true,
-         },
-      });
+   initialize(chatNamespace: Namespace) {
+      this.chatNamespace = chatNamespace;
 
-      this.io.use(async (socket: Socket, next) => {
+      // Authentication middleware for chat namespace
+      this.chatNamespace.use(async (socket: Socket, next) => {
          try {
             const auth = socket.handshake.auth || {};
             const query = socket.handshake.query || {};
@@ -52,6 +46,7 @@ class SocketService {
             if (!token) {
                return next(new Error("No token provided"));
             }
+
             const jwtSecret = process.env.JWT_SECRET;
             if (!jwtSecret) {
                return next(new Error("JWT secret is not configured"));
@@ -66,6 +61,7 @@ class SocketService {
             const user = (await User.findById(decoded.id).select(
                "-password"
             )) as any;
+
             if (!user) return next(new Error("User not found"));
             if (user.isBanned) return next(new Error("User is banned"));
 
@@ -76,37 +72,68 @@ class SocketService {
 
             next();
          } catch (error) {
-            console.error("Socket authentication error:", error);
             next(new Error("Authentication failed"));
          }
       });
 
-      this.io.on("connection", (socket: Socket) => {
+      this.chatNamespace.on("connection", (socket: Socket) => {
          const s = socket as Socket & { userId?: string; user?: any };
 
-         if (s.user) {
-            if (s.userId) this.connectedUsers.set(s.userId, s.id);
+         if (s.user && s.userId) {
+            // Store connected user for chat
+            this.connectedUsers.set(s.userId, s.id);
+
+            // Join user chat rooms
             this.joinUserRooms(s).catch((err) =>
                console.error("joinUserRooms error:", err)
             );
+
+            // Emit chat connection success
+            s.emit("chat_connected", {
+               message: "Connected to chat service",
+               userId: s.userId,
+               namespace: "chat",
+               timestamp: new Date().toISOString(),
+            });
          }
 
+         // Setup chat-specific event handlers
          s.on("joinChat", (chatId: string) => {
             s.join(`chat_${chatId}`);
+            s.emit("joinedChat", { chatId });
          });
 
          s.on("leaveChat", (chatId: string) => {
             s.leave(`chat_${chatId}`);
+            s.emit("leftChat", { chatId });
          });
 
          s.on("sendMessage", async (data: SendMessageData) => {
             await this.handleSendMessage(s, data);
          });
 
-         s.on("disconnect", () => {
-            if (s.user) {
-               if (s.userId) this.connectedUsers.delete(s.userId);
+         // Handle typing indicators
+         s.on("typing", (data: { chatId: string; isTyping: boolean }) => {
+            s.to(`chat_${data.chatId}`).emit("userTyping", {
+               userId: s.userId,
+               userName: s.user?.name,
+               isTyping: data.isTyping,
+            });
+         });
+
+         // Handle ping/pong for chat service health
+         s.on("chatPing", () => {
+            s.emit("chatPong", { timestamp: new Date().toISOString() });
+         });
+
+         s.on("disconnect", (reason) => {
+            if (s.userId) {
+               this.connectedUsers.delete(s.userId);
             }
+         });
+
+         s.on("error", (error) => {
+            console.error("🚨 Chat socket error:", error);
          });
       });
    }
@@ -119,8 +146,15 @@ class SocketService {
                participants: socket.userId,
             })
             .exec();
+
          chats.forEach((chat) => {
             socket.join(`chat_${String(chat._id)}`);
+         });
+
+         // Emit list of joined chats
+         socket.emit("joinedRooms", {
+            count: chats.length,
+            chatIds: chats.map((chat) => String(chat._id)),
          });
       } catch (error) {
          console.error("Error joining user rooms:", error);
@@ -176,12 +210,19 @@ class SocketService {
 
          chat.lastMessage = message._id as Types.ObjectId;
          chat.lastMessageAt = new Date();
-
          await chat.save();
 
-         this.io?.to(`chat_${chatId}`).emit("newMessage", {
+         // Emit to all users in the chat room
+         this.chatNamespace?.to(`chat_${chatId}`).emit("newMessage", {
             message: messageObj,
             chat: chatId,
+         });
+
+         // Emit success to sender
+         socket.emit("message_sent", {
+            messageId: message._id,
+            chatId,
+            timestamp: new Date().toISOString(),
          });
       } catch (error) {
          console.error("Error sending message:", error);
@@ -189,15 +230,29 @@ class SocketService {
       }
    }
 
-   // Hàm này không còn cần thiết nếu không dùng REST API để gửi tin nhắn nữa
-   // nhưng có thể giữ lại để dùng cho các mục đích khác (vd: thông báo hệ thống)
+   // External API for emitting messages (if needed)
    emitNewMessage(chatId: string, message: IMessage) {
-      if (this.io) {
-         this.io.to(`chat_${chatId}`).emit("newMessage", {
+      if (this.chatNamespace) {
+         this.chatNamespace.to(`chat_${chatId}`).emit("newMessage", {
             message,
             chat: chatId,
          });
       }
+   }
+
+   // Check if user is online in chat
+   isUserOnline(userId: string): boolean {
+      return this.connectedUsers.has(userId);
+   }
+
+   // Get connected users count
+   getConnectedUsersCount(): number {
+      return this.connectedUsers.size;
+   }
+
+   // Expose namespace for external use
+   getNamespace(): Namespace | null {
+      return this.chatNamespace;
    }
 }
 
