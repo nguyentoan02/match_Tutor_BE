@@ -7,6 +7,8 @@ import adminUserController from "./admin.user.controller";
 import adminTutorController from "./admin.tutor.controller";
 import adminTutorPackageController from "./admin.tutorPackage.controller";
 import adminDashboardController from "./admin.dashboard.controller";
+import adminRevenueController from "./admin.revenue.controller";
+import adminTransactionController from "./admin.transaction.controller";
 
 class AdminController {
    // User Ban Management
@@ -40,6 +42,14 @@ class AdminController {
 
    // Dashboard
    getDashboardSummary = adminDashboardController.getSummary;
+
+   // Revenue
+   getAdminRevenue = adminRevenueController.getAdminRevenue;
+
+   // Transactions
+   getTransactionHistory = adminTransactionController.getTransactionHistory;
+   getPackageTransactions = adminTransactionController.getPackageTransactions;
+   getAdminWalletBalance = adminTransactionController.getAdminWalletBalance;
 }
 
 export default new AdminController();

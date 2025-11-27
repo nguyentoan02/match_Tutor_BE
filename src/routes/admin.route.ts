@@ -21,6 +21,7 @@ import {
    getPackageByIdSchema,
    getTutorsUsingPackageSchema,
    updatePackageStatusSchema,
+   getTransactionHistorySchema,
 } from "../schemas/admin.schema";
 
 const router = Router();
@@ -31,6 +32,26 @@ router.use(isRole(Role.ADMIN));
 
 // ========== DASHBOARD ==========
 router.get("/dashboard/summary", adminController.getDashboardSummary);
+
+// ========== REVENUE ==========
+router.get("/revenue", adminController.getAdminRevenue);
+
+// ========== TRANSACTION HISTORY ==========
+router.get(
+   "/transactions",
+   validate(getTransactionHistorySchema),
+   adminController.getTransactionHistory
+);
+router.get(
+   "/transactions/packages",
+   validate(getTransactionHistorySchema),
+   adminController.getPackageTransactions
+);
+router.get(
+   "/wallet/balance",
+   validate(getAdminWalletBalanceSchema),
+   adminController.getAdminWalletBalance
+);
 
 // ========== BAN MANAGEMENT ==========
 router.post("/user/:id/ban", validate(banUserSchema), adminController.banUser);
