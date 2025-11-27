@@ -2,7 +2,7 @@
 import adminTutorService from "../../services/admin/admin.tutor.service";
 import { OK } from "../../utils/success.response";
 import { UnauthorizedError } from "../../utils/error.response";
-import { AcceptTutorParams, RejectTutorParams, RejectTutorBody, GetPendingTutorsQuery } from "../../schemas/admin.schema";
+import { AcceptTutorParams, RejectTutorParams, RejectTutorBody, GetPendingTutorsQuery, HideTutorParams } from "../../schemas/admin.schema";
 
 class AdminTutorController {
    async acceptTutor(req: Request<AcceptTutorParams>, res: Response, next: NextFunction) {
@@ -55,6 +55,16 @@ class AdminTutorController {
          const status = req.query.status as 'all' | 'pending' | 'approved' | 'banned' || 'all';
          const result = await adminTutorService.getTutorsWithMapping({ page, limit, search, status });
          new OK({ message: "Tutors with mapping retrieved successfully", metadata: result }).send(res);
+      } catch (err) { next(err); }
+   }
+
+   async hideTutor(req: Request<HideTutorParams>, res: Response, next: NextFunction) {
+      try {
+         const currentUser = req.user;
+         if (!currentUser || !currentUser._id) throw new UnauthorizedError("Not authenticated");
+         const { id: tutorId } = req.params;
+         const result = await adminTutorService.hideTutor(tutorId, currentUser._id.toString());
+         new OK({ message: "Tutor hidden successfully", metadata: result }).send(res);
       } catch (err) { next(err); }
    }
 }

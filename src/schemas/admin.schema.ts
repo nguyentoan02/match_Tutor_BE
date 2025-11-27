@@ -330,3 +330,12 @@ export type GetAdminTransactionHistoryQuery = z.infer<
 export const getAdminWalletBalanceSchema = z.object({
    query: z.object({}).optional(),
 });
+
+// Schema for hiding a tutor (due to violation report)
+export const hideTutorSchema = z.object({
+   params: z.object({
+      id: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid tutor ID format"),
+   }),
+});
+
+export type HideTutorParams = z.infer<typeof hideTutorSchema>["params"];

@@ -27,6 +27,7 @@ class AdminController {
    // Tutor Management
    acceptTutor = adminTutorController.acceptTutor;
    rejectTutor = adminTutorController.rejectTutor;
+   hideTutor = adminTutorController.hideTutor;
    getPendingTutors = adminTutorController.getPendingTutors;
    getTutorProfile = adminTutorController.getTutorProfile;
    getTutorsWithMapping = adminTutorController.getTutorsWithMapping;

@@ -22,6 +22,8 @@ import {
    getTutorsUsingPackageSchema,
    updatePackageStatusSchema,
    getTransactionHistorySchema,
+   getAdminWalletBalanceSchema,
+   hideTutorSchema,
 } from "../schemas/admin.schema";
 
 const router = Router();
@@ -104,6 +106,11 @@ router.post(
    "/tutor/:id/reject",
    validate(rejectTutorSchema),
    adminController.rejectTutor
+);
+router.post(
+   "/tutor/:id/hide",
+   validate(hideTutorSchema),
+   adminController.hideTutor
 );
 router.get(
    "/tutors/pending",
