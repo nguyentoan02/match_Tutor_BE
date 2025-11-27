@@ -38,6 +38,24 @@ class AiCreateQuizService {
 
       return aiResponse;
    }
+
+
+   async createSAQ(materialId: string): Promise<IQuizBody> {
+      const material = await materialModel.findById(materialId);
+      if (!material) {
+         throw new NotFoundError("not found this material");
+      }
+      if (!material.fileUrl) {
+         throw new BadRequestError("not found file URL");
+      }
+      const aiResponse = await generateQuizFromFileFlexible({
+         fileUrl: material.fileUrl,
+         type: QuestionTypeEnum.SHORT_ANSWER,
+      });
+
+      return aiResponse;
+   }
+
 }
 
 export default new AiCreateQuizService();
