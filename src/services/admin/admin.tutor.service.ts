@@ -1,5 +1,8 @@
 import Tutor from "../../models/tutor.model";
 import User from "../../models/user.model";
+import LearningCommitment from "../../models/learningCommitment.model";
+import Session from "../../models/session.model";
+import TeachingRequest from "../../models/teachingRequest.model";
 import { NotFoundError, BadRequestError } from "../../utils/error.response";
 import { ITutor } from "../../types/types/tutor";
 import { transporter } from "../../config/mail";
@@ -9,6 +12,9 @@ import {
 } from "../../template/adminEmail";
 import { getVietnamTime } from "../../utils/date.util";
 import { addEmbeddingJob } from "../../queues/embedding.queue";
+import { SessionStatus } from "../../types/enums/session.enum";
+import { TeachingRequestStatus } from "../../types/enums/teachingRequest.enum";
+import { Types } from "mongoose";
 
 export class AdminTutorService {
    // Accept tutor profile
@@ -270,6 +276,138 @@ export class AdminTutorService {
             total: totalUsers,
             pages: Math.ceil(totalUsers / limit),
          },
+      };
+   }
+
+   // Hide tutor (ban tutor profile due to report)
+   async hideTutor(tutorId: string, adminId: string): Promise<{ tutor: ITutor; message: string }> {
+      const tutor = await Tutor.findById(tutorId).populate('userId', 'name email');
+      if (!tutor) {
+         throw new NotFoundError("Tutor not found");
+      }
+
+      if (!tutor.isApproved) {
+         throw new BadRequestError("Tutor is already hidden (not approved)");
+      }
+
+      const tutorUserId = (tutor.userId as any)?._id || tutor.userId;
+      if (!tutorUserId) {
+         throw new NotFoundError("Tutor user not found");
+      }
+
+      // 1. Xử lý learning commitments đang active -> cancelled
+      const activeCommitments = await LearningCommitment.find({
+         tutor: tutor._id,
+         status: "active"
+      });
+
+      for (const commitment of activeCommitments) {
+         commitment.status = "cancelled";
+         commitment.cancellationReason = "Gia sư bị report";
+         // Set cancellation decision với tutor là người hủy
+         if (!commitment.cancellationDecision) {
+            commitment.cancellationDecision = {
+               student: { status: "PENDING" as any },
+               tutor: { status: "ACCEPTED" as any },
+               requestedBy: "tutor",
+               requestedAt: getVietnamTime(),
+               reason: "Gia sư bị report"
+            };
+         } else {
+            commitment.cancellationDecision.requestedBy = "tutor";
+            commitment.cancellationDecision.tutor.status = "ACCEPTED" as any;
+            commitment.cancellationDecision.tutor.reason = "Gia sư bị report";
+            commitment.cancellationDecision.requestedAt = getVietnamTime();
+            commitment.cancellationDecision.reason = "Gia sư bị report";
+         }
+         await commitment.save();
+      }
+
+      // 2. Xử lý learning commitments pending_agreement -> rejected
+      await LearningCommitment.updateMany(
+         {
+            tutor: tutor._id,
+            status: "pending_agreement"
+         },
+         {
+            status: "rejected"
+         }
+      );
+
+      // 3. Xử lý learning commitments cancellation_pending -> cancelled
+      const cancellationPendingCommitments = await LearningCommitment.find({
+         tutor: tutor._id,
+         status: "cancellation_pending"
+      });
+
+      for (const commitment of cancellationPendingCommitments) {
+         commitment.status = "cancelled";
+         commitment.cancellationReason = "Gia sư bị report";
+         if (commitment.cancellationDecision) {
+            commitment.cancellationDecision.requestedBy = "tutor";
+            commitment.cancellationDecision.tutor.status = "ACCEPTED" as any;
+            commitment.cancellationDecision.tutor.reason = "Gia sư bị report";
+            commitment.cancellationDecision.reason = "Gia sư bị report";
+         }
+         await commitment.save();
+      }
+
+      // 4. Xử lý sessions chưa học
+      const tutorUser = await User.findById(tutorUserId);
+      if (!tutorUser) {
+         throw new NotFoundError("Tutor user not found");
+      }
+
+      // Tìm tất cả learning commitments của tutor này
+      const allCommitments = await LearningCommitment.find({
+         tutor: tutor._id
+      }).select("_id");
+
+      const commitmentIds = allCommitments.map(c => c._id);
+
+      // Tìm sessions chưa học (chưa completed, chưa not_conducted, chưa cancelled)
+      const upcomingSessions = await Session.find({
+         learningCommitmentId: { $in: commitmentIds },
+         status: { $in: [SessionStatus.SCHEDULED, SessionStatus.CONFIRMED] },
+         startTime: { $gt: getVietnamTime() } // Chưa diễn ra
+      });
+
+      for (const session of upcomingSessions) {
+         // Nếu student đã đồng ý tham gia (ACCEPTED) -> CANCELLED
+         if (session.studentConfirmation?.status === "ACCEPTED") {
+            session.status = SessionStatus.CANCELLED;
+            session.cancellation = {
+               cancelledBy: new Types.ObjectId(tutorUserId),
+               reason: "Gia sư bị admin ẩn profile",
+               cancelledAt: getVietnamTime()
+            };
+         }
+         // Nếu chưa có student confirmation hoặc status là SCHEDULED -> REJECTED (không đồng ý tham gia)
+         else {
+            session.status = SessionStatus.REJECTED;
+         }
+         await session.save();
+      }
+
+    // 5. Đánh dấu mọi teaching request chưa bị từ chối thành REJECTED
+    await TeachingRequest.updateMany(
+      {
+        tutorId: tutor._id,
+        status: { $in: [TeachingRequestStatus.PENDING, TeachingRequestStatus.ACCEPTED] },
+      },
+      {
+        status: TeachingRequestStatus.REJECTED,
+      }
+    );
+
+    // 6. Ẩn tutor (set isApproved = false, xóa embedding)
+      tutor.isApproved = false;
+      tutor.embedding = [];
+      await tutor.save();
+
+      return {
+         tutor: tutor.toObject() as ITutor,
+         message: "Tutor hidden successfully and all related commitments/sessions processed"
       };
    }
 }

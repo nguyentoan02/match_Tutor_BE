@@ -148,6 +148,40 @@ export const getActiveStudentsSchema = z.object({
    }),
 });
 
+export const getTransactionHistorySchema = z.object({
+   query: z
+      .object({
+         page: z
+            .coerce.number()
+            .int()
+            .positive()
+            .max(1000)
+            .optional()
+            .default(1),
+         limit: z
+            .coerce.number()
+            .int()
+            .positive()
+            .max(100)
+            .optional()
+            .default(20),
+         type: z.enum(["package", "learningCommitment"]).optional(),
+         status: z.enum(["PENDING", "SUCCESS", "FAILED", "PAID"]).optional(),
+         userId: z.string().regex(/^[0-9a-fA-F]{24}$/).optional(),
+         search: z.string().optional(),
+         startDate: z.coerce.date().optional(),
+         endDate: z.coerce.date().optional(),
+      })
+      .refine(
+         (data) =>
+            !data.startDate || !data.endDate || data.startDate <= data.endDate,
+         {
+            message: "startDate must be earlier than or equal to endDate",
+            path: ["endDate"],
+         }
+      ),
+});
+
 // Schema for accepting a tutor
 export const acceptTutorSchema = z.object({
    params: z.object({
@@ -288,3 +322,20 @@ export type RejectTutorBody = z.infer<typeof rejectTutorSchema>["body"];
 export type GetPendingTutorsQuery = z.infer<
    typeof getPendingTutorsSchema
 >["query"];
+export type GetAdminTransactionHistoryQuery = z.infer<
+   typeof getTransactionHistorySchema
+>["query"];
+
+// Schema for getting admin wallet balance (no query params needed)
+export const getAdminWalletBalanceSchema = z.object({
+   query: z.object({}).optional(),
+});
+
+// Schema for hiding a tutor (due to violation report)
+export const hideTutorSchema = z.object({
+   params: z.object({
+      id: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid tutor ID format"),
+   }),
+});
+
+export type HideTutorParams = z.infer<typeof hideTutorSchema>["params"];
