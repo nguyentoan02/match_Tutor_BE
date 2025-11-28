@@ -78,6 +78,31 @@ class AdminLearningController {
       }
    };
 
+   // GET: List resolved cases (already handled by admin)
+   getResolvedCases = async (
+      req: Request,
+      res: Response,
+      next: NextFunction
+   ) => {
+      try {
+         const { page, limit } = req.query;
+
+         const result = await adminLearningService.getResolvedCases(
+            page ? parseInt(page as string) : 1,
+            limit ? parseInt(limit as string) : 10
+         );
+
+         res.status(200).json({
+            success: true,
+            data: result.data,
+            pagination: result.pagination,
+            message: "Danh sách các learning commitment đã xử lý",
+         });
+      } catch (error) {
+         next(error);
+      }
+   };
+
    // POST: Handle cancellation disagreement
    handleCancellationDisagreement = async (
       req: Request,

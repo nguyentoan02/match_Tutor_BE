@@ -65,10 +65,10 @@ const TutorSchema: Schema<ITutor> = new Schema(
       maxStudents: { type: Number, default: 10 },
       maxQuiz: { type: Number, default: 10 },
       //thêm trường này để phục vụ cho việc search bằng AI cho nó xịn xịn :v
-      embedding: { 
-         type: [Number], 
+      embedding: {
+         type: [Number],
          default: [],
-         index: true
+         index: true,
       },
    },
    {
@@ -84,5 +84,5 @@ TutorSchema.index({ isApproved: 1, levels: 1 });
 TutorSchema.index({ "ratings.average": -1 });
 TutorSchema.index({ hourlyRate: 1 });
 TutorSchema.index({ embedding: "2dsphere" });
-
+TutorSchema.index({ userId: 1 });
 export default mongoose.model<ITutor>("Tutor", TutorSchema);

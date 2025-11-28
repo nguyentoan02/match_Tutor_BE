@@ -271,10 +271,25 @@ class SessionService {
       }
 
       const completed = commitment.completedSessions || 0;
+      const notConducted = commitment.absentSessions || 0;
       const total = commitment.totalSessions;
-      if (completed >= total) {
+
+      // Count existing sessions (excluding deleted, cancelled, rejected, NOT_CONDUCTED)
+      const existingSessions = await Session.countDocuments({
+         learningCommitmentId: commitment._id,
+         isDeleted: { $ne: true },
+         status: {
+            $nin: [
+               SessionStatus.REJECTED,
+               SessionStatus.CANCELLED,
+               SessionStatus.NOT_CONDUCTED,
+            ],
+         },
+      });
+
+      if (completed + existingSessions >= total) {
          throw new BadRequestError(
-            "Number of sessions exceeds the commitment's total sessions."
+            `Cannot create session: Already have ${completed} completed and ${existingSessions} scheduled sessions (not counting ${notConducted} absent sessions). Total commitment requires ${total} sessions.`
          );
       }
 
@@ -289,7 +304,13 @@ class SessionService {
       const tutorConflict = await Session.findOne({
          learningCommitmentId: { $in: tutorCommitmentIds },
          isDeleted: { $ne: true },
-         status: { $nin: [SessionStatus.REJECTED, SessionStatus.CANCELLED] },
+         status: {
+            $nin: [
+               SessionStatus.REJECTED,
+               SessionStatus.CANCELLED,
+               SessionStatus.NOT_CONDUCTED,
+            ],
+         },
          $or: [{ startTime: { $lt: newEnd }, endTime: { $gt: newStart } }],
       }).lean();
       if (tutorConflict) {
@@ -308,7 +329,13 @@ class SessionService {
       const studentConflict = await Session.findOne({
          learningCommitmentId: { $in: studentCommitmentIds },
          isDeleted: { $ne: true },
-         status: { $nin: [SessionStatus.REJECTED, SessionStatus.CANCELLED] },
+         status: {
+            $nin: [
+               SessionStatus.REJECTED,
+               SessionStatus.CANCELLED,
+               SessionStatus.NOT_CONDUCTED,
+            ],
+         },
          $or: [{ startTime: { $lt: newEnd }, endTime: { $gt: newStart } }],
       }).lean();
       if (studentConflict) {
@@ -582,6 +609,14 @@ class SessionService {
                this.STUDENT_CHECKIN_GRACE_MINUTES * 60 * 1000
          );
       session.attendanceWindow = { tutorDeadline, studentDeadline };
+
+      if (userRole === Role.STUDENT) {
+         if (session.attendanceConfirmation.tutor.status !== "ACCEPTED") {
+            throw new BadRequestError(
+               "Student can reject only after tutor has checked in."
+            );
+         }
+      }
 
       if (userRole === Role.TUTOR) {
          if (session.attendanceConfirmation.tutor.status !== "PENDING") {

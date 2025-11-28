@@ -155,4 +155,9 @@ const SessionSchema: Schema<ISession> = new Schema(
 
 SessionSchema.index({ teachingRequestId: 1, startTime: 1 });
 
+SessionSchema.index({ learningCommitmentId: 1, startTime: 1, status: 1 });
+
+// Index này phục vụ cho việc đếm Status (Pie chart)
+SessionSchema.index({ learningCommitmentId: 1, status: 1 });
+
 export default mongoose.model<ISession>("Session", SessionSchema);

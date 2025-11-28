@@ -35,6 +35,12 @@ const TeachingRequestSchema: Schema<ITeachingRequest> = new Schema(
 
 TeachingRequestSchema.index({ studentId: 1, tutorId: 1, status: 1 });
 
+// 1. Để đếm nhanh: countDocuments({ tutorId: ..., status: 'ACCEPTED' })
+TeachingRequestSchema.index({ tutorId: 1, status: 1 });
+
+// 2. Để vẽ biểu đồ theo thời gian: aggregate match { tutorId: ..., createdAt: ... }
+TeachingRequestSchema.index({ tutorId: 1, createdAt: 1 });
+
 export default mongoose.model<ITeachingRequest>(
    "TeachingRequest",
    TeachingRequestSchema

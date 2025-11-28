@@ -50,5 +50,6 @@ const QuizSchema: Schema<IQuiz> = new Schema(
 );
 
 QuizSchema.index({ sessionId: 1 });
-
+// Giúp đếm số lượng quiz của user ngay lập tức
+QuizSchema.index({ createdBy: 1 });
 export default mongoose.model<IQuiz>("Quiz", QuizSchema);

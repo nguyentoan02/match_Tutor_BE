@@ -12,6 +12,7 @@ router.use(authenticate, isRole(Role.ADMIN));
 router.get("/", controller.listLearningCommitments);
 
 router.get("/disagreements", controller.getDisagreementCases);
+router.get("/resolved", controller.getResolvedCases);
 
 router.get("/:id", controller.getLearningCommitmentDetail);
 
