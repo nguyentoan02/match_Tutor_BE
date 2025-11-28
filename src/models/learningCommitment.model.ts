@@ -25,6 +25,28 @@ export interface ICancellationDecisionHistory extends ICancellationDecision {
    resolvedDate?: Date; // Thời gian lưu vào history
 }
 
+export type LearningCommitmentStatus =
+   | "pending_agreement"
+   | "active"
+   | "completed"
+   | "cancelled"
+   | "cancellation_pending"
+   | "admin_review"
+   | "rejected";
+
+export interface IAdminDisputeLog {
+   action:
+      | "resolve_disagreement"
+      | "approve_cancellation"
+      | "reject_cancellation";
+   admin: Types.ObjectId;
+   notes?: string;
+   handledAt: Date;
+   statusAfter: LearningCommitmentStatus;
+   cancellationDecisionSnapshot?: ICancellationDecision;
+   _id?: Types.ObjectId;
+}
+
 export interface ILearningCommitment extends Document {
    tutor: Types.ObjectId;
    student: Types.ObjectId;
@@ -34,14 +56,7 @@ export interface ILearningCommitment extends Document {
    endDate: Date;
    totalAmount: number;
    studentPaidAmount: number;
-   status:
-      | "pending_agreement"
-      | "active"
-      | "completed"
-      | "cancelled"
-      | "cancellation_pending"
-      | "admin_review"
-      | "rejected"; // Thêm trạng thái này
+   status: LearningCommitmentStatus; // Thêm trạng thái này
    cancellationReason?: string;
    completedSessions: number;
    absentSessions: number;
@@ -50,6 +65,7 @@ export interface ILearningCommitment extends Document {
    // Cancellation decision and history
    cancellationDecision?: ICancellationDecision;
    cancellationDecisionHistory?: ICancellationDecisionHistory[];
+   adminDisputeLogs?: IAdminDisputeLog[];
    isMoneyTransferred: boolean; // Field to track money transfer status
 }
 
@@ -139,6 +155,60 @@ const learningCommitmentSchema = new Schema<ILearningCommitment>(
             resolvedDate: { type: Date },
          },
       ],
+      adminDisputeLogs: [
+         {
+            action: {
+               type: String,
+               enum: [
+                  "resolve_disagreement",
+                  "approve_cancellation",
+                  "reject_cancellation",
+               ],
+               required: true,
+            },
+            admin: { type: Schema.Types.ObjectId, ref: "User", required: true },
+            notes: { type: String },
+            handledAt: { type: Date, default: Date.now },
+            statusAfter: {
+               type: String,
+               enum: [
+                  "pending_agreement",
+                  "active",
+                  "completed",
+                  "cancelled",
+                  "cancellation_pending",
+                  "admin_review",
+                  "rejected",
+               ],
+               required: true,
+            },
+            cancellationDecisionSnapshot: {
+               student: {
+                  status: {
+                     type: String,
+                     enum: CANCELLATION_STATUS_VALUES,
+                     default: CancellationStatus.PENDING,
+                  },
+                  reason: { type: String },
+               },
+               tutor: {
+                  status: {
+                     type: String,
+                     enum: CANCELLATION_STATUS_VALUES,
+                     default: CancellationStatus.PENDING,
+                  },
+                  reason: { type: String },
+               },
+               requestedBy: { type: String, enum: ["student", "tutor"] },
+               requestedAt: { type: Date },
+               reason: { type: String },
+               adminReviewRequired: { type: Boolean },
+               adminResolvedBy: { type: Schema.Types.ObjectId, ref: "User" },
+               adminResolvedAt: { type: Date },
+               adminNotes: { type: String },
+            },
+         },
+      ],
       isMoneyTransferred: { type: Boolean, default: false },
    },
    { timestamps: true }
@@ -149,4 +219,10 @@ const LearningCommitment = model<ILearningCommitment>(
    learningCommitmentSchema
 );
 
+// Giúp lấy danh sách hợp đồng của Tutor
+// Thêm status vào để phục vụ query đếm status (Pie Chart)
+learningCommitmentSchema.index({ tutor: 1, status: 1 });
+
+// Nếu sau này Student cũng cần dashboard, thêm cái này:
+learningCommitmentSchema.index({ student: 1, status: 1 });
 export default LearningCommitment;

@@ -46,6 +46,8 @@ const paymentSchema = new Schema<IPayment>(
    { timestamps: true }
 );
 
+// Tạo index phức hợp bao phủ toàn bộ điều kiện query
+paymentSchema.index({ userId: 1, type: 1, status: 1 });
 const Payment = model<IPayment>("Payment", paymentSchema);
 
 export default Payment;
