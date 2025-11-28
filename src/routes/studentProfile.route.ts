@@ -8,6 +8,7 @@ import {
 import { authenticate } from "../middlewares/auth.middleware";
 import { uploadSingle } from "../middlewares/upload.middleware";
 import { parseJsonFields } from "../middlewares/jsonfields.moddleware";
+import studentDashboardController from "../controllers/studentDashboard.controller";
 
 const router = Router();
 
@@ -33,6 +34,12 @@ router.put(
    validate(updateStudentProfileSchema),
    authenticate,
    studentController.updateUserProfile
+);
+
+router.get(
+   "/dashboard",
+   authenticate,
+   studentDashboardController.getDashboard
 );
 
 export default router;
