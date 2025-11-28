@@ -158,8 +158,7 @@ class doQuizService {
             await addNotificationJob(
                quiz.createdBy.toString(),
                "Bài tập trắc nghiệm đã được hoàn thành",
-               `Quiz "${quiz.title || "Untitled"}" đã được hoàn thành bởi ${
-                  student.name
+               `Quiz "${quiz.title || "Untitled"}" đã được hoàn thành bởi ${student.name
                }`
             );
             console.log(`📨 Notification queued for tutor: ${quiz.createdBy}`);
@@ -208,8 +207,7 @@ class doQuizService {
             await addNotificationJob(
                quiz.createdBy.toString(), // Convert ObjectId to string
                "Bài tập tự luận đã được hoàn thành",
-               `Quiz "${quiz.title || "Untitled"}" đã được hoàn thành bởi ${
-                  student.name
+               `Quiz "${quiz.title || "Untitled"}" đã được hoàn thành bởi ${student.name
                }`
             );
             console.log(`📨 Notification queued for tutor: ${quiz.createdBy}`);
@@ -244,7 +242,7 @@ class doQuizService {
          .populate({
             path: "quizId",
             match: { quizType: QuestionTypeEnum.SHORT_ANSWER },
-            select: "title description quizMode quizType totalQuestions -_id",
+            select: "title description quizMode quizType totalQuestions",
          })
          .populate({ path: "studentId", select: "name email -_id" })
          .populate({
