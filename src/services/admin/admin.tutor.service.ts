@@ -3,6 +3,7 @@ import User from "../../models/user.model";
 import LearningCommitment from "../../models/learningCommitment.model";
 import Session from "../../models/session.model";
 import TeachingRequest from "../../models/teachingRequest.model";
+import ViolationReport from "../../models/violationReport.model";
 import { NotFoundError, BadRequestError } from "../../utils/error.response";
 import { ITutor } from "../../types/types/tutor";
 import { transporter } from "../../config/mail";
@@ -14,10 +15,11 @@ import { getVietnamTime } from "../../utils/date.util";
 import { addEmbeddingJob } from "../../queues/embedding.queue";
 import { SessionStatus } from "../../types/enums/session.enum";
 import { TeachingRequestStatus } from "../../types/enums/teachingRequest.enum";
+import { ViolationStatusEnum } from "../../types/enums/violationReport.enum";
 import { Types } from "mongoose";
 
 export class AdminTutorService {
-   // Accept tutor profile
+   // Accept tutor profile (cho phép accept lại ngay cả khi đã bị report)
    async acceptTutor(tutorId: string, adminId: string): Promise<{ tutor: ITutor; approvedAt: Date }> {
       const tutor = await Tutor.findById(tutorId).populate('userId', 'name email isBanned');
       if (!tutor) {
@@ -37,11 +39,12 @@ export class AdminTutorService {
       // add create embeding job
       await addEmbeddingJob(user.toString());     
 
-      // Update tutor approval status
+      // Update tutor approval status (cho phép approve lại ngay cả khi đã bị report)
       tutor.isApproved = true;
       tutor.approvedAt = getVietnamTime();
       tutor.rejectedReason = undefined; // Xóa lý do từ chối cũ (nếu có)
       tutor.rejectedAt = undefined;
+      // Giữ lại hasBeenReported và reportedAt để lưu lịch sử, không xóa
       await tutor.save();
       const approvedAt = tutor.approvedAt;
 
@@ -365,26 +368,39 @@ export class AdminTutorService {
 
       const commitmentIds = allCommitments.map(c => c._id);
 
-      // Tìm sessions chưa học (chưa completed, chưa not_conducted, chưa cancelled)
+      // Tìm sessions chưa học (chưa completed, chưa not_conducted, chưa cancelled, chưa rejected)
       const upcomingSessions = await Session.find({
          learningCommitmentId: { $in: commitmentIds },
          status: { $in: [SessionStatus.SCHEDULED, SessionStatus.CONFIRMED] },
-         startTime: { $gt: getVietnamTime() } // Chưa diễn ra
+         startTime: { $gt: getVietnamTime() }, // Chưa diễn ra
+         isDeleted: { $ne: true } // Chưa bị xóa
       });
 
+      const now = getVietnamTime();
       for (const session of upcomingSessions) {
-         // Nếu student đã đồng ý tham gia (ACCEPTED) -> CANCELLED
-         if (session.studentConfirmation?.status === "ACCEPTED") {
+         // Nếu session ở status CONFIRMED (student đã ACCEPT) -> CANCELLED
+         if (session.status === SessionStatus.CONFIRMED && session.studentConfirmation?.status === "ACCEPTED") {
             session.status = SessionStatus.CANCELLED;
             session.cancellation = {
                cancelledBy: new Types.ObjectId(tutorUserId),
                reason: "Gia sư bị admin ẩn profile",
-               cancelledAt: getVietnamTime()
+               cancelledAt: now
             };
          }
-         // Nếu chưa có student confirmation hoặc status là SCHEDULED -> REJECTED (không đồng ý tham gia)
-         else {
+         // Nếu session ở status SCHEDULED (student chưa confirm hoặc PENDING) -> REJECTED
+         // Theo logic session.service.ts confirmParticipation khi student REJECT
+         else if (session.status === SessionStatus.SCHEDULED) {
             session.status = SessionStatus.REJECTED;
+            session.isDeleted = true;
+            session.deletedAt = now;
+            session.deletedBy = new Types.ObjectId(tutorUserId);
+            // Cập nhật studentConfirmation nếu chưa có hoặc đang PENDING
+            if (!session.studentConfirmation || session.studentConfirmation.status === "PENDING") {
+               session.studentConfirmation = {
+                  status: "REJECTED",
+                  confirmedAt: now
+               };
+            }
          }
          await session.save();
       }
@@ -400,10 +416,31 @@ export class AdminTutorService {
       }
     );
 
-    // 6. Ẩn tutor (set isApproved = false, xóa embedding)
-      tutor.isApproved = false;
-      tutor.embedding = [];
-      await tutor.save();
+    // 6. Tự động cập nhật tất cả reports PENDING của tutor này thành RESOLVED
+    // (Khi nhiều student report cùng 1 tutor, tất cả reports sẽ được xử lý cùng lúc)
+    await ViolationReport.updateMany(
+      {
+        reportedUserId: new Types.ObjectId(tutorUserId),
+        status: ViolationStatusEnum.PENDING
+      },
+      {
+        status: ViolationStatusEnum.RESOLVED
+      }
+    );
+
+    // 7. Ẩn tutor (set isApproved = false, xóa embedding, lưu lịch sử report)
+    // Đếm tổng số reports (PENDING + RESOLVED) để cập nhật reportCount chính xác
+    const totalReports = await ViolationReport.countDocuments({
+      reportedUserId: new Types.ObjectId(tutorUserId),
+      status: { $in: [ViolationStatusEnum.PENDING, ViolationStatusEnum.RESOLVED] }
+    });
+
+    tutor.isApproved = false;
+    tutor.embedding = [];
+    tutor.hasBeenReported = true; // Đánh dấu đã bị report
+    tutor.reportedAt = getVietnamTime(); // Lưu thời điểm bị report
+    tutor.reportCount = totalReports; // Cập nhật số lượng reports thực tế
+    await tutor.save();
 
       return {
          tutor: tutor.toObject() as ITutor,

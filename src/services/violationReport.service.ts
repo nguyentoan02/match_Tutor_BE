@@ -6,23 +6,64 @@ import { IViolationReport } from "../types/types/violationReport";
 import { BadRequestError, NotFoundError, ForbiddenError } from "../utils/error.response";
 import { ViolationTypeEnum, ViolationStatusEnum } from "../types/enums/violationReport.enum";
 import { Types } from "mongoose";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
+import s3Client from "../config/r2";
+import { v4 as uuidv4 } from "uuid";
 
 export class ViolationReportService {
    /**
+    * Upload evidence file lên R2
+    */
+   async uploadEvidenceFile(file: Express.Multer.File): Promise<string> {
+      const fileKey = `violation-reports/${uuidv4()}-${file.originalname}`;
+      const bucketName = process.env.R2_BUCKET_NAME;
+      const publicUrl = process.env.R2_PUBLIC_URL;
+
+      if (!bucketName || !publicUrl) {
+         throw new BadRequestError("R2 bucket name or public URL is not configured.");
+      }
+
+      try {
+         const params = {
+            Bucket: bucketName,
+            Key: fileKey,
+            Body: file.buffer,
+            ContentType: file.mimetype,
+         };
+
+         await s3Client.send(new PutObjectCommand(params));
+         return `${publicUrl}/${fileKey}`;
+      } catch (error) {
+         throw new BadRequestError(`Failed to upload file: ${error instanceof Error ? error.message : "Unknown error"}`);
+      }
+   }
+
+   /**
     * Kiểm tra student có thể report tutor không
     * Student phải có ít nhất 1 learning commitment với tutor ở status completed hoặc cancelled
+    * Và chưa có report đang PENDING hoặc RESOLVED
     */
-   async canStudentReportTutor(studentUserId: string, tutorId: string): Promise<boolean> {
+   async canStudentReportTutor(studentUserId: string, tutorId: string): Promise<{
+      canReport: boolean;
+      hasReported: boolean; // true nếu đã report, false nếu chưa report
+      reason?: string;
+      existingReportId?: string;
+   }> {
       // Tìm student profile
       const student = await Student.findOne({ userId: studentUserId }).select("_id");
       if (!student) {
          throw new NotFoundError("Student profile not found");
       }
 
-      // Tìm tutor profile
-      const tutor = await Tutor.findById(tutorId).select("_id");
+      // Tìm tutor profile và userId
+      const tutor = await Tutor.findById(tutorId).populate("userId", "_id").select("userId");
       if (!tutor) {
          throw new NotFoundError("Tutor not found");
+      }
+
+      const tutorUserId = (tutor.userId as any)?._id || tutor.userId;
+      if (!tutorUserId) {
+         throw new NotFoundError("Tutor user not found");
       }
 
       // Kiểm tra có learning commitment với status completed hoặc cancelled
@@ -32,7 +73,34 @@ export class ViolationReportService {
          status: { $in: ["completed", "cancelled"] }
       });
 
-      return !!commitment;
+      if (!commitment) {
+         return {
+            canReport: false,
+            hasReported: false, // Chưa report, chỉ là chưa đủ điều kiện
+            reason: "You can only report a tutor if you have at least one completed or cancelled learning commitment with them"
+         };
+      }
+
+      // Kiểm tra xem đã có report chưa
+      const existingReport = await ViolationReport.findOne({
+         reporterId: new Types.ObjectId(studentUserId),
+         reportedUserId: new Types.ObjectId(tutorUserId),
+         status: { $in: [ViolationStatusEnum.PENDING, ViolationStatusEnum.RESOLVED] },
+      }).select("_id status");
+
+      if (existingReport) {
+         return {
+            canReport: false,
+            hasReported: true, // Đã report rồi
+            reason: "You have already reported this tutor. Please wait for the current report to be processed.",
+            existingReportId: (existingReport._id as Types.ObjectId).toString()
+         };
+      }
+
+      return { 
+         canReport: true,
+         hasReported: false // Có thể report
+      };
    }
 
    /**
@@ -65,11 +133,11 @@ export class ViolationReportService {
          throw new NotFoundError("Tutor user not found");
       }
 
-      // Kiểm tra student có thể report tutor
-      const canReport = await this.canStudentReportTutor(reporterUserId, tutorId);
-      if (!canReport) {
-         throw new ForbiddenError(
-            "You can only report a tutor if you have at least one completed or cancelled learning commitment with them"
+      // Kiểm tra student có thể report tutor (bao gồm kiểm tra duplicate)
+      const checkResult = await this.canStudentReportTutor(reporterUserId, tutorId);
+      if (!checkResult.canReport) {
+         throw new BadRequestError(
+            checkResult.reason || "Cannot report this tutor"
          );
       }
 
@@ -109,6 +177,49 @@ export class ViolationReportService {
       const [reports, total] = await Promise.all([
          ViolationReport.find(filter)
             .populate("reporterId", "name email")
+            .populate("reportedUserId", "name email")
+            .populate("relatedTeachingRequestId")
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .lean(),
+         ViolationReport.countDocuments(filter),
+      ]);
+
+      return {
+         reports,
+         pagination: {
+            page,
+            limit,
+            total,
+            pages: Math.ceil(total / limit),
+         },
+      };
+   }
+
+   /**
+    * Lấy danh sách violation reports mà student đã tạo (cho student xem)
+    */
+   async getReportsByStudent(
+      studentUserId: string,
+      query: {
+         page?: number;
+         limit?: number;
+         status?: ViolationStatusEnum;
+         type?: ViolationTypeEnum;
+      }
+   ) {
+      const { page = 1, limit = 10, status, type } = query;
+      const skip = (page - 1) * limit;
+
+      const filter: any = {
+         reporterId: new Types.ObjectId(studentUserId),
+      };
+      if (status) filter.status = status;
+      if (type) filter.type = type;
+
+      const [reports, total] = await Promise.all([
+         ViolationReport.find(filter)
             .populate("reportedUserId", "name email")
             .populate("relatedTeachingRequestId")
             .sort({ createdAt: -1 })

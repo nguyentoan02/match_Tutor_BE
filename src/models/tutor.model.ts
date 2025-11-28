@@ -53,6 +53,9 @@ const TutorSchema: Schema<ITutor> = new Schema(
       approvedAt: { type: Date },
       rejectedReason: { type: String },
       rejectedAt: { type: Date },
+      hasBeenReported: { type: Boolean, default: false }, // Đã từng bị report
+      reportedAt: { type: Date }, // Thời điểm bị report (ẩn)
+      reportCount: { type: Number, default: 0 }, // Số lần bị report
       ratings: {
          average: { type: Number, default: 0 },
          totalReviews: { type: Number, default: 0 },
