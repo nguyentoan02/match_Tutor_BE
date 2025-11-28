@@ -43,6 +43,9 @@ export interface ITutor extends Document {
    approvedAt?: Date; // Thời điểm được duyệt
    rejectedReason?: string; // Lý do từ chối
    rejectedAt?: Date; // Thời điểm bị từ chối
+   hasBeenReported?: boolean; // Đã từng bị report
+   reportedAt?: Date; // Thời điểm bị report (ẩn)
+   reportCount?: number; // Số lần bị report
    ratings?: IRating;
 
    maxStudents: number;
