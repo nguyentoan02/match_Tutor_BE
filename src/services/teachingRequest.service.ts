@@ -99,32 +99,76 @@ class TeachingRequestService {
       return request;
    }
 
-   async listForStudent(studentUserId: string) {
+   async listForStudent(studentUserId: string, page = 1, limit = 10) {
       const student = await Student.findOne({ userId: studentUserId }).select(
          "_id"
       );
       if (!student) throw new NotFoundError("Student profile not found");
 
-      return TeachingRequest.find({ studentId: student._id })
+      const maxLimit = 100;
+      const safeLimit = Math.min(Math.max(1, Number(limit) || 10), maxLimit);
+      const safePage = Math.max(1, Number(page) || 1);
+      const skip = (safePage - 1) * safeLimit;
+
+      const filter = { studentId: student._id };
+
+      const total = await TeachingRequest.countDocuments(filter);
+      const data = await TeachingRequest.find(filter)
          .populate({
             path: "tutorId",
             select: "userId",
             populate: { path: "userId", select: "name avatarUrl" },
          })
-         .sort({ createdAt: -1 });
+         .sort({ createdAt: -1 })
+         .skip(skip)
+         .limit(safeLimit);
+
+      const totalPages = Math.max(1, Math.ceil(total / safeLimit));
+
+      return {
+         data,
+         pagination: {
+            page: safePage,
+            limit: safeLimit,
+            total,
+            totalPages,
+         },
+      };
    }
 
-   async listForTutor(tutorUserId: string) {
+   async listForTutor(tutorUserId: string, page = 1, limit = 10) {
       const tutor = await Tutor.findOne({ userId: tutorUserId }).select("_id");
       if (!tutor) throw new NotFoundError("Tutor profile not found");
 
-      return TeachingRequest.find({ tutorId: tutor._id })
+      const maxLimit = 100;
+      const safeLimit = Math.min(Math.max(1, Number(limit) || 10), maxLimit);
+      const safePage = Math.max(1, Number(page) || 1);
+      const skip = (safePage - 1) * safeLimit;
+
+      const filter = { tutorId: tutor._id };
+
+      const total = await TeachingRequest.countDocuments(filter);
+      const data = await TeachingRequest.find(filter)
          .populate({
             path: "studentId",
             select: "userId",
             populate: { path: "userId", select: "name avatarUrl" },
          })
-         .sort({ createdAt: -1 });
+         .sort({ createdAt: -1 })
+         .skip(skip)
+         .limit(safeLimit);
+
+      const totalPages = Math.max(1, Math.ceil(total / safeLimit));
+
+      return {
+         data,
+         pagination: {
+            page: safePage,
+            limit: safeLimit,
+            total,
+            totalPages,
+         },
+      };
    }
 
    async getStudentProfile(studentId: string) {

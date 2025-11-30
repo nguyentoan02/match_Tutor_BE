@@ -424,18 +424,29 @@ async function processMoneyTransfer(commitment: ILearningCommitment) {
                studentWallet.balance += amountForUntrainedSessions;
             }
          } else {
-            // Học sinh huỷ: tiền buổi hoàn thành 90% cho gia sư 10% cho admin, tiền buổi chưa học về admin
-            const tutorAmount = amountForTaughtSessions * 0.9;
+            // Học sinh huỷ: tiền buổi hoàn thành 90% cho gia sư 10% cho admin
+            // tiền buổi chưa học: admin 10%, gia sư 40%, học sinh 50%
+            const tutorAmountFromTaught = amountForTaughtSessions * 0.9;
             const adminAmountFromTaught = amountForTaughtSessions * 0.1;
 
-            if (tutorAmount > 0) {
-               tutorWallet.balance += tutorAmount;
+            const adminAmountFromUntrained = amountForUntrainedSessions * 0.1;
+            const tutorAmountFromUntrained = amountForUntrainedSessions * 0.4;
+            const studentAmountFromUntrained = amountForUntrainedSessions * 0.5;
+
+            if (tutorAmountFromTaught > 0) {
+               tutorWallet.balance += tutorAmountFromTaught;
             }
             if (adminAmountFromTaught > 0) {
                adminWallet.balance += adminAmountFromTaught;
             }
-            if (amountForUntrainedSessions > 0) {
-               adminWallet.balance += amountForUntrainedSessions;
+            if (tutorAmountFromUntrained > 0) {
+               tutorWallet.balance += tutorAmountFromUntrained;
+            }
+            if (adminAmountFromUntrained > 0) {
+               adminWallet.balance += adminAmountFromUntrained;
+            }
+            if (studentAmountFromUntrained > 0) {
+               studentWallet.balance += studentAmountFromUntrained;
             }
          }
 
