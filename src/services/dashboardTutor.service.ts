@@ -4,7 +4,6 @@ import TeachingRequest from "../models/teachingRequest.model";
 import Session from "../models/session.model";
 import Payment from "../models/payment.model";
 import { Types } from "mongoose";
-import { TEACHING_REQUEST_STATUS_VALUES } from "../types/enums/teachingRequest.enum";
 
 class DashboardService {
    // Trả về đúng các trường: activeStudents, maxStudents, maxQuiz, teachingRequestsReceived

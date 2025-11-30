@@ -271,25 +271,29 @@ class SessionService {
       }
 
       const completed = commitment.completedSessions || 0;
-      const notConducted = commitment.absentSessions || 0;
       const total = commitment.totalSessions;
 
-      // Count existing sessions (excluding deleted, cancelled, rejected, NOT_CONDUCTED)
-      const existingSessions = await Session.countDocuments({
+      // Count pending sessions (SCHEDULED, CONFIRMED, DISPUTED)
+      // Đếm các buổi học đang chờ xử lý (chưa kết thúc)
+      // SCHEDULED: vừa tạo, chờ học sinh xác nhận
+      // CONFIRMED: cả 2 đã xác nhận, chờ học
+      // DISPUTED: có tranh chấp, chờ admin giải quyết
+      const pendingSessions = await Session.countDocuments({
          learningCommitmentId: commitment._id,
          isDeleted: { $ne: true },
          status: {
-            $nin: [
-               SessionStatus.REJECTED,
-               SessionStatus.CANCELLED,
-               SessionStatus.NOT_CONDUCTED,
+            $in: [
+               SessionStatus.SCHEDULED,
+               SessionStatus.CONFIRMED,
+               SessionStatus.DISPUTED,
             ],
          },
       });
-
-      if (completed + existingSessions >= total) {
+      //Cam kết 2 buổi = tạo được 2 buổi, không thêm, không bớt
+      // Nếu học sinh vắng → extend thời hạn, không tính vào hạn mức tạo
+      if (completed + pendingSessions >= total) {
          throw new BadRequestError(
-            `Cannot create session: Already have ${completed} completed and ${existingSessions} scheduled sessions (not counting ${notConducted} absent sessions). Total commitment requires ${total} sessions.`
+            `Cannot create session: Already have ${completed} completed and ${pendingSessions} pending sessions. Total commitment requires ${total} sessions.`
          );
       }
 
@@ -883,7 +887,7 @@ class SessionService {
       })
          .populate({
             path: "learningCommitmentId",
-            select: "student tutor",
+            select: "student tutor teachingRequest",
             populate: [
                {
                   path: "student",
@@ -900,6 +904,10 @@ class SessionService {
                      path: "userId",
                      select: "_id name email avatarUrl role",
                   },
+               },
+               {
+                  path: "teachingRequest",
+                  select: "subject level",
                },
             ],
          })
@@ -936,7 +944,7 @@ class SessionService {
       })
          .populate({
             path: "learningCommitmentId",
-            select: "student tutor",
+            select: "student tutor teachingRequest",
             populate: [
                {
                   path: "student",
@@ -953,6 +961,10 @@ class SessionService {
                      path: "userId",
                      select: "_id name email avatarUrl role",
                   },
+               },
+               {
+                  path: "teachingRequest",
+                  select: "subject level",
                },
             ],
          })

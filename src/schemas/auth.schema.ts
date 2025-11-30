@@ -3,12 +3,12 @@ import { Role } from "../types/enums/role.enum";
 
 export const registerSchema = z.object({
    body: z.object({
-      name: z
-         .string()
-         .trim()
-         .min(2, "Tên phải ít nhất 2 ký tự")
-         .max(50, "Tên không vượt quá 50 ký tự")
-         .nonempty("Tên không được để trống"),
+      // name: z
+      //    .string()
+      //    .trim()
+      //    .min(2, "Tên phải ít nhất 2 ký tự")
+      //    .max(50, "Tên không vượt quá 50 ký tự")
+      //    .nonempty("Tên không được để trống"),
 
       email: z.preprocess(
          (val) => (typeof val === "string" ? val.trim().toLowerCase() : val),

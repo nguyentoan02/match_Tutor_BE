@@ -49,13 +49,19 @@ export const getMaterials = async (
          return res.status(401).json({ message: "Unauthorized." });
       }
 
-      const materials = await materialService.getMaterialsByUserId(
-         new Types.ObjectId(userId)
+      // read pagination query params: ?page=1&limit=10
+      const page = parseInt(String(req.query.page || "1"), 10) || 1;
+      const limit = parseInt(String(req.query.limit || "10"), 10) || 10;
+
+      const materialsPaginated = await materialService.getMaterialsByUserId(
+         new Types.ObjectId(userId),
+         page,
+         limit
       );
 
       new OK({
          message: "Materials retrieved successfully!",
-         metadata: materials,
+         metadata: materialsPaginated,
       }).send(res);
    } catch (error) {
       next(error);
@@ -127,6 +133,32 @@ export const getMaterialsBySession = async (
       new OK({
          message: "Materials in session retrieved successfully!",
          metadata: materials,
+      }).send(res);
+   } catch (error) {
+      next(error);
+   }
+};
+
+export const deleteMaterial = async (
+   req: Request,
+   res: Response,
+   next: NextFunction
+) => {
+   try {
+      const { materialId } = req.params;
+      const userId = req.user?._id as string;
+      if (!userId) {
+         return res.status(401).json({ message: "Unauthorized." });
+      }
+
+      const result = await materialService.deleteMaterial(
+         new Types.ObjectId(materialId),
+         new Types.ObjectId(userId)
+      );
+
+      new OK({
+         message: result.message,
+         metadata: { removedFromSessions: result.removedFromSessions },
       }).send(res);
    } catch (error) {
       next(error);

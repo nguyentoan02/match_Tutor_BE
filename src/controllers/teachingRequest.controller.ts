@@ -69,8 +69,13 @@ class TeachingRequestController {
                "Authentication failed: User not found."
             );
          }
+         const page = Math.max(1, Number(req.query.page) || 1);
+         const limit = Math.max(1, Number(req.query.limit) || 10);
+
          const result = await teachingRequestService.listForStudent(
-            req.user._id.toString()
+            req.user._id.toString(),
+            page,
+            limit
          );
          new OK({
             message: "Student's teaching requests fetched successfully.",
@@ -88,8 +93,13 @@ class TeachingRequestController {
                "Authentication failed: User not found."
             );
          }
+         const page = Math.max(1, Number(req.query.page) || 1);
+         const limit = Math.max(1, Number(req.query.limit) || 10);
+
          const result = await teachingRequestService.listForTutor(
-            req.user._id.toString()
+            req.user._id.toString(),
+            page,
+            limit
          );
          new OK({
             message: "Tutor's teaching requests fetched successfully.",

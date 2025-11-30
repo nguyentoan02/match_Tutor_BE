@@ -116,48 +116,121 @@ export class AdminLearningService {
       const sessions = await Session.find({
          learningCommitmentId: commitmentId,
       })
-         .select(
-            "startTime endTime status absence attendanceConfirmation isTrial"
-         )
+         .populate("cancellation.cancelledBy", "name email")
          .lean();
 
-      // Calculate absence statistics
-      const absenceStats = {
-         totalSessions: sessions.length,
-         studentAbsent: 0,
-         tutorAbsent: 0,
-         sessionDetails: [] as any[],
+      // Initialize statistics object
+      const stats = {
+         completed: {
+            total: 0,
+            sessions: [] as any[],
+         },
+         cancelled: {
+            total: 0,
+            tutorCancelled: 0,
+            studentCancelled: 0,
+            sessions: [] as any[],
+         },
+         notConducted: {
+            total: 0,
+            tutorAbsent: 0,
+            studentAbsent: 0,
+            sessions: [] as any[],
+         },
+         dispute: {
+            total: 0,
+            sessions: [] as any[],
+         },
+         rejected: {
+            total: 0,
+            sessions: [] as any[],
+         },
       };
 
-      sessions.forEach((session) => {
-         const sessionDetail: any = {
+      // Process each session
+      sessions.forEach((session: any) => {
+         const sessionInfo = {
             _id: session._id,
             startTime: session.startTime,
             endTime: session.endTime,
             status: session.status,
             isTrial: session.isTrial,
-            studentAbsent: false,
-            tutorAbsent: false,
          };
 
-         if (session.absence) {
-            if (session.absence.studentAbsent) {
-               absenceStats.studentAbsent++;
-               sessionDetail.studentAbsent = true;
-            }
-            if (session.absence.tutorAbsent) {
-               absenceStats.tutorAbsent++;
-               sessionDetail.tutorAbsent = true;
-            }
-            sessionDetail.absenceReason = session.absence.reason;
-         }
+         if (session.status === "COMPLETED") {
+            stats.completed.total++;
+            stats.completed.sessions.push(sessionInfo);
+         } else if (session.status === "CANCELLED") {
+            stats.cancelled.total++;
 
-         absenceStats.sessionDetails.push(sessionDetail);
+            const cancelledBy = session.cancellation?.cancelledBy;
+            const cancelledByUserId = cancelledBy?._id?.toString();
+
+            // Get tutor userId and student userId for comparison
+            const tutorInfo = (commitment as any)?.tutor;
+            const studentInfo = (commitment as any)?.student;
+
+            const tutorUserId = tutorInfo?.userId?.toString();
+            const studentUserId = studentInfo?.userId?.toString();
+
+            const cancelDetail = {
+               ...sessionInfo,
+               cancelledBy: cancelledBy?.name || "Unknown",
+               reason: session.cancellation?.reason,
+               cancelledAt: session.cancellation?.cancelledAt,
+            };
+
+            if (cancelledByUserId === tutorUserId) {
+               stats.cancelled.tutorCancelled++;
+            } else if (cancelledByUserId === studentUserId) {
+               stats.cancelled.studentCancelled++;
+            }
+
+            stats.cancelled.sessions.push(cancelDetail);
+         } else if (session.status === "NOT_CONDUCTED") {
+            stats.notConducted.total++;
+
+            const notConductDetail = {
+               ...sessionInfo,
+               tutorAbsent: session.absence?.tutorAbsent || false,
+               studentAbsent: session.absence?.studentAbsent || false,
+               reason: session.absence?.reason,
+               decidedAt: session.absence?.decidedAt,
+            };
+
+            if (session.absence?.tutorAbsent) {
+               stats.notConducted.tutorAbsent++;
+            }
+            if (session.absence?.studentAbsent) {
+               stats.notConducted.studentAbsent++;
+            }
+
+            stats.notConducted.sessions.push(notConductDetail);
+         } else if (session.status === "DISPUTED") {
+            stats.dispute.total++;
+            stats.dispute.sessions.push({
+               ...sessionInfo,
+               dispute: {
+                  status: session.dispute?.status,
+                  reason: session.dispute?.reason,
+                  openedBy: session.dispute?.openedBy,
+                  openedAt: session.dispute?.openedAt,
+                  decision: session.dispute?.decision,
+                  adminNotes: session.dispute?.adminNotes,
+               },
+            });
+         } else if (session.status === "REJECTED") {
+            stats.rejected.total++;
+            stats.rejected.sessions.push({
+               ...sessionInfo,
+               deletedAt: session.deletedAt,
+            });
+         }
       });
 
       return {
          ...commitment,
-         absenceStats,
+         stats,
       };
    }
 

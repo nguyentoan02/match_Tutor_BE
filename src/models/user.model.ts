@@ -13,7 +13,8 @@ const UserSchema: Schema<IUser> = new Schema(
          enum: ROLE_VALUES,
          default: Role.STUDENT,
       },
-      name: { type: String, required: true },
+      // name is optional for registration without name
+      name: { type: String, required: false },
       email: { type: String, required: true, unique: true },
       password: { type: String, required: true, select: false },
       phone: { type: String, required: false },
@@ -63,5 +64,14 @@ UserSchema.pre<IUser>("save", async function (next) {
 UserSchema.methods.comparePassword = async function (password: string) {
    return await bcrypt.compare(password, this.password);
 };
+
+// Index for email verification token expiration
+UserSchema.index(
+   { emailVerificationExpires: 1 },
+   {
+      expireAfterSeconds: 0,
+      partialFilterExpression: { isVerifiedEmail: false },
+   }
+);
 
 export default mongoose.model<IUser>("User", UserSchema);

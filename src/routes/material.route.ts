@@ -64,4 +64,11 @@ router.get(
    materialController.getMaterialsBySession
 );
 
+router.delete(
+   "/:materialId",
+   authenticate,
+   isRole(Role.TUTOR),
+   materialController.deleteMaterial
+);
+
 export default router;
