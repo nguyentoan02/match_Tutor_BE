@@ -2,9 +2,11 @@ import User from "../../models/user.model";
 import Package from "../../models/package.model";
 import Payment from "../../models/payment.model";
 import Tutor from "../../models/tutor.model";
+import ViolationReport from "../../models/violationReport.model";
 import { PaymentStatusEnum } from "../../types/enums/payment.enum";
 import { NotFoundError, BadRequestError } from "../../utils/error.response";
 import { Types } from "mongoose";
+import { ViolationStatusEnum } from "../../types/enums/violationReport.enum";
 // No time-based util needed; packages have no time limit
 
 export class AdminUserService {
@@ -35,8 +37,42 @@ export class AdminUserService {
          User.countDocuments(searchFilter),
       ]);
 
+      // Nếu role là TUTOR, thêm thông tin report từ tutor profile
+      let usersWithReportInfo = users;
+      if (role === "TUTOR") {
+         const userIds = users.map(user => user._id);
+         
+         // Lấy tutor profiles
+         const tutors = await Tutor.find({ userId: { $in: userIds } })
+            .select('userId hasBeenReported reportedAt reportCount')
+            .lean();
+
+         // Tạo map tutor info
+         const tutorMap = new Map();
+         tutors.forEach(tutor => {
+            tutorMap.set(tutor.userId.toString(), {
+               hasBeenReported: tutor.hasBeenReported || false,
+               reportedAt: tutor.reportedAt || null,
+               reportCount: tutor.reportCount || 0,
+            });
+         });
+
+         // Thêm thông tin report vào users
+         usersWithReportInfo = users.map(user => {
+            const tutorInfo = tutorMap.get(user._id.toString());
+            return {
+               ...user,
+               reportInfo: tutorInfo || {
+                  hasBeenReported: false,
+                  reportedAt: null,
+                  reportCount: 0,
+               }
+            };
+         });
+      }
+
       return {
-         users,
+         users: usersWithReportInfo,
          pagination: {
             page,
             limit,
