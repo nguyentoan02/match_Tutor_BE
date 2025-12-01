@@ -77,7 +77,7 @@ export class ViolationReportService {
       const commitment = await LearningCommitment.findOne({
          student: student._id,
          tutor: tutor._id,
-         status: { $in: ["completed", "cancelled"] }
+         status: { $in: ["completed", "cancelled","cancellation_pending"] }
       });
 
       if (!commitment) {
