@@ -12,7 +12,7 @@ class ShortAnswerQuizController {
     async CreateShortAnswerQuiz(req: Request, res: Response) {
         const currentUser = req.user;
         if (!currentUser || !currentUser._id) {
-            throw new UnauthorizedError("Not authenticated");
+            throw new UnauthorizedError("Chưa được xác thực");
         }
         const createQuiz: CreateShortAnswerQuizBody = req.body;
         const createdQuiz = await shortAnswerQuizService.createShortAnswerQuiz(
@@ -27,19 +27,22 @@ class ShortAnswerQuizController {
             },
             createQuiz.questionArr
         );
-        new OK({ message: "create short answer quiz success", metadata: createdQuiz }).send(
-            res
-        );
+        new OK({
+            message: "Tạo bài quiz trả lời ngắn thành công",
+            metadata: createdQuiz
+        }).send(res);
     }
 
     async GetShortAnswerQuizByQuizId(req: Request, res: Response) {
         const { quizId } = req.query;
-        if (!quizId) throw new BadRequestError("invalid quizId");
+        if (!quizId) throw new BadRequestError("quizId không hợp lệ");
+
         const quizQuestions = await shortAnswerQuizService.getShortAnswerQuizByQuizId(
             quizId.toString()
         );
+
         new OK({
-            message: "get short answer quiz by quizId success",
+            message: "Lấy quiz trả lời ngắn theo quizId thành công",
             metadata: quizQuestions,
         }).send(res);
     }
@@ -47,9 +50,10 @@ class ShortAnswerQuizController {
     async editShortAnswerQuizByTutor(req: Request, res: Response) {
         const currentUser = req.user;
         if (!currentUser || !currentUser._id) {
-            throw new UnauthorizedError("Not authenticated");
+            throw new UnauthorizedError("Chưa được xác thực");
         }
         const editQuiz: editShortAnswerQuizBody = req.body;
+
         const editedQuiz = await shortAnswerQuizService.editShortAnswerQuizCombined(
             currentUser._id.toString(),
             {
@@ -65,43 +69,55 @@ class ShortAnswerQuizController {
             editQuiz.editShortAnswerQuizQuestionsArr ?? [],
             editQuiz.deleteShortAnswerQuizQuestionsArr ?? []
         );
-        new OK({ message: "edit short answer quiz success", metadata: editedQuiz }).send(res);
+
+        new OK({
+            message: "Chỉnh sửa quiz trả lời ngắn thành công",
+            metadata: editedQuiz
+        }).send(res);
     }
 
     async GetShortAnswerQuizesByTutor(req: Request, res: Response) {
         const currentUser = req.user;
         if (!currentUser || !currentUser._id) {
-            throw new UnauthorizedError("Not authenticated");
+            throw new UnauthorizedError("Chưa được xác thực");
         }
+
         const quizes = await shortAnswerQuizService.getShortAnswerQuizesByTutor(
             currentUser._id.toString()
         );
-        new OK({ message: "get short answer quizes success", metadata: quizes }).send(res);
+
+        new OK({
+            message: "Lấy danh sách quiz trả lời ngắn thành công",
+            metadata: quizes
+        }).send(res);
     }
+
     async DeleteShortAnswerQuiz(req: Request, res: Response) {
         const currentUser = req.user;
         if (!currentUser || !currentUser._id) {
-            throw new UnauthorizedError("Not authenticated");
+            throw new UnauthorizedError("Chưa được xác thực");
         }
+
         const { quizId } = req.body;
+
         await shortAnswerQuizService.deleteShortAnswerQuiz(
             quizId,
             currentUser._id.toString()
         );
-        new OK({ message: "delete short answer quiz success" }).send(res);
-    }
 
+        new OK({ message: "Xóa quiz trả lời ngắn thành công" }).send(res);
+    }
 
     async AsignShortAnswerQuizToSession(req: Request, res: Response) {
         const currentUser = req.user;
         if (!currentUser || !currentUser._id) {
-            throw new UnauthorizedError("Not authenticated");
+            throw new UnauthorizedError("Chưa được xác thực");
         }
 
         const { quizIds, sessionId } = req.body;
 
         if (!quizIds || !sessionId) {
-            throw new BadRequestError("quizIds and sessionId are required");
+            throw new BadRequestError("quizIds và sessionId là bắt buộc");
         }
 
         const session = await shortAnswerQuizService.asignShortAnswerQuizToSession(
@@ -111,7 +127,7 @@ class ShortAnswerQuizController {
         );
 
         new OK({
-            message: "assign short answer quiz to session success",
+            message: "Gán quiz trả lời ngắn vào buổi học thành công",
             metadata: session
         }).send(res);
     }
@@ -120,7 +136,7 @@ class ShortAnswerQuizController {
         const { sessionId } = req.query;
 
         if (!sessionId) {
-            throw new BadRequestError("sessionId is required");
+            throw new BadRequestError("sessionId là bắt buộc");
         }
 
         const quizzes = await shortAnswerQuizService.getShortAnswerQuizzesInSessionDetail(
@@ -128,7 +144,7 @@ class ShortAnswerQuizController {
         );
 
         new OK({
-            message: "get short answer quizzes in session detail success",
+            message: "Lấy chi tiết quiz trả lời ngắn trong buổi học thành công",
             metadata: quizzes,
         }).send(res);
     }
@@ -137,7 +153,7 @@ class ShortAnswerQuizController {
         const { quizId } = req.query;
 
         if (!quizId) {
-            throw new BadRequestError("quizId is required");
+            throw new BadRequestError("quizId là bắt buộc");
         }
 
         const sessions = await shortAnswerQuizService.getSessionsAssignedForSAQ(
@@ -145,7 +161,7 @@ class ShortAnswerQuizController {
         );
 
         new OK({
-            message: "get sessions assigned for short answer quiz success",
+            message: "Lấy danh sách buổi học đã gán quiz trả lời ngắn thành công",
             metadata: sessions,
         }).send(res);
     }

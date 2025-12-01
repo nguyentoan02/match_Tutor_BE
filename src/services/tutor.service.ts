@@ -51,7 +51,7 @@ export class TutorService {
          .lean();
 
       if (!tutor) {
-         throw new NotFoundError("Tutor not found");
+         throw new NotFoundError("Không tìm thấy gia sư");
       }
 
       return tutor;
@@ -281,10 +281,10 @@ export class TutorService {
          userId: new Types.ObjectId(userId),
       });
       if (existingTutor) {
-         throw new Error("Tutor profile already exists");
+         throw new Error("Hồ sơ gia sư đã tồn tại");
       }
 
-      // 🔹 1. Update user profile (basic fields + avatar)
+      //  Update user profile (basic fields + avatar)
       await userService.updateProfile(
          userId,
          {
@@ -296,7 +296,7 @@ export class TutorService {
          avatarFile
       );
 
-      // 🔹 2. Handle certification images upload WITH MAPPING
+      //  Handle certification images upload WITH MAPPING
       let certifications = data.certifications || [];
 
       // console.log("Files received:", certificationFiles ? certificationFiles.map(f => f.originalname) : []);
@@ -334,7 +334,7 @@ export class TutorService {
             }
          });
 
-         // 🔹 Fallback: If no mapping, distribute images evenly
+         //  Fallback: If no mapping, distribute images evenly
          if (mapping.length === 0) {
             const imagesPerCert = Math.ceil(
                uploadedImageUrls.length / certifications.length
@@ -391,7 +391,7 @@ export class TutorService {
       const tutor = await Tutor.findOne({ userId: new Types.ObjectId(userId) });
 
       if (!tutor) {
-         throw new NotFoundError("Tutor profile not found");
+         throw new NotFoundError("Không tìm thấy hồ sơ gia sư");
       }
 
       // Sync user profile
@@ -462,7 +462,7 @@ export class TutorService {
                   tempIdToCertMap[newCert.tempId] = newCertObj;
                }
 
-               // Also map by index as fallback
+               // map by index as fallback
                tempIdToCertMap[`index_${index}`] = newCertObj;
             }
          });
@@ -492,7 +492,7 @@ export class TutorService {
                ? JSON.parse(data.imageCertMapping)
                : data.imageCertMapping || [];
       } catch (error) {
-         throw new Error("Invalid imageCertMapping format");
+         throw new Error("Định dạng imageCertMapping không hợp lệ");
       }
 
       // Process removals FIRST - use the updatedCertifications array
@@ -526,7 +526,7 @@ export class TutorService {
          }
       });
 
-      // Then process additions - IMPORTANT: Handle both existing and new certifications
+      // process additions - IMPORTANT: Handle both existing and new certifications
       mapping.forEach((map) => {
          if (map.action === "add") {
             let cert: ICertification | undefined;
@@ -569,8 +569,8 @@ export class TutorService {
          tutor.certifications = updatedCertifications as any;
       }
 
-       //chỉ tạo embed cho tutor đã được approve
-      if(tutor.isApproved){
+      //chỉ tạo embed cho tutor đã được approve
+      if (tutor.isApproved) {
          // add create embeding job
          await addEmbeddingJob(userId.toString());
       }
@@ -588,9 +588,8 @@ export class TutorService {
             let uploadResult: any = null;
 
             if ((file as any).buffer) {
-               const base64 = `data:${
-                  file.mimetype
-               };base64,${file.buffer.toString("base64")}`;
+               const base64 = `data:${file.mimetype
+                  };base64,${file.buffer.toString("base64")}`;
                uploadResult = await cloudinary.uploader.upload(base64, {
                   folder: "tutor-certifications",
                   resource_type: "image",
@@ -627,12 +626,11 @@ export class TutorService {
          !tutor.certifications ||
          !tutor.certifications[certificationIndex]
       ) {
-         throw new NotFoundError("Certification or image not found");
+         throw new NotFoundError("Chứng chỉ hoặc hình ảnh không tìm thấy");
       }
 
       const certification = tutor.certifications[certificationIndex];
       if (certification.imageUrls && certification.imageUrls[imageIndex]) {
-         // Optional: Delete from Cloudinary here if needed
          certification.imageUrls.splice(imageIndex, 1);
       }
 

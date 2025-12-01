@@ -296,8 +296,8 @@ class StudentDashboardService {
             const learningCommitment = session.learningCommitmentId as any;
             timelineItems.push({
                 type: "SESSION",
-                title: `Session with ${learningCommitment.tutor?.userId?.name || "Tutor"}`,
-                description: `Subject: ${learningCommitment.teachingRequest?.subject || "Unknown"}`,
+                title: `Buổi học với ${learningCommitment.tutor?.userId?.name || "Gia sư"}`,
+                description: `Môn học: ${learningCommitment.teachingRequest?.subject || "Không rõ"}`,
                 status: session.status.toLowerCase(),
                 date: session.startTime,
                 metadata: {
@@ -311,8 +311,8 @@ class StudentDashboardService {
         quizSubmissions.forEach(submission => {
             timelineItems.push({
                 type: "QUIZ",
-                title: "Quiz Submitted",
-                description: `Quiz: ${submission.quizId?.title || "Unknown Quiz"}`,
+                title: "Đã nộp bài kiểm tra",
+                description: `Bài kiểm tra: ${submission.quizId?.title || "Không rõ"}`,
                 status: "completed",
                 date: submission.submittedAt,
                 metadata: {
@@ -326,8 +326,8 @@ class StudentDashboardService {
         reviews.forEach(review => {
             timelineItems.push({
                 type: "REVIEW",
-                title: "Review Submitted",
-                description: `For: ${review.revieweeId?.name || "Tutor"}`,
+                title: "Đã gửi đánh giá",
+                description: `Đánh giá cho: ${review.revieweeId?.name || "Gia sư"}`,
                 status: "completed",
                 date: review.createdAt,
                 metadata: {
@@ -341,8 +341,8 @@ class StudentDashboardService {
         teachingRequests.forEach(request => {
             timelineItems.push({
                 type: "TEACHING_REQUEST",
-                title: "Teaching Request",
-                description: `Status: ${request.status}`,
+                title: "Yêu cầu học tập",
+                description: `Trạng thái: ${request.status}`,
                 status: request.status.toLowerCase(),
                 date: request.createdAt,
                 metadata: {

@@ -42,7 +42,7 @@ class ShortAnswerQuizService {
             );
 
             if (!createdQuizArr || !createdQuizArr.length) {
-                throw new Error("Failed to create quiz");
+                throw new Error("Tạo bài kiểm tra thất bại");
             }
 
             const createdQuiz = createdQuizArr[0];
@@ -56,7 +56,7 @@ class ShortAnswerQuizService {
                 const { acceptedAnswers } = q;
                 if (!acceptedAnswers || acceptedAnswers.length === 0) {
                     throw new BadRequestError(
-                        "at least one accepted answer is required for short answer question"
+                        "Câu hỏi dạng tự luận phải có ít nhất một đáp án được chấp nhận"
                     );
                 }
             }
@@ -80,7 +80,7 @@ class ShortAnswerQuizService {
         } catch (error) {
             await session.abortTransaction();
             throw new InternalServerError(
-                "can not create short answer quiz and quiz questions"
+                "Không thể tạo bài kiểm tra tự luận và các câu hỏi"
             );
         } finally {
             session.endSession();
@@ -90,16 +90,19 @@ class ShortAnswerQuizService {
     async getShortAnswerQuizByQuizId(quizId: string): Promise<IQuizQuestionInfo> {
         const shortAnswerQuiz = await quizModel.findById(quizId);
         if (!shortAnswerQuiz)
-            throw new NotFoundError("can not found this quiz");
+            throw new NotFoundError("Không tìm thấy bài kiểm tra này");
+
         const quizQuestions = await quizQuestionModel.find({
             quizId: quizId,
             questionType: QuestionTypeEnum.SHORT_ANSWER,
         });
+
         if (quizQuestions.length === 0) {
             throw new NotFoundError(
-                "this quiz dosen't have any question please add more"
+                "Bài kiểm tra này chưa có câu hỏi nào, vui lòng thêm câu hỏi"
             );
         }
+
         const payload: IQuizQuestionInfo = {
             quizInfo: shortAnswerQuiz,
             quizQuestions,
@@ -121,14 +124,17 @@ class ShortAnswerQuizService {
                 _id: quizId,
                 createdBy: tutorId,
             });
+
             if (!quizDoc)
-                throw new NotFoundError("can not found this quiz to add question");
+                throw new NotFoundError(
+                    "Không tìm thấy bài kiểm tra để thêm câu hỏi"
+                );
 
             const insertQueries = newQuestions.map((p) => {
                 const { acceptedAnswers } = p;
                 if (!acceptedAnswers || acceptedAnswers.length === 0) {
                     throw new BadRequestError(
-                        "at least one accepted answer is required for short answer question"
+                        "Câu hỏi dạng tự luận phải có ít nhất một đáp án được chấp nhận"
                     );
                 }
 
@@ -144,7 +150,9 @@ class ShortAnswerQuizService {
             return Promise.resolve({} as MongooseBulkWriteResult);
         } catch (error) {
             if (ownSession) await s.abortTransaction();
-            throw new BadRequestError("can not update this quiz question");
+            throw new BadRequestError(
+                "Không thể cập nhật câu hỏi của bài kiểm tra này"
+            );
         } finally {
             if (ownSession) s.endSession();
         }
@@ -165,13 +173,13 @@ class ShortAnswerQuizService {
                 createdBy: tutorId,
             });
             if (!quizDoc)
-                throw new NotFoundError("can not found this quiz to update");
+                throw new NotFoundError("Không tìm thấy bài kiểm tra để cập nhật");
 
             for (const q of editQuestions) {
                 const { acceptedAnswers } = q;
                 if (!acceptedAnswers || acceptedAnswers.length === 0) {
                     throw new BadRequestError(
-                        "at least one accepted answer is required for short answer question"
+                        "Câu hỏi tự luận phải có ít nhất một đáp án được chấp nhận"
                     );
                 }
             }
@@ -186,6 +194,7 @@ class ShortAnswerQuizService {
                     },
                 };
             });
+
             if (updateQueries.length) {
                 return quizQuestionModel.bulkWrite(updateQueries, { session: s });
             }
@@ -193,7 +202,9 @@ class ShortAnswerQuizService {
             return Promise.resolve({} as MongooseBulkWriteResult);
         } catch (error) {
             if (ownSession) await s.abortTransaction();
-            throw new BadRequestError("can not update this quiz question");
+            throw new BadRequestError(
+                "Không thể cập nhật câu hỏi của bài kiểm tra này"
+            );
         } finally {
             if (ownSession) s.endSession();
         }
@@ -217,13 +228,14 @@ class ShortAnswerQuizService {
 
             if (!quiz) {
                 throw new NotFoundError(
-                    "can not found this quiz and update this quiz"
+                    "Không tìm thấy bài kiểm tra để cập nhật"
                 );
             }
+
             const quizId = quizArt._id;
 
             if (!quizId) {
-                throw new BadRequestError("quiz id is required");
+                throw new BadRequestError("Thiếu mã bài kiểm tra (quiz id)");
             }
 
             await Promise.all([
@@ -252,17 +264,20 @@ class ShortAnswerQuizService {
                 .session(session);
 
             quiz.totalQuestions = finalQuestions.length;
+
             await quizModel.findOneAndUpdate(
                 { _id: quizId },
                 { $set: { totalQuestions: finalQuestions.length } },
                 { session }
             );
+
             await session.commitTransaction();
+
             return { quiz, quizQuestions: finalQuestions } as unknown as IQuiz;
         } catch (error) {
             await session.abortTransaction();
             console.log("Edit quiz error:", error);
-            throw new BadRequestError("can not edit this quiz");
+            throw new BadRequestError("Không thể chỉnh sửa bài kiểm tra này");
         } finally {
             session.endSession();
         }
@@ -273,9 +288,13 @@ class ShortAnswerQuizService {
             createdBy: tutorId,
             quizType: QuestionTypeEnum.SHORT_ANSWER,
         });
+
         if (quizes.length === 0) {
-            new NotFoundError("can not find any quiz from this tutor");
+            throw new NotFoundError(
+                "Không tìm thấy bài kiểm tra tự luận nào của gia sư này"
+            );
         }
+
         return quizes as IQuiz[];
     }
 
@@ -290,12 +309,17 @@ class ShortAnswerQuizService {
         try {
             if (ownSession) s.startTransaction();
 
-            if (!quizId) throw new NotFoundError("delete quiz id is required");
+            if (!quizId)
+                throw new NotFoundError("Thiếu mã bài kiểm tra cần xóa");
+
             const quizDoc = await quizModel
                 .findOne({ _id: quizId, createdBy: tutorId })
                 .session(s);
+
             if (!quizDoc)
-                throw new NotFoundError("quiz not found or not permitted");
+                throw new NotFoundError(
+                    "Không tìm thấy bài kiểm tra hoặc bạn không có quyền thực hiện thao tác này"
+                );
 
             const deleteIds = deleteQuestionArr
                 .map((q) => q._id)
@@ -321,14 +345,17 @@ class ShortAnswerQuizService {
     async deleteShortAnswerQuiz(quizId: string, userId: string): Promise<void> {
         const quiz = await quizModel.findOne({ _id: quizId, createdBy: userId });
         if (!quiz) {
-            throw new NotFoundError("can not find this quiz");
+            throw new NotFoundError("Không tìm thấy bài kiểm tra này");
         }
 
         const quizQuestions = await quizQuestionModel.find({
             quizId: quizId,
         });
+
         if (quizQuestions.length < 1) {
-            throw new NotFoundError("can not find quiz question in this quiz");
+            throw new NotFoundError(
+                "Không tìm thấy câu hỏi nào trong bài kiểm tra này"
+            );
         }
 
         const existed = await sessionModel
@@ -340,6 +367,7 @@ class ShortAnswerQuizService {
         const deleteIds = quizQuestions
             .map((q: any) => q._id)
             .filter((id) => !!id);
+
         const session = await mongoose.startSession();
         try {
             session.startTransaction();
@@ -360,10 +388,13 @@ class ShortAnswerQuizService {
             }
 
             await quizModel.deleteOne({ _id: quizId }, { session });
+
             await session.commitTransaction();
         } catch (error) {
             await session.abortTransaction();
-            throw new InternalServerError("can not delete this short answer quiz");
+            throw new InternalServerError(
+                "Không thể xóa bài kiểm tra tự luận này"
+            );
         } finally {
             session.endSession();
         }
@@ -376,11 +407,13 @@ class ShortAnswerQuizService {
     ): Promise<ISession> {
         const session = await sessionModel.findById(sessionId);
         if (!session) {
-            throw new NotFoundError("can not find this session");
+            throw new NotFoundError("Không tìm thấy buổi học này");
         }
 
         if (session.createdBy.toString() !== tutorId) {
-            throw new BadRequestError("you are not allowed to edit this session");
+            throw new BadRequestError(
+                "Bạn không có quyền chỉnh sửa buổi học này"
+            );
         }
 
         const quizIdsArr = Array.isArray(quizIds)
@@ -392,13 +425,14 @@ class ShortAnswerQuizService {
             { $set: { saqQuizIds: quizIdsArr } },
             { new: true }
         );
+
         return savedSession as ISession;
     }
 
     async getShortAnswerQuizzesInSessionDetail(sessionId: string): Promise<IQuiz[]> {
         const session = await sessionModel.findById(sessionId);
         if (!session) {
-            throw new NotFoundError("can not find this session");
+            throw new NotFoundError("Không tìm thấy buổi học này");
         }
 
         const quizIds = session.saqQuizIds;

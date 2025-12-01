@@ -39,7 +39,7 @@ export class ReviewService {
             .lean<PopulatedTeachingRequest | null>();
 
         if (!teachingRequest) {
-            throw new NotFoundError("Teaching request not found");
+            throw new NotFoundError("Không tìm thấy yêu cầu học");
         }
 
         type PopulatedTeachingRequest = ITeachingRequest & {
@@ -51,11 +51,15 @@ export class ReviewService {
 
         // Verify the reviewer is the student of this teaching request
         if (tr.studentId.userId._id.toString() !== reviewerId) {
-            throw new ForbiddenError("Only the student that completed this teaching request can review it");
+            throw new ForbiddenError(
+                "Chỉ học viên đã hoàn thành yêu cầu học này mới được phép đánh giá"
+            );
         }
 
         if (!tr.tutorId?.userId) {
-            throw new NotFoundError("Tutor information not found in teaching request");
+            throw new NotFoundError(
+                "Không tìm thấy thông tin gia sư trong yêu cầu học"
+            );
         }
 
         const tutorId = tr.tutorId.userId._id;
@@ -68,13 +72,15 @@ export class ReviewService {
         });
 
         if (!learningCommitment) {
-            throw new NotFoundError("Learning commitment not found for this teaching request");
+            throw new NotFoundError(
+                "Không tìm thấy cam kết học cho yêu cầu học này"
+            );
         }
 
         // Check if learning commitment is completed
         if (learningCommitment.status !== "completed") {
             throw new BadRequestError(
-                `Can only review completed learning commitments. Current status: ${learningCommitment.status}`
+                `Chỉ có thể đánh giá khi cam kết học đã hoàn thành. Trạng thái hiện tại: ${learningCommitment.status}`
             );
         }
 
@@ -83,11 +89,11 @@ export class ReviewService {
             reviewerId: new Types.ObjectId(reviewerId),
             revieweeId: tutorId,
             teachingRequestId: new Types.ObjectId(teachingRequestId),
-            isVisible: true,
+            isVisible: true
         });
 
         if (existingReview) {
-            throw new BadRequestError("You have already reviewed this");
+            throw new BadRequestError("Bạn đã đánh giá yêu cầu học này trước đó");
         }
 
         // Create the review
@@ -98,10 +104,11 @@ export class ReviewService {
             revieweeId: tutorId,
             rating,
             comment,
-            isVisible: true,
+            isVisible: true
         });
 
         await review.save();
+
         const populatedReview = await Review.findById(review._id)
             .populate("reviewerId", "name avatarUrl")
             .populate("revieweeId", "name avatarUrl")
@@ -289,27 +296,27 @@ export class ReviewService {
         const review = await Review.findById(reviewId);
 
         if (!review) {
-            throw new NotFoundError("Review not found");
+            throw new NotFoundError("Không tìm thấy đánh giá");
         }
 
-        // Verify the user owns this review
+        // Kiểm tra người dùng có phải là chủ review này không
         if (review.reviewerId.toString() !== reviewerId) {
-            throw new ForbiddenError("You can only update your own reviews");
+            throw new ForbiddenError("Bạn chỉ có thể cập nhật đánh giá của chính mình");
         }
 
-        // Check if review is older than 24 hours
+        // Kiểm tra nếu review đã hơn 24 giờ
         if (!review.createdAt) {
-            throw new BadRequestError("Review creation date is missing.");
+            throw new BadRequestError("Ngày tạo đánh giá không tồn tại");
         }
         const now = new Date();
         const timeSinceCreation = now.getTime() - review.createdAt.getTime();
         const hoursPassed = timeSinceCreation / (1000 * 60 * 60);
 
         if (hoursPassed > 24) {
-            throw new ForbiddenError("You can only edit your review within 24 hours of posting.");
+            throw new ForbiddenError("Bạn chỉ có thể chỉnh sửa đánh giá trong vòng 24 giờ sau khi đăng");
         }
 
-        // Update fields
+        // Cập nhật các trường
         if (updates.rating !== undefined) {
             review.rating = updates.rating;
         }
@@ -327,6 +334,7 @@ export class ReviewService {
 
         return updatedReview as IReview;
     }
+
 
     /**
      * Delete a review (soft delete by setting isVisible to false)
