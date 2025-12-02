@@ -9,6 +9,13 @@ import { Types } from "mongoose";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import s3Client from "../config/r2";
 import { v4 as uuidv4 } from "uuid";
+import { 
+   getReportResolvedEmailTemplateForStudent,
+   getReportResolvedEmailTemplateForTutor,
+   getReportRejectedEmailTemplateForStudent
+} from "../template/adminEmail";
+import { getVietnamTime } from "../utils/date.util";
+import { addEmailJob } from "../queues/email.queue";
 
 export class ViolationReportService {
    /**
@@ -70,7 +77,7 @@ export class ViolationReportService {
       const commitment = await LearningCommitment.findOne({
          student: student._id,
          tutor: tutor._id,
-         status: { $in: ["completed", "cancelled"] }
+         status: { $in: ["completed", "cancelled","cancellation_pending"] }
       });
 
       if (!commitment) {
@@ -248,13 +255,88 @@ export class ViolationReportService {
       status: ViolationStatusEnum,
       adminId: string
    ): Promise<IViolationReport> {
-      const report = await ViolationReport.findById(reportId);
+      const report = await ViolationReport.findById(reportId)
+         .populate("reporterId", "name email")
+         .populate("reportedUserId", "name email");
       if (!report) {
          throw new NotFoundError("Violation report not found");
       }
 
+      const oldStatus = report.status;
       report.status = status;
       await report.save();
+
+      // Gửi email thông báo cho student và tutor
+      const resolvedAt = getVietnamTime().toLocaleString("vi-VN", {
+         timeZone: "Asia/Ho_Chi_Minh",
+         year: "numeric",
+         month: "long",
+         day: "numeric",
+         hour: "2-digit",
+         minute: "2-digit",
+      });
+
+      const reporter = report.reporterId as any;
+      const reportedUser = report.reportedUserId as any;
+
+      if (status === ViolationStatusEnum.RESOLVED) {
+         // Gửi email cho student (reporter)
+         if (reporter && reporter.email) {
+            const action = "Hồ sơ gia sư đã bị ẩn và các cam kết học tập liên quan đã được xử lý.";
+            const emailTemplate = getReportResolvedEmailTemplateForStudent(
+               reporter.name || "Học sinh",
+               reportedUser?.name || "Gia sư",
+               report.reason || "Không có lý do cụ thể",
+               resolvedAt,
+               action
+            );
+
+            // Sử dụng queue để gửi email nhanh chóng (không block request)
+            await addEmailJob({
+               from: `"MatchTutor" <${process.env.EMAIL_USER}>`,
+               to: reporter.email,
+               subject: "Báo cáo vi phạm đã được xử lý - MatchTutor",
+               html: emailTemplate,
+            });
+         }
+
+         // Gửi email cho tutor (reported user)
+         if (reportedUser && reportedUser.email) {
+            const action = "Hồ sơ của bạn đã bị ẩn do vi phạm quy tắc cộng đồng. Các cam kết học tập và buổi học liên quan đã được hủy.";
+            const emailTemplate = getReportResolvedEmailTemplateForTutor(
+               reportedUser.name || "Gia sư",
+               report.reason || "Không có lý do cụ thể",
+               resolvedAt,
+               action
+            );
+
+            // Sử dụng queue để gửi email nhanh chóng (không block request)
+            await addEmailJob({
+               from: `"MatchTutor" <${process.env.EMAIL_USER}>`,
+               to: reportedUser.email,
+               subject: "Thông báo về báo cáo vi phạm - MatchTutor",
+               html: emailTemplate,
+            });
+         }
+      } else if (status === ViolationStatusEnum.REJECTED) {
+         // Gửi email cho student khi report bị từ chối
+         if (reporter && reporter.email) {
+            const emailTemplate = getReportRejectedEmailTemplateForStudent(
+               reporter.name || "Học sinh",
+               reportedUser?.name || "Gia sư",
+               report.reason || "Không có lý do cụ thể",
+               resolvedAt
+            );
+
+            // Sử dụng queue để gửi email nhanh chóng (không block request)
+            await addEmailJob({
+               from: `"MatchTutor" <${process.env.EMAIL_USER}>`,
+               to: reporter.email,
+               subject: "Báo cáo vi phạm không được chấp nhận - MatchTutor",
+               html: emailTemplate,
+            });
+         }
+      }
 
       return report;
    }
