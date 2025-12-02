@@ -66,6 +66,8 @@ export class AdminTutorService {
             approvalDate
          );
 
+         await addEmbeddingJob(user._id.toString());
+
          // Sử dụng queue để gửi email nhanh chóng (không block request)
          await addEmailJob({
             from: `"MatchTutor" <${process.env.EMAIL_USER}>`,
@@ -487,6 +489,7 @@ export class AdminTutorService {
     tutor.hasBeenReported = true; // Đánh dấu đã bị report
     tutor.reportedAt = getVietnamTime(); // Lưu thời điểm bị report
     tutor.reportCount = totalReports; // Cập nhật số lượng reports thực tế
+    tutor.embedding = [];
     await tutor.save();
 
     // 8. Gửi email thông báo cho tất cả students đã report tutor này

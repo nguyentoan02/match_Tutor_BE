@@ -225,6 +225,7 @@ class doQuizService {
          .find({ studentId: userId })
          .populate({
             path: "quizId",
+            match: { quizType: "MULTIPLE_CHOICE" },
             select: "title description quizMode quizType totalQuestions",
          })
          .populate({ path: "studentId", select: "name email -_id" })
@@ -233,7 +234,7 @@ class doQuizService {
             select:
                "-_id order questionText options correctAnswer explanation points",
          });
-      return list;
+      return list.filter((submission) => submission.quizId !== null);
    }
 
    async getSubmitShortAnswerList(userId: string): Promise<IQuizSubmission[]> {
