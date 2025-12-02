@@ -7,6 +7,51 @@ import TeachingRequest from "../models/teachingRequest.model";
 import Student from "../models/student.model"; // Import Student model
 import mongoose, { Types } from "mongoose";
 
+const SUBJECT_TRANSLATIONS: Record<string, string> = {
+    ACCOUNTING: "Kế toán",
+    ADDITIONAL_MATHS: "Toán nâng cao",
+    BIOLOGY: "Sinh học",
+    BUSINESS_STUDIES: "Kinh doanh",
+    CHEMISTRY: "Hóa học",
+    CHINESE: "Tiếng Trung",
+    COMPUTER_SCIENCE: "Khoa học máy tính",
+    ECONOMICS: "Kinh tế học",
+    ENGLISH: "Tiếng Anh",
+    FREE_CONSULTATION: "Tư vấn miễn phí",
+    FURTHER_MATHS: "Toán nâng cao",
+    GEOGRAPHY: "Địa lý",
+    GUITAR: "Guitar",
+    HISTORY: "Lịch sử",
+    MALAY: "Tiếng Malay",
+    MATHEMATICS: "Toán học",
+    ORGAN: "Organ",
+    PHONICS_ENGLISH: "Phát âm tiếng Anh",
+    PHYSICS: "Vật lý",
+    PIANO: "Piano",
+    RISE_PROGRAM: "Chương trình RISE",
+    SCIENCE: "Khoa học",
+    SWIMMING: "Bơi lội",
+    TAMIL: "Tiếng Tamil",
+    TENNIS: "Tennis",
+    WORLD_LITERATURE: "Văn học thế giới",
+    YOGA: "Yoga",
+};
+
+function translateSubject(subject: string) {
+    return SUBJECT_TRANSLATIONS[subject] || subject || "Không rõ";
+}
+
+const TEACHING_REQUEST_STATUS_TRANSLATIONS: Record<string, string> = {
+    PENDING: "Chờ gia sư phản hồi",
+    ACCEPTED: "Gia sư đã chấp nhận",
+    REJECTED: "Gia sư từ chối",
+    COMPLETED: "Hoàn thành",
+};
+
+function translateTeachingRequestStatus(status: string) {
+    return TEACHING_REQUEST_STATUS_TRANSLATIONS[status] || status || "Không rõ";
+}
+
 class StudentDashboardService {
     async getStudentDashboard(studentUserId: string) {
         // First, get the student document ID from the user ID
@@ -297,7 +342,7 @@ class StudentDashboardService {
             timelineItems.push({
                 type: "SESSION",
                 title: `Buổi học với ${learningCommitment.tutor?.userId?.name || "Gia sư"}`,
-                description: `Môn học: ${learningCommitment.teachingRequest?.subject || "Không rõ"}`,
+                description: `Môn học: ${translateSubject(learningCommitment.teachingRequest?.subject)}`,
                 status: session.status.toLowerCase(),
                 date: session.startTime,
                 metadata: {
@@ -342,7 +387,7 @@ class StudentDashboardService {
             timelineItems.push({
                 type: "TEACHING_REQUEST",
                 title: "Yêu cầu học tập",
-                description: `Trạng thái: ${request.status}`,
+                description: `Trạng thái: ${translateTeachingRequestStatus(request.status)}`,
                 status: request.status.toLowerCase(),
                 date: request.createdAt,
                 metadata: {
