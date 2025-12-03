@@ -48,7 +48,7 @@ export class AuthService {
    async register(userData: CreateUserBody): Promise<IUser> {
       const existingUser = await User.findOne({ email: userData.email });
       if (existingUser) {
-         throw new ConflictError("User with this email already exists");
+         throw new ConflictError("Tài khoản với email này đã được đăng ký");
       }
 
       const user = new User(userData);
@@ -92,7 +92,7 @@ export class AuthService {
       });
 
       if (!user) {
-         throw new BadRequestError("Token is invalid or has expired");
+         throw new BadRequestError("Token không có hiệu lực hoặc hết hạn");
       }
 
       user.isVerifiedEmail = true;
@@ -133,7 +133,7 @@ export class AuthService {
       const user = await User.findOne({ passwordResetToken: hashedToken });
 
       if (!user) {
-         throw new BadRequestError("Token is invalid or has expired");
+         throw new BadRequestError("Token không có hiệu lực hoặc hết hạn");
       }
 
       // If token exists but expired -> clear token fields and return error
@@ -144,7 +144,7 @@ export class AuthService {
          user.passwordResetToken = undefined;
          user.passwordResetExpires = undefined;
          await user.save();
-         throw new BadRequestError("Token is invalid or has expired");
+         throw new BadRequestError("Token không có hiệu lực hoặc hết hạn");
       }
 
       // Token valid
@@ -163,7 +163,7 @@ export class AuthService {
       const user = await User.findById(userId).select("+password");
 
       if (!user || !(await user.comparePassword!(oldPassword))) {
-         throw new UnauthorizedError("Incorrect old password");
+         throw new UnauthorizedError("Sai mật khẩu cũ");
       }
 
       user.password = newPassword;
@@ -178,16 +178,16 @@ export class AuthService {
       const user = await User.findOne({ email }).select("+password");
 
       if (!user || !(await user.comparePassword!(password))) {
-         throw new UnauthorizedError("Incorrect email or password");
+         throw new UnauthorizedError("Sai tài khoản hoặc mật khẩu");
       }
 
       if (!user.isVerifiedEmail) {
-         throw new UnauthorizedError("Please verify your email first");
+         throw new UnauthorizedError("Vui lòng xác nhận email của bạn trước");
       }
 
       if (user.isBanned) {
          throw new UnauthorizedError(
-            "Your account has been suspended. Please contact support for assistance."
+            "Tài khoản của bạn bị khoá, vui lòng liên hệ hỗ trợ."
          );
       }
 
@@ -214,13 +214,13 @@ export class AuthService {
       // Changed: do NOT auto-create user on Google login — throw error if not found
       if (!user) {
          throw new UnauthorizedError(
-            "No account associated with this Google email. Please register first."
+            "Email này chưa được liên kết với bất kỳ tài khoản nào."
          );
       }
 
       if (user.isBanned) {
          throw new UnauthorizedError(
-            "Your account has been suspended. Please contact support for assistance."
+            "Tài khoản của bạn đã bị khoá, vui lòng liên hệ hỗ trợ."
          );
       }
 
@@ -249,7 +249,7 @@ export class AuthService {
 
          if (user.isBanned) {
             throw new UnauthorizedError(
-               "Your account has been suspended. Please contact support for assistance."
+               "Tài khoản của bạn bị khoá, vui lòng liên hệ hỗ trợ"
             );
          }
 

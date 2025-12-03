@@ -1,13 +1,13 @@
 export const getVerificationEmailTemplate = (
-    name: string,
-    verificationUrl: string
+   name: string,
+   verificationUrl: string
 ): string => `
 <!DOCTYPE html>
-<html lang="en">
+<html lang="vi">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Email Verification</title>
+    <title>Xác minh Email</title>
     <style>
         body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f4f4f4; margin: 0; padding: 0; }
         .container { max-width: 600px; margin: 20px auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px; background-color: #ffffff; }
@@ -20,19 +20,19 @@ export const getVerificationEmailTemplate = (
 <body>
     <div class="container">
         <div class="header">
-            <h1>Welcome to MatchTutor!</h1>
+            <h1>Chào mừng đến MatchTutor!</h1>
         </div>
         <div class="content">
-            <p>Hi ${name},</p>
-            <p>Thank you for registering. Please click the button below to verify your email address and complete your registration.</p>
+            <p>Xin chào ${name},</p>
+            <p>Cảm ơn bạn đã đăng ký. Vui lòng nhấp vào nút dưới đây để xác minh địa chỉ email của bạn và hoàn thành quá trình đăng ký.</p>
             <p style="text-align: center;">
-                <a href="${verificationUrl}" class="button">Verify Email Address</a>
+                <a href="${verificationUrl}" class="button">Xác minh Địa chỉ Email</a>
             </p>
-            <p>If you did not create an account, no further action is required.</p>
-            <p>This link will expire in 10 minutes.</p>
+            <p>Nếu bạn không tạo tài khoản này, vui lòng bỏ qua email này.</p>
+            <p>Liên kết này sẽ hết hạn trong 15 phút.</p>
         </div>
         <div class="footer">
-            <p>&copy; ${new Date().getFullYear()} MatchTutor. All rights reserved.</p>
+            <p>&copy; ${new Date().getFullYear()} MatchTutor. Bảo lưu mọi quyền.</p>
         </div>
     </div>
 </body>
@@ -40,15 +40,15 @@ export const getVerificationEmailTemplate = (
 `;
 
 export const getPasswordResetEmailTemplate = (
-    name: string,
-    resetUrl: string
+   name: string,
+   resetUrl: string
 ): string => `
 <!DOCTYPE html>
-<html lang="en">
+<html lang="vi">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Password Reset</title>
+    <title>Đặt lại Mật khẩu</title>
     <style>
         body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f4f4f4; margin: 0; padding: 0; }
         .container { max-width: 600px; margin: 20px auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px; background-color: #ffffff; }
@@ -61,19 +61,19 @@ export const getPasswordResetEmailTemplate = (
 <body>
     <div class="container">
         <div class="header">
-            <h1>Password Reset Request</h1>
+            <h1>Yêu cầu Đặt lại Mật khẩu</h1>
         </div>
         <div class="content">
-            <p>Hi ${name},</p>
-            <p>You requested a password reset. Please click the button below to set a new password.</p>
+            <p>Xin chào ${name},</p>
+            <p>Bạn đã yêu cầu đặt lại mật khẩu. Vui lòng nhấp vào nút dưới đây để đặt mật khẩu mới.</p>
             <p style="text-align: center;">
-                <a href="${resetUrl}" class="button">Reset Password</a>
+                <a href="${resetUrl}" class="button">Đặt lại Mật khẩu</a>
             </p>
-            <p>If you did not request a password reset, please ignore this email.</p>
-            <p>This link will expire in 10 minutes.</p>
+            <p>Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này.</p>
+            <p>Liên kết này sẽ hết hạn trong 15 phút.</p>
         </div>
         <div class="footer">
-            <p>&copy; ${new Date().getFullYear()} MatchTutor. All rights reserved.</p>
+            <p>&copy; ${new Date().getFullYear()} MatchTutor. Bảo lưu mọi quyền.</p>
         </div>
     </div>
 </body>

@@ -236,7 +236,9 @@ class SessionService {
       const newStart = new Date((data as any).startTime);
       const newEnd = new Date((data as any).endTime);
       if (!(newStart < newEnd)) {
-         throw new BadRequestError("startTime must be before endTime");
+         throw new BadRequestError(
+            "Thời gian bắt đầu cần trước thời gian kết thúc"
+         );
       }
 
       // Kiểm tra session phải nằm trong cùng một ngày (Vietnam timezone)
@@ -245,7 +247,7 @@ class SessionService {
 
       if (!vnStart.isSame(vnEnd, "day")) {
          throw new BadRequestError(
-            "Session must be scheduled within the same day. Start time and end time cannot span across different dates."
+            "Thời gian tạo buổi học nên nằm trong cùng một ngày"
          );
       }
 
@@ -261,13 +263,13 @@ class SessionService {
          vnEnd.isAfter(commitmentEndVN)
       ) {
          throw new BadRequestError(
-            "Session time must be within the learning commitment period."
+            "Thời gian buổi học nên nằm trong thời gian cam kết học"
          );
       }
 
       const now = new Date();
       if (newStart < now) {
-         throw new BadRequestError("Cannot create a session in the past.");
+         throw new BadRequestError("Không thể tạo buổi học trong quá khứ");
       }
 
       const completed = commitment.completedSessions || 0;
