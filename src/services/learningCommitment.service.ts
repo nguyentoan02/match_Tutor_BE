@@ -23,7 +23,7 @@ export const createLearningCommitment = async (data: {
 }) => {
    // Lấy teaching request để get studentId
    const teachingRequest = await TeachingRequest.findById(data.teachingRequest);
-   if (!teachingRequest) throw new Error("Teaching request not found");
+   if (!teachingRequest) throw new Error("Không tìm thấy yêu cầu dạy học");
 
    // Kiểm tra xem tutor và student có active commitment nào không
    const existingActiveCommitment = await LearningCommitment.findOne({
@@ -41,7 +41,7 @@ export const createLearningCommitment = async (data: {
 
    if (existingActiveCommitment) {
       throw new BadRequestError(
-         "Tutor and student already have an active learning commitment. Please wait for it to be completed or cancelled before creating a new one."
+         "Gia sư và học sinh đã có một cam kết học tập đang hoạt động. Vui lòng chờ cho đến khi nó được hoàn thành hoặc hủy bỏ trước khi tạo một cam kết mới."
       );
    }
 
@@ -50,9 +50,9 @@ export const createLearningCommitment = async (data: {
    const startDate = new Date(data.startDate);
    if (startDate < currentDate) {
       throw new BadRequestError(
-         "Start date must not be in the past. Current date: " +
+         "Ngày bắt đầu không được ở quá khứ. Ngày hiện tại: " +
             currentDate.toISOString() +
-            ", Start date: " +
+            ", Ngày bắt đầu: " +
             startDate.toISOString()
       );
    }
@@ -64,13 +64,13 @@ export const createLearningCommitment = async (data: {
 
    if (endDate > twoMonthsLater) {
       throw new BadRequestError(
-         `End date must be within 2 months from start date. Start date: ${startDate.toISOString()}, Max end date: ${twoMonthsLater.toISOString()}`
+         `Ngày kết thúc phải nằm trong vòng 2 tháng kể từ ngày bắt đầu. Ngày bắt đầu: ${startDate.toISOString()}, Ngày kết thúc tối đa: ${twoMonthsLater.toISOString()}`
       );
    }
 
    if (endDate < startDate) {
       throw new BadRequestError(
-         "End date must be greater than or equal to start date"
+         "Ngày kết thúc phải lớn hơn hoặc bằng ngày bắt đầu"
       );
    }
 
@@ -90,13 +90,13 @@ export const getLearningCommitment = async (id: string, userId: string) => {
    const commitment = await LearningCommitment.findById(id).populate(
       "tutor student teachingRequest"
    );
-   if (!commitment) throw new Error("Learning commitment not found");
+   if (!commitment) throw new Error("Không tìm thấy cam kết học tập");
    // Kiểm tra quyền: chỉ tutor hoặc student của commitment
    if (
       commitment.tutor.toString() !== userId &&
       commitment.student.toString() !== userId
    ) {
-      throw new Error("Unauthorized");
+      throw new Error("Không có quyền truy cập");
    }
    return commitment;
 };
@@ -105,19 +105,19 @@ export const initiatePayment = async (id: string, userId: string) => {
    const studentProfile = (await Student.findOne({ userId }).select("_id")) as {
       _id: string;
    };
-   if (!studentProfile) throw new Error("Student profile not found");
+   if (!studentProfile) throw new Error("Không tìm thấy hồ sơ học sinh");
 
    const commitment = await LearningCommitment.findById(id);
-   if (!commitment) throw new Error("Learning commitment not found");
+   if (!commitment) throw new Error("Không tìm thấy cam kết học tập");
 
    if (commitment.student.toString() !== studentProfile._id.toString())
-      throw new Error("Only student can initiate payment");
+      throw new Error("Chỉ học sinh mới có thể khởi tạo thanh toán");
 
    if (commitment.status !== "pending_agreement")
-      throw new Error("Commitment not in pending state");
+      throw new Error("Cam kết không ở trạng thái chờ xử lý");
 
    if (commitment.studentPaidAmount > 0)
-      throw new Error("Payment already initiated or partial");
+      throw new Error("Thanh toán đã được khởi tạo hoặc thanh toán một phần");
 
    // Tạo payment record
    const payment = await paymentService.createLearningCommitmentPayment(
@@ -135,7 +135,7 @@ export const requestCancellation = async (
    reason: string
 ) => {
    const commitment = await LearningCommitment.findById(commitmentId);
-   if (!commitment) throw new BadRequestError("Learning commitment not found");
+   if (!commitment) throw new BadRequestError("Không tìm thấy cam kết học tập");
 
    // Xác định vai trò của người dùng trong commitment
    const studentProfile = (await Student.findOne({ userId }).select("_id")) as {
@@ -153,7 +153,7 @@ export const requestCancellation = async (
 
    if (!isStudent && !isTutor) {
       throw new UnauthorizedError(
-         "User is not part of this learning commitment"
+         "Người dùng không phải là một phần của cam kết học tập này"
       );
    }
 
@@ -163,7 +163,7 @@ export const requestCancellation = async (
       commitment.status !== "cancellation_pending"
    ) {
       throw new BadRequestError(
-         `Cannot cancel commitment with status: ${commitment.status}. Only active or pending cancellation commitments can be cancelled.`
+         `Không thể hủy cam kết với trạng thái: ${commitment.status}. Chỉ có thể hủy các cam kết đang hoạt động hoặc đang chờ hủy.`
       );
    }
 
@@ -190,9 +190,7 @@ export const requestCancellation = async (
          commitment.cancellationDecision[userRole].status !==
          CancellationStatus.PENDING
       ) {
-         throw new BadRequestError(
-            "You have already responded to this cancellation request."
-         );
+         throw new BadRequestError("Bạn đã phản hồi yêu cầu hủy này rồi.");
       }
       commitment.cancellationDecision[userRole].status =
          CancellationStatus.ACCEPTED;
@@ -219,7 +217,7 @@ export const requestCancellation = async (
          {
             status: SessionStatus.CANCELLED,
             cancellation: {
-               reason: "Learning commitment cancelled",
+               reason: "Cam kết học tập đã bị hủy",
                cancelledAt: new Date(),
             },
          }
@@ -246,10 +244,12 @@ export const rejectCancellation = async (
    reason: string
 ) => {
    const commitment = await LearningCommitment.findById(commitmentId);
-   if (!commitment) throw new BadRequestError("Learning commitment not found");
+   if (!commitment) throw new BadRequestError("Không tìm thấy cam kết học tập");
 
    if (commitment.status !== "cancellation_pending") {
-      throw new BadRequestError("No active cancellation request to reject.");
+      throw new BadRequestError(
+         "Không có yêu cầu hủy nào đang hoạt động để từ chối."
+      );
    }
 
    const studentProfile = (await Student.findOne({ userId }).select("_id")) as {
@@ -267,7 +267,7 @@ export const rejectCancellation = async (
 
    if (!isStudent && !isTutor) {
       throw new UnauthorizedError(
-         "User is not part of this learning commitment"
+         "Người dùng không phải là một phần của cam kết học tập này"
       );
    }
 
@@ -277,7 +277,7 @@ export const rejectCancellation = async (
       commitment.cancellationDecision?.[userRole].status !==
       CancellationStatus.PENDING
    ) {
-      throw new BadRequestError("You cannot reject this request.");
+      throw new BadRequestError("Bạn không thể từ chối yêu cầu này.");
    }
 
    // Cập nhật quyết định từ chối
@@ -298,12 +298,12 @@ export const rejectLearningCommitment = async (
    userId: string
 ) => {
    const commitment = await LearningCommitment.findById(commitmentId);
-   if (!commitment) throw new BadRequestError("Learning commitment not found");
+   if (!commitment) throw new BadRequestError("Không tìm thấy cam kết học tập");
 
    // Chỉ có thể từ chối khi ở trạng thái pending_agreement
    if (commitment.status !== "pending_agreement") {
       throw new BadRequestError(
-         `Cannot reject commitment with status: ${commitment.status}. Only pending agreements can be rejected.`
+         `Không thể từ chối cam kết với trạng thái: ${commitment.status}. Chỉ có thể từ chối các cam kết đang chờ đồng ý.`
       );
    }
 
@@ -323,7 +323,7 @@ export const rejectLearningCommitment = async (
 
    if (!isStudent && !isTutor) {
       throw new UnauthorizedError(
-         "User is not part of this learning commitment"
+         "Người dùng không phải là một phần của cam kết học tập này"
       );
    }
 
@@ -360,7 +360,7 @@ async function processMoneyTransfer(commitment: ILearningCommitment) {
 
       if (!tutorUserId || !studentUserId) {
          throw new Error(
-            `User IDs not found for tutor or student in commitment ${commitment._id}`
+            `Không tìm thấy User IDs cho gia sư hoặc học sinh trong cam kết ${commitment._id}`
          );
       }
 
@@ -374,7 +374,7 @@ async function processMoneyTransfer(commitment: ILearningCommitment) {
 
       if (!tutorWallet || !studentWallet) {
          throw new Error(
-            `Wallet not found for student or tutor in commitment ${commitment._id}`
+            `Không tìm thấy ví cho học sinh hoặc gia sư trong cam kết ${commitment._id}`
          );
       }
 
@@ -424,18 +424,29 @@ async function processMoneyTransfer(commitment: ILearningCommitment) {
                studentWallet.balance += amountForUntrainedSessions;
             }
          } else {
-            // Học sinh huỷ: tiền buổi hoàn thành 90% cho gia sư 10% cho admin, tiền buổi chưa học về admin
-            const tutorAmount = amountForTaughtSessions * 0.9;
+            // Học sinh huỷ: tiền buổi hoàn thành 90% cho gia sư 10% cho admin
+            // tiền buổi chưa học: admin 10%, gia sư 40%, học sinh 50%
+            const tutorAmountFromTaught = amountForTaughtSessions * 0.9;
             const adminAmountFromTaught = amountForTaughtSessions * 0.1;
 
-            if (tutorAmount > 0) {
-               tutorWallet.balance += tutorAmount;
+            const adminAmountFromUntrained = amountForUntrainedSessions * 0.1;
+            const tutorAmountFromUntrained = amountForUntrainedSessions * 0.4;
+            const studentAmountFromUntrained = amountForUntrainedSessions * 0.5;
+
+            if (tutorAmountFromTaught > 0) {
+               tutorWallet.balance += tutorAmountFromTaught;
             }
             if (adminAmountFromTaught > 0) {
                adminWallet.balance += adminAmountFromTaught;
             }
-            if (amountForUntrainedSessions > 0) {
-               adminWallet.balance += amountForUntrainedSessions;
+            if (tutorAmountFromUntrained > 0) {
+               tutorWallet.balance += tutorAmountFromUntrained;
+            }
+            if (adminAmountFromUntrained > 0) {
+               adminWallet.balance += adminAmountFromUntrained;
+            }
+            if (studentAmountFromUntrained > 0) {
+               studentWallet.balance += studentAmountFromUntrained;
             }
          }
 
@@ -451,7 +462,7 @@ async function processMoneyTransfer(commitment: ILearningCommitment) {
    } catch (error) {
       await session.abortTransaction();
       console.error(
-         `Failed to process money transfer for commitment ${commitment._id}:`,
+         `Không thể xử lý chuyển tiền cho cam kết ${commitment._id}:`,
          error
       );
    } finally {
@@ -536,7 +547,7 @@ export async function listLearningCommitments(opts: {
 export async function getActiveLearningCommitmentsByTutor(userId: string) {
    const tutorProfile = await Tutor.findOne({ userId }).select("_id");
    if (!tutorProfile) {
-      throw new UnauthorizedError("User is not a tutor");
+      throw new UnauthorizedError("Người dùng không phải là một gia sư");
    }
 
    const commitments = await LearningCommitment.find({

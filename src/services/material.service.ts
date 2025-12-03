@@ -1,4 +1,5 @@
 import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand } from "@aws-sdk/client-s3";
 import s3Client from "../config/r2";
 import Material from "../models/material.model";
 import { Types } from "mongoose";
@@ -42,11 +43,34 @@ export const uploadMaterial = async (
    return newMaterial;
 };
 
-export const getMaterialsByUserId = async (userId: Types.ObjectId) => {
-   const materials = await Material.find({ uploadedBy: userId })
-      .populate("uploadedBy", "name email")
-      .sort({ uploadedAt: -1 });
-   return materials;
+export const getMaterialsByUserId = async (
+   userId: Types.ObjectId,
+   page = 1,
+   limit = 10
+) => {
+   // ensure valid numbers
+   const pageNum = Math.max(1, Number(page) || 1);
+   const limitNum = Math.max(1, Number(limit) || 10);
+   const skip = (pageNum - 1) * limitNum;
+
+   const [materials, total] = await Promise.all([
+      Material.find({ uploadedBy: userId })
+         .populate("uploadedBy", "name email")
+         .sort({ uploadedAt: -1 })
+         .skip(skip)
+         .limit(limitNum),
+      Material.countDocuments({ uploadedBy: userId }),
+   ]);
+
+   const totalPages = Math.ceil(total / limitNum);
+
+   return {
+      items: materials,
+      total,
+      page: pageNum,
+      totalPages,
+      limit: limitNum,
+   };
 };
 
 export const addMaterialToSession = async (
@@ -132,4 +156,57 @@ export const getMaterialsBySessionId = async (sessionId: Types.ObjectId) => {
    }
 
    return session.materials || [];
+};
+
+export const deleteMaterial = async (
+   materialId: Types.ObjectId,
+   userId: Types.ObjectId
+) => {
+   // Tìm material và verify quyền (uploadedBy === userId)
+   const material = await Material.findOne({
+      _id: materialId,
+      uploadedBy: userId,
+   });
+   if (!material) {
+      throw new NotFoundError(
+         "Material not found or you don't have permission to delete it."
+      );
+   }
+
+   // Xóa các tham chiếu trong sessions (pull materialId)
+   const updateResult = await Session.updateMany(
+      { materials: materialId },
+      { $pull: { materials: materialId } }
+   );
+
+   // Nếu có fileUrl, thử xóa object trên R2 (nếu có cấu hình)
+   const bucketName = process.env.R2_BUCKET_NAME;
+   const publicUrl = process.env.R2_PUBLIC_URL;
+   if (material.fileUrl && bucketName && publicUrl) {
+      try {
+         // Lấy key của object từ fileUrl (fileUrl = `${publicUrl}/${fileKey}`)
+         const prefix = publicUrl.endsWith("/") ? publicUrl : `${publicUrl}/`;
+         const fileKey = material.fileUrl.startsWith(prefix)
+            ? material.fileUrl.slice(prefix.length)
+            : material.fileUrl; // fallback: nếu không match, dùng full url — R2 sẽ lỗi nhưng không block
+         await s3Client.send(
+            new DeleteObjectCommand({
+               Bucket: bucketName,
+               Key: fileKey,
+            })
+         );
+      } catch (err) {
+         // Không throw, chỉ log vì xóa S3 không ảnh hưởng DB
+         // Nếu muốn xử lý lỗi nghiêm ngặt hơn, có thể throw tại đây
+         console.warn("Failed to delete object from R2:", err);
+      }
+   }
+
+   // Xóa material doc
+   await Material.deleteOne({ _id: material._id });
+
+   return {
+      message: "Material deleted successfully.",
+      removedFromSessions: updateResult.modifiedCount || 0,
+   };
 };
