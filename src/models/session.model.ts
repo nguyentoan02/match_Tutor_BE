@@ -5,7 +5,6 @@ import {
    SessionStatus,
 } from "../types/enums/session.enum";
 import { getVietnamTime } from "../utils/date.util";
-import { REMINDER_METHOD_VALUES } from "../types/enums/reminder.enum";
 
 const SessionSchema: Schema<ISession> = new Schema(
    {
@@ -132,14 +131,7 @@ const SessionSchema: Schema<ISession> = new Schema(
       // thêm default [] để tránh lỗi khi push vào mảng null hoặc undefined
       // nếu không có trường này, khi tạo session mới, trường quizIds sẽ là undefined
       quizIds: { type: [Schema.Types.ObjectId], ref: "Quiz", default: [] },
-      reminders: [
-         {
-            userId: { type: Schema.Types.ObjectId, ref: "User" },
-            minutesBefore: { type: Number },
-            methods: [{ type: String, enum: REMINDER_METHOD_VALUES }],
-            _id: false,
-         },
-      ],
+
       location: { type: String },
       notes: { type: String },
       mcqQuizIds: { type: [Schema.Types.ObjectId], ref: "Quiz", default: [] },
