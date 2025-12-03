@@ -14,7 +14,10 @@ import { CreateTeachingRequestBody } from "../schemas/teachingRequest.schema";
 class TeachingRequestService {
    async create(studentUserId: string, data: CreateTeachingRequestBody) {
       const student = await Student.findOne({ userId: studentUserId });
-      if (!student) throw new NotFoundError("Student profile not found");
+      if (!student)
+         throw new NotFoundError(
+            "Không tìm thấy hồ sơ học sinh của bạn. Vui lòng tạo hồ sơ trước khi gửi yêu cầu"
+         );
 
       const tutor = await Tutor.findById(data.tutorId);
       if (!tutor) throw new NotFoundError("Tutor not found");
@@ -29,7 +32,7 @@ class TeachingRequestService {
 
       if (existing) {
          throw new ConflictError(
-            "An active or pending request with this tutor already exists."
+            "Đã có một yêu cầu đang hoạt động hoặc đang chờ xử lý với gia sư này."
          );
       }
 

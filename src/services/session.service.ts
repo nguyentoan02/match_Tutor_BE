@@ -81,7 +81,7 @@ class SessionService {
          this.appendLog(session, {
             userRole: "SYSTEM",
             action: "ABSENT_AUTO",
-            note: "Session cancelled: Student did not confirm 15 minutes before start time",
+            note: "Buổi học đã bị hủy: Học sinh không xác nhận trước 15 phút khi bắt đầu",
          });
          await session.save();
       }
@@ -127,12 +127,12 @@ class SessionService {
          session.absence = session.absence || {};
          session.absence.tutorAbsent = true;
          session.absence.decidedAt = now;
-         session.absence.reason = "Tutor missed check-in window"; // Thêm lý do
-         session.absence.evidenceUrls = []; // Empty array cho auto absence
+         session.absence.reason = "Gia sư đã vượt quá thời hạn điểm danh";
+         session.absence.evidenceUrls = [];
          this.appendLog(session, {
             userRole: "SYSTEM",
             action: "ABSENT_AUTO",
-            note: "Tutor missed check-in window",
+            note: "Gia sư đã vượt quá thời hạn điểm danh",
          });
          session.status = SessionStatus.NOT_CONDUCTED;
          await this.extendCommitmentForAbsences(
@@ -154,12 +154,12 @@ class SessionService {
          session.absence = session.absence || {};
          session.absence.studentAbsent = true;
          session.absence.decidedAt = now;
-         session.absence.reason = "Student missed check-in window"; // ✅ Thêm lý do
-         session.absence.evidenceUrls = []; //  Empty array cho auto absence
+         session.absence.reason = "Học sinh đã vượt quá thời hạn điểm danh";
+         session.absence.evidenceUrls = [];
          this.appendLog(session, {
             userRole: "SYSTEM",
             action: "ABSENT_AUTO",
-            note: "Student missed check-in window",
+            note: "Học sinh đã vượt quá thời hạn điểm danh",
          });
          session.status = SessionStatus.NOT_CONDUCTED;
          await this.extendCommitmentForAbsences(
@@ -415,7 +415,7 @@ class SessionService {
       decision: "ACCEPTED" | "REJECTED"
    ) {
       const session = await Session.findById(sessionId);
-      if (!session) throw new NotFoundError("Session not found");
+      if (!session) throw new NotFoundError("Không tìm thấy buổi học");
 
       await this.checkParticipantByCommitment(
          session.learningCommitmentId.toString(),
@@ -423,7 +423,9 @@ class SessionService {
       );
 
       if (session.studentConfirmation?.status !== "PENDING") {
-         throw new BadRequestError("Session participation already confirmed");
+         throw new BadRequestError(
+            "Xác nhận tham gia buổi học đã được thực hiện"
+         );
       }
 
       session.studentConfirmation = {
@@ -446,7 +448,7 @@ class SessionService {
 
    async confirmAttendance(sessionId: string, userId: string, userRole: Role) {
       const session = await Session.findById(sessionId);
-      if (!session) throw new NotFoundError("Session not found");
+      if (!session) throw new NotFoundError("Không tìm thấy buổi học");
 
       await this.checkParticipantByCommitment(
          session.learningCommitmentId.toString(),
@@ -455,7 +457,7 @@ class SessionService {
 
       if (session.status !== SessionStatus.CONFIRMED) {
          throw new BadRequestError(
-            "Can only confirm attendance for sessions in CONFIRMED status"
+            "Chỉ có thể xác nhận điểm danh cho buổi học có trạng thái ĐÃ XÁC NHẬN"
          );
       }
 
@@ -492,31 +494,31 @@ class SessionService {
          session.attendanceConfirmation.tutor.status !== "ACCEPTED"
       ) {
          throw new BadRequestError(
-            "Student can confirm only after tutor has checked in."
+            "Học sinh chỉ có thể xác nhận sau khi gia sư đã điểm danh"
          );
       }
 
       if (userRole === Role.TUTOR && now > tutorDeadline) {
          await this.autoFinalizeAttendanceIfDue(session);
          await session.save();
-         throw new BadRequestError("Tutor check-in window has passed");
+         throw new BadRequestError("Thời hạn điểm danh của gia sư đã hết");
       }
       if (userRole === Role.STUDENT && now > studentDeadline) {
          await this.autoFinalizeAttendanceIfDue(session);
          await session.save();
-         throw new BadRequestError("Student check-in window has passed");
+         throw new BadRequestError("Thời hạn điểm danh của học sinh đã hết");
       }
 
       if (userRole === Role.TUTOR) {
          if (session.attendanceConfirmation.tutor.status !== "PENDING") {
-            throw new BadRequestError("Tutor attendance already confirmed");
+            throw new BadRequestError("Gia sư đã xác nhận điểm danh rồi");
          }
          session.attendanceConfirmation.tutor.status = "ACCEPTED";
          session.attendanceConfirmation.tutor.decidedAt = now;
          this.appendLog(session, { userRole: "TUTOR", action: "CHECKED_IN" });
       } else if (userRole === Role.STUDENT) {
          if (session.attendanceConfirmation.student.status !== "PENDING") {
-            throw new BadRequestError("Student attendance already confirmed");
+            throw new BadRequestError("Học sinh đã xác nhận điểm danh rồi");
          }
          session.attendanceConfirmation.student.status = "ACCEPTED";
          session.attendanceConfirmation.student.decidedAt = now;
@@ -573,7 +575,7 @@ class SessionService {
       payload?: { reason?: string; evidenceUrls?: string[] }
    ) {
       const session = await Session.findById(sessionId);
-      if (!session) throw new NotFoundError("Session not found");
+      if (!session) throw new NotFoundError("Không tìm thấy buổi học");
 
       await this.checkParticipantByCommitment(
          session.learningCommitmentId.toString(),
@@ -582,7 +584,7 @@ class SessionService {
 
       if (session.status !== SessionStatus.CONFIRMED) {
          throw new BadRequestError(
-            "Can only reject attendance for sessions in CONFIRMED status"
+            "Chỉ có thể từ chối điểm danh cho buổi học có trạng thái ĐÃ XÁC NHẬN"
          );
       }
 
@@ -617,14 +619,14 @@ class SessionService {
       if (userRole === Role.STUDENT) {
          if (session.attendanceConfirmation.tutor.status !== "ACCEPTED") {
             throw new BadRequestError(
-               "Student can reject only after tutor has checked in."
+               "Học sinh chỉ có thể từ chối sau khi gia sư đã điểm danh"
             );
          }
       }
 
       if (userRole === Role.TUTOR) {
          if (session.attendanceConfirmation.tutor.status !== "PENDING") {
-            throw new BadRequestError("Tutor attendance already decided");
+            throw new BadRequestError("Gia sư đã quyết định điểm danh rồi");
          }
          session.attendanceConfirmation.tutor.status = "REJECTED";
          session.attendanceConfirmation.tutor.decidedAt = now;
@@ -652,7 +654,7 @@ class SessionService {
                !payload?.reason
             ) {
                throw new BadRequestError(
-                  "Evidence and reason are required to dispute after tutor check-in"
+                  "Bằng chứng và lý do là bắt buộc để tranh chấp sau khi gia sư đã điểm danh"
                );
             }
             session.attendanceConfirmation.student.status = "REJECTED";
@@ -789,21 +791,17 @@ class SessionService {
       currentUser: IUser
    ) {
       const session = await Session.findById(sessionId);
-      if (!session) throw new NotFoundError("Session not found");
+      if (!session) throw new NotFoundError("Không tìm thấy buổi học");
 
       if (new Date() > session.startTime) {
-         throw new BadRequestError(
-            "Cannot update a session that has already started."
-         );
+         throw new BadRequestError("Không thể cập nhật buổi học đã bắt đầu");
       }
       if (session.status === SessionStatus.COMPLETED) {
-         throw new BadRequestError(
-            "Cannot update a session that has already been completed."
-         );
+         throw new BadRequestError("Không thể cập nhật buổi học đã hoàn thành");
       }
       if (session.status === SessionStatus.CONFIRMED) {
          throw new BadRequestError(
-            "Cannot update a session that has been confirmed."
+            "Không thể cập nhật buổi học đã được xác nhận"
          );
       }
       await this.checkParticipantByCommitment(
@@ -818,7 +816,7 @@ class SessionService {
 
    async delete(sessionId: string, userId: string) {
       const session = await Session.findById(sessionId);
-      if (!session) throw new NotFoundError("Session not found");
+      if (!session) throw new NotFoundError("Không tìm thấy buổi học");
 
       await this.checkParticipantByCommitment(
          (session.learningCommitmentId as any).toString(),
@@ -826,7 +824,9 @@ class SessionService {
       );
 
       if (session.status !== SessionStatus.SCHEDULED) {
-         throw new BadRequestError("Only scheduled sessions can be deleted.");
+         throw new BadRequestError(
+            "Chỉ có thể xóa các buổi học có trạng thái CHỈ ĐỊNH"
+         );
       }
 
       await session.deleteOne();
@@ -834,7 +834,7 @@ class SessionService {
 
    async cancel(sessionId: string, userId: string, reason: string) {
       const session = await Session.findById(sessionId);
-      if (!session) throw new NotFoundError("Session not found");
+      if (!session) throw new NotFoundError("Không tìm thấy buổi học");
 
       await this.checkParticipantByCommitment(
          (session.learningCommitmentId as any).toString(),
@@ -842,7 +842,7 @@ class SessionService {
       );
 
       if (session.status !== SessionStatus.CONFIRMED) {
-         throw new BadRequestError("Only confirmed sessions can be cancelled.");
+         throw new BadRequestError("Chỉ có thể hủy các buổi học được xác nhận");
       }
 
       const now = new Date();
@@ -852,7 +852,7 @@ class SessionService {
 
       if (now > tenMinutesBeforeStart) {
          throw new BadRequestError(
-            "Session cannot be cancelled within 10 minutes of start time."
+            "Không thể hủy buổi học trong vòng 10 phút trước khi bắt đầu"
          );
       }
 
