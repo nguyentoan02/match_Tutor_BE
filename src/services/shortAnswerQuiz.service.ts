@@ -1,476 +1,462 @@
 import mongoose, {
-    ClientSession,
-    MongooseBulkWriteResult,
-    Types,
+   ClientSession,
+   MongooseBulkWriteResult,
+   Types,
 } from "mongoose";
 import quizModel from "../models/quiz.model";
 import quizQuestionModel from "../models/quizQuestion.model";
 import {
-    CreateShortAnswerQuizBody,
-    DeleteShortAnswerQuestion,
-    EditShortAnswerQuestion,
-    ShortAnswerQuestionType,
+   CreateShortAnswerQuizBody,
+   DeleteShortAnswerQuestion,
+   EditShortAnswerQuestion,
+   ShortAnswerQuestionType,
 } from "../schemas/quiz.schema";
 import { IQuiz, IQuizInfo } from "../types/types/quiz";
 import {
-    BadRequestError,
-    InternalServerError,
-    NotFoundError,
+   BadRequestError,
+   InternalServerError,
+   NotFoundError,
 } from "../utils/error.response";
 import { IQuizQuestion, IQuizQuestionInfo } from "../types/types/quizQuestion";
 import sessionModel from "../models/session.model";
 import { QuestionTypeEnum } from "../types/enums";
 import { ISession } from "../types/types/session";
+import quizSubmissionModel from "../models/quizSubmission.model";
+import tutorModel from "../models/tutor.model";
 
 class ShortAnswerQuizService {
-    async createShortAnswerQuiz(
-        tutorId: string,
-        quizAtr: IQuizInfo,
-        questionArr: ShortAnswerQuestionType[]
-    ): Promise<IQuiz> {
-        const session = await mongoose.startSession();
-        try {
-            session.startTransaction();
-            const createdQuizArr = await quizModel.create(
-                [
-                    {
-                        ...quizAtr,
-                        createdBy: tutorId,
-                    },
-                ],
-                { session }
-            );
+   async createShortAnswerQuiz(
+      tutorId: string,
+      quizAtr: IQuizInfo,
+      questionArr: ShortAnswerQuestionType[]
+   ): Promise<IQuiz> {
+      const session = await mongoose.startSession();
+      try {
+         session.startTransaction();
 
-            if (!createdQuizArr || !createdQuizArr.length) {
-                throw new Error("Tạo bài kiểm tra thất bại");
+         const tutor = await tutorModel.findOne({ userId: tutorId });
+
+         if (!tutor) throw new NotFoundError("not found this tutor");
+
+         if (tutor.maxQuiz === 0)
+            throw new BadRequestError("reach max quiz Created");
+
+         tutor.maxQuiz = Math.max(0, tutor.maxQuiz - 1);
+
+         await tutor.save({ session });
+
+         const createdQuizArr = await quizModel.create(
+            [
+               {
+                  ...quizAtr,
+                  createdBy: tutorId,
+               },
+            ],
+            { session }
+         );
+
+         if (!createdQuizArr || !createdQuizArr.length) {
+            throw new Error("Failed to create quiz");
+         }
+
+         const createdQuiz = createdQuizArr[0];
+
+         const questionPayload = questionArr.map((q) => ({
+            quizId: createdQuiz._id,
+            ...q,
+         }));
+
+         for (const q of questionPayload) {
+            const { acceptedAnswers } = q;
+            if (!acceptedAnswers || acceptedAnswers.length === 0) {
+               throw new BadRequestError(
+                  "at least one accepted answer is required for short answer question"
+               );
             }
+         }
 
-            const createdQuiz = createdQuizArr[0];
+         const insertedQuestions = await quizQuestionModel.insertMany(
+            questionPayload,
+            { session }
+         );
 
-            const questionPayload = questionArr.map((q) => ({
-                quizId: createdQuiz._id,
-                ...q,
-            }));
+         createdQuiz.totalQuestions = insertedQuestions.length;
+         await createdQuiz.save({ session });
+         await session.commitTransaction();
+         session.endSession();
 
-            for (const q of questionPayload) {
-                const { acceptedAnswers } = q;
-                if (!acceptedAnswers || acceptedAnswers.length === 0) {
-                    throw new BadRequestError(
-                        "Câu hỏi dạng tự luận phải có ít nhất một đáp án được chấp nhận"
-                    );
-                }
-            }
+         return {
+            ...(createdQuiz.toObject
+               ? createdQuiz.toObject()
+               : (createdQuiz as any)),
+            quizQuestions: insertedQuestions,
+         } as unknown as IQuiz;
+      } catch (error) {
+         await session.abortTransaction();
+         throw new InternalServerError(
+            "can not create short answer quiz and quiz questions"
+         );
+      } finally {
+         session.endSession();
+      }
+   }
 
-            const insertedQuestions = await quizQuestionModel.insertMany(
-                questionPayload,
-                { session }
-            );
+   async getShortAnswerQuizByQuizId(
+      quizId: string
+   ): Promise<IQuizQuestionInfo> {
+      const shortAnswerQuiz = await quizModel.findById(quizId);
+      if (!shortAnswerQuiz) throw new NotFoundError("can not found this quiz");
+      const quizQuestions = await quizQuestionModel.find({
+         quizId: quizId,
+         questionType: QuestionTypeEnum.SHORT_ANSWER,
+      });
+      if (quizQuestions.length === 0) {
+         throw new NotFoundError(
+            "this quiz dosen't have any question please add more"
+         );
+      }
+      const payload: IQuizQuestionInfo = {
+         quizInfo: shortAnswerQuiz,
+         quizQuestions,
+      };
+      return payload;
+   }
 
-            createdQuiz.totalQuestions = insertedQuestions.length;
-            await createdQuiz.save({ session });
-            await session.commitTransaction();
-            session.endSession();
-
-            return {
-                ...(createdQuiz.toObject
-                    ? createdQuiz.toObject()
-                    : (createdQuiz as any)),
-                quizQuestions: insertedQuestions,
-            } as unknown as IQuiz;
-        } catch (error) {
-            await session.abortTransaction();
-            throw new InternalServerError(
-                "Không thể tạo bài kiểm tra tự luận và các câu hỏi"
-            );
-        } finally {
-            session.endSession();
-        }
-    }
-
-    async getShortAnswerQuizByQuizId(quizId: string): Promise<IQuizQuestionInfo> {
-        const shortAnswerQuiz = await quizModel.findById(quizId);
-        if (!shortAnswerQuiz)
-            throw new NotFoundError("Không tìm thấy bài kiểm tra này");
-
-        const quizQuestions = await quizQuestionModel.find({
-            quizId: quizId,
-            questionType: QuestionTypeEnum.SHORT_ANSWER,
-        });
-
-        if (quizQuestions.length === 0) {
-            throw new NotFoundError(
-                "Bài kiểm tra này chưa có câu hỏi nào, vui lòng thêm câu hỏi"
-            );
-        }
-
-        const payload: IQuizQuestionInfo = {
-            quizInfo: shortAnswerQuiz,
-            quizQuestions,
-        };
-        return payload;
-    }
-
-    private async addNewShortAnswerQuestions(
-        tutorId: string,
-        quizId: string,
-        newQuestions: ShortAnswerQuestionType[],
-        session?: ClientSession
-    ): Promise<MongooseBulkWriteResult> {
-        const ownSession = !session;
-        const s = session || (await mongoose.startSession());
-        try {
-            if (ownSession) s.startTransaction();
-            const quizDoc = await quizModel.findOne({
-                _id: quizId,
-                createdBy: tutorId,
-            });
-
-            if (!quizDoc)
-                throw new NotFoundError(
-                    "Không tìm thấy bài kiểm tra để thêm câu hỏi"
-                );
-
-            const insertQueries = newQuestions.map((p) => {
-                const { acceptedAnswers } = p;
-                if (!acceptedAnswers || acceptedAnswers.length === 0) {
-                    throw new BadRequestError(
-                        "Câu hỏi dạng tự luận phải có ít nhất một đáp án được chấp nhận"
-                    );
-                }
-
-                const pAny = p as any;
-                return {
-                    insertOne: { document: { quizId, ...pAny } },
-                };
-            });
-
-            if (insertQueries.length)
-                return quizQuestionModel.bulkWrite(insertQueries, { session: s });
-
-            return Promise.resolve({} as MongooseBulkWriteResult);
-        } catch (error) {
-            if (ownSession) await s.abortTransaction();
-            throw new BadRequestError(
-                "Không thể cập nhật câu hỏi của bài kiểm tra này"
-            );
-        } finally {
-            if (ownSession) s.endSession();
-        }
-    }
-
-    private async updateShortAnswerQuestions(
-        tutorId: string,
-        quizId: string,
-        editQuestions: EditShortAnswerQuestion[],
-        session?: ClientSession
-    ): Promise<MongooseBulkWriteResult> {
-        const ownSession = !session;
-        const s = session || (await mongoose.startSession());
-        try {
-            if (ownSession) s.startTransaction();
-            const quizDoc = await quizModel.findOne({
-                _id: quizId,
-                createdBy: tutorId,
-            });
-            if (!quizDoc)
-                throw new NotFoundError("Không tìm thấy bài kiểm tra để cập nhật");
-
-            for (const q of editQuestions) {
-                const { acceptedAnswers } = q;
-                if (!acceptedAnswers || acceptedAnswers.length === 0) {
-                    throw new BadRequestError(
-                        "Câu hỏi tự luận phải có ít nhất một đáp án được chấp nhận"
-                    );
-                }
-            }
-
-            const updateQueries = editQuestions.map((q) => {
-                const qAny: any = q as any;
-                return {
-                    updateOne: {
-                        filter: { _id: qAny._id, quizId },
-                        update: { $set: qAny },
-                        upsert: false,
-                    },
-                };
-            });
-
-            if (updateQueries.length) {
-                return quizQuestionModel.bulkWrite(updateQueries, { session: s });
-            }
-
-            return Promise.resolve({} as MongooseBulkWriteResult);
-        } catch (error) {
-            if (ownSession) await s.abortTransaction();
-            throw new BadRequestError(
-                "Không thể cập nhật câu hỏi của bài kiểm tra này"
-            );
-        } finally {
-            if (ownSession) s.endSession();
-        }
-    }
-
-    async editShortAnswerQuizCombined(
-        tutorId: string,
-        quizArt: IQuizInfo,
-        newShortAnswerQuestions: ShortAnswerQuestionType[],
-        editShortAnswerQuestions: EditShortAnswerQuestion[],
-        deleteShortAnswerQuestions: DeleteShortAnswerQuestion[]
-    ) {
-        const session = await mongoose.startSession();
-        try {
-            session.startTransaction();
-            const quiz = await quizModel.findOneAndUpdate(
-                { _id: quizArt._id, createdBy: tutorId },
-                { $set: quizArt },
-                { new: true, session }
-            );
-
-            if (!quiz) {
-                throw new NotFoundError(
-                    "Không tìm thấy bài kiểm tra để cập nhật"
-                );
-            }
-
-            const quizId = quizArt._id;
-
-            if (!quizId) {
-                throw new BadRequestError("Thiếu mã bài kiểm tra (quiz id)");
-            }
-
-            await Promise.all([
-                this.addNewShortAnswerQuestions(
-                    tutorId,
-                    quizId.toString(),
-                    newShortAnswerQuestions,
-                    session
-                ),
-                this.updateShortAnswerQuestions(
-                    tutorId,
-                    quizId.toString(),
-                    editShortAnswerQuestions,
-                    session
-                ),
-                this.deleteQuestionsFromQuiz(
-                    tutorId,
-                    quizId.toString(),
-                    deleteShortAnswerQuestions,
-                    session
-                ),
-            ]);
-
-            const finalQuestions = await quizQuestionModel
-                .find({ quizId: quizId })
-                .session(session);
-
-            quiz.totalQuestions = finalQuestions.length;
-
-            await quizModel.findOneAndUpdate(
-                { _id: quizId },
-                { $set: { totalQuestions: finalQuestions.length } },
-                { session }
-            );
-
-            await session.commitTransaction();
-
-            return { quiz, quizQuestions: finalQuestions } as unknown as IQuiz;
-        } catch (error) {
-            await session.abortTransaction();
-            console.log("Edit quiz error:", error);
-            throw new BadRequestError("Không thể chỉnh sửa bài kiểm tra này");
-        } finally {
-            session.endSession();
-        }
-    }
-
-    async getShortAnswerQuizesByTutor(tutorId: string): Promise<IQuiz[]> {
-        const quizes = await quizModel.find({
+   private async addNewShortAnswerQuestions(
+      tutorId: string,
+      quizId: string,
+      newQuestions: ShortAnswerQuestionType[],
+      session?: ClientSession
+   ): Promise<MongooseBulkWriteResult> {
+      const ownSession = !session;
+      const s = session || (await mongoose.startSession());
+      try {
+         if (ownSession) s.startTransaction();
+         const quizDoc = await quizModel.findOne({
+            _id: quizId,
             createdBy: tutorId,
-            quizType: QuestionTypeEnum.SHORT_ANSWER,
-        });
+         });
+         if (!quizDoc)
+            throw new NotFoundError("can not found this quiz to add question");
 
-        if (quizes.length === 0) {
-            throw new NotFoundError(
-                "Không tìm thấy bài kiểm tra tự luận nào của gia sư này"
-            );
-        }
-
-        return quizes as IQuiz[];
-    }
-
-    private async deleteQuestionsFromQuiz(
-        tutorId: string,
-        quizId: string,
-        deleteQuestionArr: DeleteShortAnswerQuestion[] = [],
-        session?: ClientSession
-    ): Promise<MongooseBulkWriteResult> {
-        const ownSession = !session;
-        const s = session || (await mongoose.startSession());
-        try {
-            if (ownSession) s.startTransaction();
-
-            if (!quizId)
-                throw new NotFoundError("Thiếu mã bài kiểm tra cần xóa");
-
-            const quizDoc = await quizModel
-                .findOne({ _id: quizId, createdBy: tutorId })
-                .session(s);
-
-            if (!quizDoc)
-                throw new NotFoundError(
-                    "Không tìm thấy bài kiểm tra hoặc bạn không có quyền thực hiện thao tác này"
-                );
-
-            const deleteIds = deleteQuestionArr
-                .map((q) => q._id)
-                .filter((id) => !!id);
-
-            const deleteQueries = deleteIds.map((id) => ({
-                deleteOne: { filter: { _id: id, quizId } },
-            }));
-
-            if (deleteQueries.length) {
-                return quizQuestionModel.bulkWrite(deleteQueries, { session: s });
+         const insertQueries = newQuestions.map((p) => {
+            const { acceptedAnswers } = p;
+            if (!acceptedAnswers || acceptedAnswers.length === 0) {
+               throw new BadRequestError(
+                  "at least one accepted answer is required for short answer question"
+               );
             }
 
-            return Promise.resolve({} as MongooseBulkWriteResult);
-        } catch (error) {
-            if (ownSession) await s.abortTransaction();
-            throw error;
-        } finally {
-            if (ownSession) s.endSession();
-        }
-    }
+            const pAny = p as any;
+            return {
+               insertOne: { document: { quizId, ...pAny } },
+            };
+         });
 
-    async deleteShortAnswerQuiz(quizId: string, userId: string): Promise<void> {
-        const quiz = await quizModel.findOne({ _id: quizId, createdBy: userId });
-        if (!quiz) {
-            throw new NotFoundError("Không tìm thấy bài kiểm tra này");
-        }
+         if (insertQueries.length)
+            return quizQuestionModel.bulkWrite(insertQueries, { session: s });
 
-        const quizQuestions = await quizQuestionModel.find({
-            quizId: quizId,
-        });
+         return Promise.resolve({} as MongooseBulkWriteResult);
+      } catch (error) {
+         if (ownSession) await s.abortTransaction();
+         throw new BadRequestError("can not update this quiz question");
+      } finally {
+         if (ownSession) s.endSession();
+      }
+   }
 
-        if (quizQuestions.length < 1) {
+   private async updateShortAnswerQuestions(
+      tutorId: string,
+      quizId: string,
+      editQuestions: EditShortAnswerQuestion[],
+      session?: ClientSession
+   ): Promise<MongooseBulkWriteResult> {
+      const ownSession = !session;
+      const s = session || (await mongoose.startSession());
+      try {
+         if (ownSession) s.startTransaction();
+         const quizDoc = await quizModel.findOne({
+            _id: quizId,
+            createdBy: tutorId,
+         });
+         if (!quizDoc)
+            throw new NotFoundError("can not found this quiz to update");
+
+         for (const q of editQuestions) {
+            const { acceptedAnswers } = q;
+            if (!acceptedAnswers || acceptedAnswers.length === 0) {
+               throw new BadRequestError(
+                  "at least one accepted answer is required for short answer question"
+               );
+            }
+         }
+
+         const updateQueries = editQuestions.map((q) => {
+            const qAny: any = q as any;
+            return {
+               updateOne: {
+                  filter: { _id: qAny._id, quizId },
+                  update: { $set: qAny },
+                  upsert: false,
+               },
+            };
+         });
+         if (updateQueries.length) {
+            return quizQuestionModel.bulkWrite(updateQueries, { session: s });
+         }
+
+         return Promise.resolve({} as MongooseBulkWriteResult);
+      } catch (error) {
+         if (ownSession) await s.abortTransaction();
+         throw new BadRequestError("can not update this quiz question");
+      } finally {
+         if (ownSession) s.endSession();
+      }
+   }
+
+   async editShortAnswerQuizCombined(
+      tutorId: string,
+      quizArt: IQuizInfo,
+      newShortAnswerQuestions: ShortAnswerQuestionType[],
+      editShortAnswerQuestions: EditShortAnswerQuestion[],
+      deleteShortAnswerQuestions: DeleteShortAnswerQuestion[]
+   ) {
+      const session = await mongoose.startSession();
+      try {
+         session.startTransaction();
+         const quiz = await quizModel.findOneAndUpdate(
+            { _id: quizArt._id, createdBy: tutorId },
+            { $set: quizArt },
+            { new: true, session }
+         );
+
+         if (!quiz) {
             throw new NotFoundError(
-                "Không tìm thấy câu hỏi nào trong bài kiểm tra này"
+               "can not found this quiz and update this quiz"
             );
-        }
+         }
+         const quizId = quizArt._id;
 
-        const existed = await sessionModel
-            .find({ quizIds: quizId })
-            .lean()
-            .select("_id")
-            .exec();
+         if (!quizId) {
+            throw new BadRequestError("quiz id is required");
+         }
 
-        const deleteIds = quizQuestions
-            .map((q: any) => q._id)
+         await Promise.all([
+            this.addNewShortAnswerQuestions(
+               tutorId,
+               quizId.toString(),
+               newShortAnswerQuestions,
+               session
+            ),
+            this.updateShortAnswerQuestions(
+               tutorId,
+               quizId.toString(),
+               editShortAnswerQuestions,
+               session
+            ),
+            this.deleteQuestionsFromQuiz(
+               tutorId,
+               quizId.toString(),
+               deleteShortAnswerQuestions,
+               session
+            ),
+         ]);
+
+         const finalQuestions = await quizQuestionModel
+            .find({ quizId: quizId })
+            .session(session);
+
+         quiz.totalQuestions = finalQuestions.length;
+         await quizModel.findOneAndUpdate(
+            { _id: quizId },
+            { $set: { totalQuestions: finalQuestions.length } },
+            { session }
+         );
+         await session.commitTransaction();
+         return { quiz, quizQuestions: finalQuestions } as unknown as IQuiz;
+      } catch (error) {
+         await session.abortTransaction();
+         console.log("Edit quiz error:", error);
+         throw new BadRequestError("can not edit this quiz");
+      } finally {
+         session.endSession();
+      }
+   }
+
+   async getShortAnswerQuizesByTutor(tutorId: string): Promise<IQuiz[]> {
+      const quizes = await quizModel.find({
+         createdBy: tutorId,
+         quizType: QuestionTypeEnum.SHORT_ANSWER,
+      });
+      if (quizes.length === 0) {
+         new NotFoundError("can not find any quiz from this tutor");
+      }
+      return quizes as IQuiz[];
+   }
+
+   private async deleteQuestionsFromQuiz(
+      tutorId: string,
+      quizId: string,
+      deleteQuestionArr: DeleteShortAnswerQuestion[] = [],
+      session?: ClientSession
+   ): Promise<MongooseBulkWriteResult> {
+      const ownSession = !session;
+      const s = session || (await mongoose.startSession());
+      try {
+         if (ownSession) s.startTransaction();
+
+         if (!quizId) throw new NotFoundError("delete quiz id is required");
+         const quizDoc = await quizModel
+            .findOne({ _id: quizId, createdBy: tutorId })
+            .session(s);
+         if (!quizDoc)
+            throw new NotFoundError("quiz not found or not permitted");
+
+         const deleteIds = deleteQuestionArr
+            .map((q) => q._id)
             .filter((id) => !!id);
 
-        const session = await mongoose.startSession();
-        try {
-            session.startTransaction();
+         const deleteQueries = deleteIds.map((id) => ({
+            deleteOne: { filter: { _id: id, quizId } },
+         }));
 
-            if (deleteIds.length) {
-                await quizQuestionModel.deleteMany(
-                    { _id: { $in: deleteIds }, quizId },
-                    { session }
-                );
-            }
+         if (deleteQueries.length) {
+            return quizQuestionModel.bulkWrite(deleteQueries, { session: s });
+         }
 
-            if (existed) {
-                await sessionModel.updateMany(
-                    { quizIds: quizId },
-                    { $pull: { quizIds: quizId } },
-                    { session }
-                );
-            }
+         return Promise.resolve({} as MongooseBulkWriteResult);
+      } catch (error) {
+         if (ownSession) await s.abortTransaction();
+         throw error;
+      } finally {
+         if (ownSession) s.endSession();
+      }
+   }
 
-            await quizModel.deleteOne({ _id: quizId }, { session });
+   async deleteShortAnswerQuiz(quizId: string, userId: string): Promise<void> {
+      const quiz = await quizModel.findOne({ _id: quizId, createdBy: userId });
+      if (!quiz) {
+         throw new NotFoundError("can not find this quiz");
+      }
 
-            await session.commitTransaction();
-        } catch (error) {
-            await session.abortTransaction();
-            throw new InternalServerError(
-                "Không thể xóa bài kiểm tra tự luận này"
+      const quizQuestions = await quizQuestionModel.find({
+         quizId: quizId,
+      });
+      if (quizQuestions.length < 1) {
+         throw new NotFoundError("can not find quiz question in this quiz");
+      }
+
+      const existed = await sessionModel
+         .find({ saqQuizIds: quizId })
+         .lean()
+         .select("_id")
+         .exec();
+
+      const deleteIds = quizQuestions
+         .map((q: any) => q._id)
+         .filter((id) => !!id);
+
+      const session = await mongoose.startSession();
+      try {
+         session.startTransaction();
+
+         if (deleteIds.length) {
+            await quizQuestionModel.deleteMany(
+               { _id: { $in: deleteIds }, quizId },
+               { session }
             );
-        } finally {
-            session.endSession();
-        }
-    }
+         }
 
-    async asignShortAnswerQuizToSession(
-        tutorId: string,
-        quizIds: string[],
-        sessionId: string
-    ): Promise<ISession> {
-        const session = await sessionModel.findById(sessionId);
-        if (!session) {
-            throw new NotFoundError("Không tìm thấy buổi học này");
-        }
-
-        if (session.createdBy.toString() !== tutorId) {
-            throw new BadRequestError(
-                "Bạn không có quyền chỉnh sửa buổi học này"
+         if (existed && existed.length > 0) {
+            await sessionModel.updateMany(
+               { saqQuizIds: quizId },
+               { $pull: { saqQuizIds: quizId } },
+               { session }
             );
-        }
+         }
 
-        const quizIdsArr = Array.isArray(quizIds)
-            ? quizIds.filter((id) => !!id)
-            : [];
+         // Import quizSubmissionModel at the top of the file
+         await quizSubmissionModel.deleteMany({ quizId }, { session });
 
-        const savedSession = await sessionModel.findByIdAndUpdate(
-            sessionId,
-            { $set: { saqQuizIds: quizIdsArr } },
-            { new: true }
-        );
+         await quizModel.deleteOne({ _id: quizId }, { session });
+         await session.commitTransaction();
+      } catch (error) {
+         await session.abortTransaction();
+         throw new InternalServerError("can not delete this short answer quiz");
+      } finally {
+         session.endSession();
+      }
+   }
 
-        return savedSession as ISession;
-    }
+   async asignShortAnswerQuizToSession(
+      tutorId: string,
+      quizIds: string[],
+      sessionId: string
+   ): Promise<ISession> {
+      const session = await sessionModel.findById(sessionId);
+      if (!session) {
+         throw new NotFoundError("can not find this session");
+      }
 
-    async getShortAnswerQuizzesInSessionDetail(sessionId: string): Promise<IQuiz[]> {
-        const session = await sessionModel.findById(sessionId);
-        if (!session) {
-            throw new NotFoundError("Không tìm thấy buổi học này");
-        }
+      if (session.createdBy.toString() !== tutorId) {
+         throw new BadRequestError("you are not allowed to edit this session");
+      }
 
-        const quizIds = session.saqQuizIds;
-        if (!quizIds || quizIds.length === 0) {
-            return [];
-        }
+      const quizIdsArr = Array.isArray(quizIds)
+         ? quizIds.filter((id) => !!id)
+         : [];
 
-        const quizzes = await quizModel.find({
-            _id: { $in: quizIds },
-        });
+      const savedSession = await sessionModel.findByIdAndUpdate(
+         sessionId,
+         { $set: { saqQuizIds: quizIdsArr } },
+         { new: true }
+      );
+      return savedSession as ISession;
+   }
 
-        return quizzes as IQuiz[];
-    }
+   async getShortAnswerQuizzesInSessionDetail(
+      sessionId: string
+   ): Promise<IQuiz[]> {
+      const session = await sessionModel.findById(sessionId);
+      if (!session) {
+         throw new NotFoundError("can not find this session");
+      }
 
-    async getSessionsAssignedForSAQ(quizId: string): Promise<ISession[]> {
-        const sessions = await sessionModel
-            .find({
-                saqQuizIds: new Types.ObjectId(quizId),
-            })
-            .select(
-                "-saqQuizIds -createdBy -updatedAt -__v -studentConfirmation -attendanceConfirmation -cancellation -isDeleted -deletedAt -deletedBy -materials -reminders -location -notes"
-            )
-            .populate({
-                path: "teachingRequestId",
-                select: "title subject level studentId",
-                populate: {
-                    path: "studentId",
-                    select: "userId",
-                    populate: {
-                        path: "userId",
-                        select: "name email ",
-                    },
-                },
-            });
+      const quizIds = session.saqQuizIds;
+      if (!quizIds || quizIds.length === 0) {
+         return [];
+      }
 
-        return sessions as ISession[];
-    }
+      const quizzes = await quizModel.find({
+         _id: { $in: quizIds },
+      });
 
+      return quizzes as IQuiz[];
+   }
+
+   async getSessionsAssignedForSAQ(quizId: string): Promise<ISession[]> {
+      const sessions = await sessionModel
+         .find({
+            saqQuizIds: new Types.ObjectId(quizId),
+         })
+         .select(
+            "-saqQuizIds -createdBy -updatedAt -__v -studentConfirmation -attendanceConfirmation -cancellation -isDeleted -deletedAt -deletedBy -materials -reminders -location -notes"
+         )
+         .populate({
+            path: "teachingRequestId",
+            select: "title subject level studentId",
+            populate: {
+               path: "studentId",
+               select: "userId",
+               populate: {
+                  path: "userId",
+                  select: "name email ",
+               },
+            },
+         });
+
+      return sessions as ISession[];
+   }
 }
 
 export default new ShortAnswerQuizService();
