@@ -3,31 +3,76 @@ import LearningCommitment from "../models/learningCommitment.model";
 import { NotFoundError, BadRequestError } from "../utils/error.response";
 import { SessionStatus } from "../types/enums/session.enum";
 import mongoose from "mongoose";
+import moment from "moment-timezone"; // <--- added import
 
 class AdminSessionService {
-   async listDisputes(status?: "OPEN" | "RESOLVED") {
+   // Copy of logic in SessionService.extendCommitmentForAbsences
+   private async extendCommitmentForAbsences(commitmentId: string) {
+      const commitment = await LearningCommitment.findById(commitmentId);
+      if (!commitment) return;
+
+      commitment.absentSessions = (commitment.absentSessions || 0) + 1;
+
+      const newExtendedWeeks = Math.ceil(commitment.absentSessions / 2);
+      const oldExtendedWeeks = commitment.extendedWeeks || 0;
+
+      if (newExtendedWeeks > oldExtendedWeeks) {
+         const weeksToAdd = newExtendedWeeks - oldExtendedWeeks;
+         const endDateMoment = moment(commitment.endDate).tz(
+            "Asia/Ho_Chi_Minh"
+         );
+         endDateMoment.add(weeksToAdd, "weeks");
+         commitment.endDate = endDateMoment.toDate();
+         commitment.extendedWeeks = newExtendedWeeks;
+      }
+
+      await commitment.save();
+   }
+   async listDisputes(
+      status?: "OPEN" | "RESOLVED",
+      page: number = 1,
+      limit: number = 10
+   ) {
       const filter: any = { dispute: { $exists: true } };
       if (status) filter["dispute.status"] = status;
-      return await Session.find({ ...filter })
-         .select("learningCommitmentId startTime endTime status dispute")
-         .populate({
-            path: "learningCommitmentId",
-            select: "student tutor",
-            populate: [
-               {
-                  path: "student",
-                  select: "userId",
-                  populate: { path: "userId", select: "_id name email" },
-               },
-               {
-                  path: "tutor",
-                  select: "userId",
-                  populate: { path: "userId", select: "_id name email" },
-               },
-            ],
-         })
-         .sort({ "dispute.openedAt": -1 })
-         .lean();
+
+      const skip = (page - 1) * limit;
+
+      const [data, total] = await Promise.all([
+         Session.find({ ...filter })
+            .select("learningCommitmentId startTime endTime status dispute")
+            .populate({
+               path: "learningCommitmentId",
+               select: "student tutor",
+               populate: [
+                  {
+                     path: "student",
+                     select: "userId",
+                     populate: { path: "userId", select: "_id name email" },
+                  },
+                  {
+                     path: "tutor",
+                     select: "userId",
+                     populate: { path: "userId", select: "_id name email" },
+                  },
+               ],
+            })
+            .sort({ "dispute.openedAt": -1 })
+            .skip(skip)
+            .limit(limit)
+            .lean(),
+         Session.countDocuments({ ...filter }),
+      ]);
+
+      return {
+         data,
+         pagination: {
+            total,
+            page,
+            limit,
+            pages: Math.ceil(total / limit),
+         },
+      };
    }
 
    async getDisputeBySessionId(sessionId: string) {
@@ -132,6 +177,13 @@ class AdminSessionService {
          session.absence.reason =
             adminNotes || "Admin resolved dispute: NOT_CONDUCTED";
          session.absence.evidenceUrls = session.dispute?.evidenceUrls || [];
+
+         // Extend commitment for absence (same behavior as in SessionService)
+         try {
+            await this.extendCommitmentForAbsences(
+               (session.learningCommitmentId as any).toString()
+            );
+         } catch (e) {}
       }
 
       // Close dispute
