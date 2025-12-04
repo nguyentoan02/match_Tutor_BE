@@ -2,11 +2,11 @@ import User from "../../models/user.model";
 import Tutor from "../../models/tutor.model";
 import { NotFoundError, BadRequestError } from "../../utils/error.response";
 import { IUser } from "../../types/types/user";
-import { transporter } from "../../config/mail";
 import { 
    getBanNotificationEmailTemplate, 
    getUnbanNotificationEmailTemplate
 } from "../../template/adminEmail";
+import { addEmailJob } from "../../queues/email.queue";
 import { getVietnamTime } from "../../utils/date.util";
 import { GetBannedUsersQuery } from "../../schemas/admin.schema";
 
@@ -55,14 +55,12 @@ export class AdminBanService {
          banDate
       );
 
-      // Gửi email bất đồng bộ (không block response)
-      transporter.sendMail({
-         from: process.env.EMAIL_USER,
+      // Sử dụng queue để gửi email nhanh chóng (không block response)
+      await addEmailJob({
+         from: `"MatchTutor" <${process.env.EMAIL_USER}>`,
          to: user.email,
-         subject: "Account Suspended - MatchTutor",
+         subject: "Tài khoản bị tạm khóa - MatchTutor",
          html: emailTemplate,
-      }).catch(emailError => {
-         console.error("Failed to send ban notification email:", emailError);
       });
 
       const userObj = user.toObject();
@@ -102,14 +100,12 @@ export class AdminBanService {
          unbanDate
       );
 
-      // Gửi email bất đồng bộ (không block response)
-      transporter.sendMail({
-         from: process.env.EMAIL_USER,
+      // Sử dụng queue để gửi email nhanh chóng (không block response)
+      await addEmailJob({
+         from: `"MatchTutor" <${process.env.EMAIL_USER}>`,
          to: user.email,
-         subject: "Account Restored - MatchTutor",
+         subject: "Tài khoản đã được khôi phục - MatchTutor",
          html: emailTemplate,
-      }).catch(emailError => {
-         console.error("Failed to send unban notification email:", emailError);
       });
 
       const userObj = user.toObject();

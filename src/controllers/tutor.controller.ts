@@ -12,17 +12,18 @@ export class TutorController {
         const result = await tutorService.getAllTutors(true, page, limit); // Chỉ lấy tutor đã được duyệt
 
         new SuccessResponse({
-            message: "Approved tutors retrieved successfully",
+            message: "Danh sách gia sư đã được duyệt lấy thành công",
             metadata: result
         }).send(res);
     }
+
     // Get one tutor by ID
     async getTutorById(req: Request, res: Response) {
         const { id } = req.params;
         const tutor = await tutorService.getTutorById(id);
 
         new SuccessResponse({
-            message: "Tutor retrieved successfully",
+            message: "Thông tin gia sư lấy thành công",
             metadata: tutor
         }).send(res);
     }
@@ -31,20 +32,21 @@ export class TutorController {
     async getMyTutorProfile(req: Request, res: Response) {
         const currentUser = req.user;
         if (!currentUser || !currentUser._id) {
-            throw new UnauthorizedError("Not authenticated");
+            throw new UnauthorizedError("Chưa đăng nhập");
         }
         const tutor = await tutorService.getTutorByUserId(String(currentUser._id));
 
         if (!tutor) {
-            return res.status(404).json({ message: "Tutor profile not found" });
+            return res.status(404).json({ message: "Không tìm thấy hồ sơ gia sư" });
         }
 
         new SuccessResponse({
-            message: "Tutor profile retrieved successfully",
+            message: "Hồ sơ gia sư lấy thành công",
             metadata: tutor
         }).send(res);
     }
-    //hello search
+
+    // Search tutors
     async searchTutors(req: Request, res: Response) {
         const { keyword, subjects, levels, cities, minRate, maxRate, minExperience, maxExperience, classType, availability, minRating, maxRating } = req.query;
 
@@ -65,7 +67,7 @@ export class TutorController {
             try {
                 filters.availability = JSON.parse(availability as string);
             } catch (e) {
-                return res.status(400).json({ message: "Invalid availability format. Must be JSON." });
+                return res.status(400).json({ message: "Định dạng availability không hợp lệ. Phải là JSON." });
             }
         }
         if (minRating) filters.minRating = parseFloat(minRating as string);
@@ -79,7 +81,7 @@ export class TutorController {
         );
 
         new SuccessResponse({
-            message: "Tutors search results",
+            message: "Kết quả tìm kiếm gia sư",
             metadata: result,
         }).send(res);
     }
@@ -87,7 +89,7 @@ export class TutorController {
     async createTutorProfile(req: Request, res: Response) {
         const currentUser = req.user;
         if (!currentUser || !currentUser._id) {
-            throw new UnauthorizedError("Not authenticated");
+            throw new UnauthorizedError("Chưa đăng nhập");
         }
 
         const avatarFile = req.files && (req.files as any).avatar
@@ -98,29 +100,27 @@ export class TutorController {
             ? (req.files as any).certificationImages
             : [];
 
-        // Extract mapping from body
         const imageCertMapping = (req.body as any).imageCertMapping;
 
         const newTutor = await tutorService.createTutorProfile(
             String(currentUser._id),
             {
                 ...req.body,
-                imageCertMapping // Pass mapping to service
+                imageCertMapping
             },
             avatarFile,
             certificationFiles
         );
 
         new SuccessResponse({
-            message: "Tutor profile created successfully",
+            message: "Tạo hồ sơ gia sư thành công",
             metadata: newTutor,
         }).send(res);
     }
 
     async updateTutorProfile(req: Request, res: Response) {
         const userId = req.user?._id;
-        if (!userId) throw new Error("Unauthorized");
-
+        if (!userId) throw new UnauthorizedError("Chưa đăng nhập");
 
         const avatarFile = req.files && (req.files as any).avatar
             ? (req.files as any).avatar[0]
@@ -142,9 +142,8 @@ export class TutorController {
             avatarFile
         );
 
-
         new SuccessResponse({
-            message: "Tutor profile updated successfully",
+            message: "Cập nhật hồ sơ gia sư thành công",
             metadata: updatedTutor,
         }).send(res);
     }
@@ -155,7 +154,7 @@ export class TutorController {
 
         const tutor = await tutorService.getTutorByUserId(String(userId));
         if (!tutor) {
-            return res.status(404).json({ message: "Tutor profile not found" });
+            return res.status(404).json({ message: "Không tìm thấy hồ sơ gia sư" });
         }
 
         const updatedTutor = await tutorService.deleteCertificationImage(
@@ -165,11 +164,10 @@ export class TutorController {
         );
 
         new SuccessResponse({
-            message: "Certification image deleted successfully",
+            message: "Xóa hình chứng chỉ thành công",
             metadata: updatedTutor
         }).send(res);
     }
-
 }
 
 export default new TutorController();
