@@ -4,7 +4,7 @@ import QuizSubmission from "../models/quizSubmission.model";
 import FavoriteTutor from "../models/favoriteTutor.model";
 import Review from "../models/review.model";
 import TeachingRequest from "../models/teachingRequest.model";
-import Student from "../models/student.model"; // Import Student model
+import Student from "../models/student.model";
 import mongoose, { Types } from "mongoose";
 
 const SUBJECT_TRANSLATIONS: Record<string, string> = {
@@ -84,23 +84,23 @@ class StudentDashboardService {
         const [
             nextSession,
             learningCommitments,
-            quizSubmissions,
             favoriteTutors,
             recentSessions,
             recentQuizSubmissions,
             recentReviews,
             recentTeachingRequests,
             totalReviews,
+            currentMonthStats, // Get current month stats only
         ] = await Promise.all([
             this.getNextSession(studentId),
             this.getLearningCommitments(studentId),
-            this.getQuizSubmissions(studentUserId),
             this.getFavoriteTutors(studentUserId),
             this.getRecentSessions(studentId),
             this.getRecentQuizSubmissions(studentUserId),
             this.getRecentReviews(studentUserId),
             this.getRecentTeachingRequests(studentId),
             this.getTotalReviews(studentUserId),
+            this.getCurrentMonthStats(studentUserId, studentId), // Get stats for current month
         ]);
 
         // Calculate quick stats from learning commitments
@@ -108,21 +108,11 @@ class StudentDashboardService {
             (lc: any) => lc.status === "active"
         ).length;
 
-        // Get completed and absent sessions from learning commitments
-        const totalCompletedSessions = learningCommitments.reduce(
-            (sum: number, lc: any) => sum + (lc.completedSessions || 0), 0
-        );
-
-        const totalAbsentSessions = learningCommitments.reduce(
-            (sum: number, lc: any) => sum + (lc.absentSessions || 0), 0
-        );
-
         // Calculate total student paid amount from all commitments
         const totalStudentPaidAmount = learningCommitments.reduce(
             (sum: number, lc: any) => sum + (lc.studentPaidAmount || 0), 0
         );
 
-        const quizzesCompleted = quizSubmissions.length;
         const favoriteTutorsCount = favoriteTutors.length;
         const totalReviewsCount = totalReviews;
 
@@ -140,13 +130,14 @@ class StudentDashboardService {
             .slice(0, 3)
             .map((lc: any) => ({
                 id: lc._id,
-                tutorName: lc.tutor?.userId?.name || "Unknown Tutor",
-                subject: lc.teachingRequest?.subject || "Unknown Subject",
-                level: lc.teachingRequest?.level || "Unknown Level",
+                tutorName: lc.tutor?.userId?.name || "Gia sư không xác định",
+                subject: translateSubject(lc.teachingRequest?.subject) || "Môn học không xác định",
+                level: lc.teachingRequest?.level || "Trình độ không xác định",
                 progress: {
                     completed: lc.completedSessions,
                     total: lc.totalSessions,
-                    percentage: Math.round((lc.completedSessions / lc.totalSessions) * 100),
+                    percentage: lc.totalSessions ?
+                        Math.round((lc.completedSessions / lc.totalSessions) * 100) : 0,
                 },
                 studentPaidAmount: lc.studentPaidAmount,
                 absentSessions: lc.absentSessions || 0,
@@ -161,12 +152,85 @@ class StudentDashboardService {
                 totalReviews: totalReviewsCount,
             },
             sessionStats: {
-                completedSessions: totalCompletedSessions,
-                absentSessions: totalAbsentSessions,
-                quizzesCompleted,
+                completedSessions: currentMonthStats.completedSessions,
+                absentSessions: currentMonthStats.absentSessions,
+                quizzesCompleted: currentMonthStats.quizzesCompleted,
             },
             timeline,
             topCourses,
+        };
+    }
+
+    private async getCurrentMonthStats(studentUserId: string, studentId: string) {
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth() + 1; // 1-12
+
+        // Start of current month
+        const startOfMonth = new Date(currentYear, currentMonth - 1, 1);
+        // End of current month
+        const endOfMonth = new Date(currentYear, currentMonth, 0, 23, 59, 59, 999);
+
+        const commitmentIds = await this.getStudentLearningCommitmentIds(studentId);
+
+        // Get current month stats in parallel
+        const [sessionStats, quizStats] = await Promise.all([
+            // Get session stats for current month
+            commitmentIds.length > 0 ? Session.aggregate([
+                {
+                    $match: {
+                        learningCommitmentId: { $in: commitmentIds },
+                        status: { $in: ["COMPLETED", "ABSENT"] },
+                        startTime: {
+                            $gte: startOfMonth,
+                            $lte: endOfMonth
+                        }
+                    },
+                },
+                {
+                    $group: {
+                        _id: "$status",
+                        count: { $sum: 1 },
+                    },
+                },
+            ]) : [],
+
+            // Get quiz stats for current month
+            QuizSubmission.aggregate([
+                {
+                    $match: {
+                        studentId: new Types.ObjectId(studentUserId),
+                        submittedAt: {
+                            $gte: startOfMonth,
+                            $lte: endOfMonth
+                        }
+                    },
+                },
+                {
+                    $count: "count"
+                },
+            ]),
+        ]);
+
+        // Process session stats
+        let completedSessions = 0;
+        let absentSessions = 0;
+
+        sessionStats.forEach((stat: any) => {
+            if (stat._id === "COMPLETED") {
+                completedSessions = stat.count;
+            } else if (stat._id === "ABSENT") {
+                absentSessions = stat.count;
+            }
+        });
+
+        // Process quiz stats
+        const quizzesCompleted = quizStats.length > 0 ? quizStats[0].count : 0;
+
+        return {
+            completedSessions,
+            absentSessions,
+            quizzesCompleted,
         };
     }
 
@@ -214,8 +278,8 @@ class StudentDashboardService {
             id: session._id,
             startTime: session.startTime,
             endTime: session.endTime,
-            tutorName: learningCommitment.tutor?.userId?.name || "Unknown Tutor",
-            subject: learningCommitment.teachingRequest?.subject || "Unknown Subject",
+            tutorName: learningCommitment.tutor?.userId?.name || "Gia sư không xác định",
+            subject: translateSubject(learningCommitment.teachingRequest?.subject) || "Môn học không xác định",
             status: session.status,
             studentConfirmation: session.studentConfirmation,
         };
@@ -232,10 +296,6 @@ class StudentDashboardService {
             })
             .populate("teachingRequest", "subject level")
             .lean();
-    }
-
-    private async getQuizSubmissions(studentUserId: string) {
-        return QuizSubmission.find({ studentId: new Types.ObjectId(studentUserId) }).lean();
     }
 
     private async getFavoriteTutors(studentUserId: string) {
