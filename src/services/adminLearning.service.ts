@@ -119,6 +119,18 @@ export class AdminLearningService {
          .populate("cancellation.cancelledBy", "name email")
          .lean();
 
+      // Filter out sessions that are only scheduled or confirmed
+      const relevantSessions = sessions.filter(
+         (session) =>
+            session.status !== SessionStatus.SCHEDULED &&
+            session.status !== SessionStatus.CONFIRMED
+      );
+
+      // Override totalSessions with the actual count of relevant sessions found
+      if (commitment) {
+         (commitment as any).totalSessions = relevantSessions.length;
+      }
+
       // Initialize statistics object
       const stats = {
          completed: {
@@ -148,7 +160,7 @@ export class AdminLearningService {
       };
 
       // Process each session
-      sessions.forEach((session: any) => {
+      relevantSessions.forEach((session: any) => {
          const sessionInfo = {
             _id: session._id,
             startTime: session.startTime,
