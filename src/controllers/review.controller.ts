@@ -13,7 +13,7 @@ class ReviewController {
         try {
             const currentUser = req.user;
             if (!currentUser || !currentUser._id) {
-                throw new Error("Not authenticated");
+                throw new Error("Chưa xác thực người dùng");
             }
 
             const { teachingRequestId, rating, comment } = req.body;
@@ -26,7 +26,7 @@ class ReviewController {
             );
 
             new CREATED({
-                message: "Review created successfully",
+                message: "Tạo đánh giá thành công",
                 metadata: { review },
             }).send(res);
         } catch (err) {
@@ -44,13 +44,13 @@ class ReviewController {
 
             const tutor = await Tutor.findById(tutorId).populate("userId", "_id");
             if (!tutor) {
-                throw new NotFoundError("Tutor not found");
+                throw new NotFoundError("Không tìm thấy gia sư");
             }
 
             const reviews = await reviewService.getTutorReviews(tutor.userId._id.toString());
 
             new OK({
-                message: "Tutor reviews retrieved successfully",
+                message: "Lấy đánh giá của gia sư thành công",
                 metadata: { reviews },
             }).send(res);
         } catch (err) {
@@ -66,7 +66,7 @@ class ReviewController {
         const currentUser = req.user;
 
         if (!currentUser || !currentUser._id) {
-            throw new UnauthorizedError("Not authenticated");
+            throw new UnauthorizedError("Chưa xác thực người dùng");
         }
 
         // Extract query parameters
@@ -119,7 +119,7 @@ class ReviewController {
         );
 
         new OK({
-            message: "Tutor reviews retrieved successfully",
+            message: "Lấy đánh giá của gia sư thành công",
             metadata: reviews,
         }).send(res);
     }
@@ -131,7 +131,7 @@ class ReviewController {
         try {
             const currentUser = req.user;
             if (!currentUser || !currentUser._id) {
-                throw new Error("Not authenticated");
+                throw new Error("Chưa xác thực người dùng");
             }
 
             const { reviewId } = req.params;
@@ -144,13 +144,14 @@ class ReviewController {
             );
 
             new OK({
-                message: "Review updated successfully",
+                message: "Cập nhật đánh giá thành công",
                 metadata: { review: updatedReview },
             }).send(res);
         } catch (err) {
             next(err);
         }
     }
+
 
     /**
      * DELETE /api/reviews/:reviewId
@@ -184,13 +185,13 @@ class ReviewController {
             const { tutorId } = req.params;
             const tutor = await Tutor.findById(tutorId).populate("userId", "_id");
             if (!tutor) {
-                throw new NotFoundError("Tutor not found");
+                throw new NotFoundError("Không tìm thấy gia sư");
             }
 
             const stats = await reviewService.getTutorRatingStats(tutor.userId._id.toString());
 
             new OK({
-                message: "Tutor rating stats retrieved successfully",
+                message: "Lấy thống kê đánh giá của gia sư thành công",
                 metadata: { stats },
             }).send(res);
         } catch (err) {
@@ -206,7 +207,7 @@ class ReviewController {
         try {
             const currentUser = req.user;
             if (!currentUser || !currentUser._id) {
-                throw new Error("Not authenticated");
+                throw new Error("Chưa xác thực người dùng");
             }
 
             // Extract query parameters
@@ -259,7 +260,7 @@ class ReviewController {
             );
 
             new OK({
-                message: "Student review history retrieved successfully",
+                message: "Lấy lịch sử đánh giá của học sinh thành công",
                 metadata: result,
             }).send(res);
         } catch (err) {
@@ -275,7 +276,7 @@ class ReviewController {
         try {
             const currentUser = req.user;
             if (!currentUser || !currentUser._id) {
-                throw new Error("Not authenticated");
+                throw new Error("Chưa xác thực người dùng");
             }
             const { tutorUserId } = req.params;
 
@@ -285,7 +286,7 @@ class ReviewController {
             );
 
             new OK({
-                message: "Review eligibility checked successfully",
+                message: "Kiểm tra quyền đánh giá thành công",
                 metadata: { eligibility },
             }).send(res);
         } catch (err) {

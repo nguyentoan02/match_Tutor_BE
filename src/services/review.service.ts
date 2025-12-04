@@ -9,7 +9,7 @@ import { TeachingRequestStatus } from "../types/enums/teachingRequest.enum";
 import {
    NotFoundError,
    BadRequestError,
-   ForbiddenError,
+   ForbiddenError
 } from "../utils/error.response";
 import { Types } from "mongoose";
 import { ITeachingRequest } from "../types/types/teachingRequest";
@@ -30,16 +30,16 @@ export class ReviewService {
       const teachingRequest = await TeachingRequest.findById(teachingRequestId)
          .populate({
             path: "studentId",
-            populate: { path: "userId", select: "_id" },
+            populate: { path: "userId", select: "_id" }
          })
          .populate({
             path: "tutorId",
-            populate: { path: "userId", select: "_id" },
+            populate: { path: "userId", select: "_id" }
          })
          .lean<PopulatedTeachingRequest | null>();
 
       if (!teachingRequest) {
-         throw new NotFoundError("Teaching request not found");
+         throw new NotFoundError("Không tìm thấy yêu cầu học");
       }
 
       type PopulatedTeachingRequest = ITeachingRequest & {
@@ -52,13 +52,13 @@ export class ReviewService {
       // Verify the reviewer is the student of this teaching request
       if (tr.studentId.userId._id.toString() !== reviewerId) {
          throw new ForbiddenError(
-            "Only the student that completed this teaching request can review it"
+            "Chỉ học viên đã hoàn thành yêu cầu học này mới được phép đánh giá"
          );
       }
 
       if (!tr.tutorId?.userId) {
          throw new NotFoundError(
-            "Tutor information not found in teaching request"
+            "Không tìm thấy thông tin gia sư trong yêu cầu học"
          );
       }
 
@@ -68,19 +68,19 @@ export class ReviewService {
       const learningCommitment = await LearningCommitment.findOne({
          teachingRequest: new Types.ObjectId(teachingRequestId),
          student: tr.studentId._id,
-         tutor: tr.tutorId._id,
+         tutor: tr.tutorId._id
       });
 
       if (!learningCommitment) {
          throw new NotFoundError(
-            "Learning commitment not found for this teaching request"
+            "Không tìm thấy cam kết học cho yêu cầu học này"
          );
       }
 
       // Check if learning commitment is completed
       if (learningCommitment.status !== "completed") {
          throw new BadRequestError(
-            `Can only review completed learning commitments. Current status: ${learningCommitment.status}`
+            `Chỉ có thể đánh giá khi cam kết học đã hoàn thành. Trạng thái hiện tại: ${learningCommitment.status}`
          );
       }
 
@@ -89,11 +89,11 @@ export class ReviewService {
          reviewerId: new Types.ObjectId(reviewerId),
          revieweeId: tutorId,
          teachingRequestId: new Types.ObjectId(teachingRequestId),
-         isVisible: true,
+         isVisible: true
       });
 
       if (existingReview) {
-         throw new BadRequestError("You have already reviewed this");
+         throw new BadRequestError("Bạn đã đánh giá yêu cầu học này trước đó");
       }
 
       // Create the review
@@ -104,10 +104,11 @@ export class ReviewService {
          revieweeId: tutorId,
          rating,
          comment,
-         isVisible: true,
+         isVisible: true
       });
 
       await review.save();
+
       const populatedReview = await Review.findById(review._id)
          .populate("reviewerId", "name avatarUrl")
          .populate("revieweeId", "name avatarUrl")
@@ -172,9 +173,7 @@ export class ReviewService {
       const skip = (page - 1) * limit;
 
       // Find tutor document by userId
-      const tutor = await Tutor.findOne({
-         userId: new Types.ObjectId(tutorUserId),
-      });
+      const tutor = await Tutor.findOne({ userId: new Types.ObjectId(tutorUserId) });
       if (!tutor) {
          throw new NotFoundError("Tutor profile not found");
       }
@@ -214,12 +213,7 @@ export class ReviewService {
                as: "teachingRequestId",
             },
          },
-         {
-            $unwind: {
-               path: "$teachingRequestId",
-               preserveNullAndEmptyArrays: true,
-            },
-         },
+         { $unwind: { path: "$teachingRequestId", preserveNullAndEmptyArrays: true } },
       ];
 
       // Filter by subject or level
@@ -237,10 +231,12 @@ export class ReviewService {
          });
       }
 
-      // Keyword search in reviewer name
+      // Keyword search in reviewer name 
       if (keyword) {
          andConditions.push({
-            $or: [{ "reviewerId.name": { $regex: keyword, $options: "i" } }],
+            $or: [
+               { "reviewerId.name": { $regex: keyword, $options: "i" } },
+            ],
          });
       }
 
@@ -300,29 +296,27 @@ export class ReviewService {
       const review = await Review.findById(reviewId);
 
       if (!review) {
-         throw new NotFoundError("Review not found");
+         throw new NotFoundError("Không tìm thấy đánh giá");
       }
 
-      // Verify the user owns this review
+      // Kiểm tra người dùng có phải là chủ review này không
       if (review.reviewerId.toString() !== reviewerId) {
-         throw new ForbiddenError("You can only update your own reviews");
+         throw new ForbiddenError("Bạn chỉ có thể cập nhật đánh giá của chính mình");
       }
 
-      // Check if review is older than 24 hours
+      // Kiểm tra nếu review đã hơn 24 giờ
       if (!review.createdAt) {
-         throw new BadRequestError("Review creation date is missing.");
+         throw new BadRequestError("Ngày tạo đánh giá không tồn tại");
       }
       const now = new Date();
       const timeSinceCreation = now.getTime() - review.createdAt.getTime();
       const hoursPassed = timeSinceCreation / (1000 * 60 * 60);
 
       if (hoursPassed > 24) {
-         throw new ForbiddenError(
-            "You can only edit your review within 24 hours of posting."
-         );
+         throw new ForbiddenError("Bạn chỉ có thể chỉnh sửa đánh giá trong vòng 24 giờ sau khi đăng");
       }
 
-      // Update fields
+      // Cập nhật các trường
       if (updates.rating !== undefined) {
          review.rating = updates.rating;
       }
@@ -340,6 +334,7 @@ export class ReviewService {
 
       return updatedReview as IReview;
    }
+
 
    /**
     * Delete a review (soft delete by setting isVisible to false)
@@ -471,28 +466,17 @@ export class ReviewService {
                as: "teachingRequestId",
             },
          },
-         {
-            $unwind: {
-               path: "$teachingRequestId",
-               preserveNullAndEmptyArrays: true,
-            },
-         },
+         { $unwind: { path: "$teachingRequestId", preserveNullAndEmptyArrays: true } },
       ];
 
       // Filter by subject, level, and keyword
       const andConditions: any[] = [];
 
       // Normalize subjects and levels
-      const normalizedSubjects = Array.isArray(subjects)
-         ? subjects
-         : typeof subjects === "string" && subjects
-         ? [subjects]
-         : [];
-      const normalizedLevels = Array.isArray(levels)
-         ? levels
-         : typeof levels === "string" && levels
-         ? [levels]
-         : [];
+      const normalizedSubjects = Array.isArray(subjects) ? subjects :
+         (typeof subjects === 'string' && subjects ? [subjects] : []);
+      const normalizedLevels = Array.isArray(levels) ? levels :
+         (typeof levels === 'string' && levels ? [levels] : []);
 
       if (normalizedSubjects.length > 0) {
          andConditions.push({
@@ -506,10 +490,12 @@ export class ReviewService {
          });
       }
 
-      // Keyword search in tutor name
+      // Keyword search in tutor name 
       if (keyword) {
          andConditions.push({
-            $or: [{ "revieweeId.name": { $regex: keyword, $options: "i" } }],
+            $or: [
+               { "revieweeId.name": { $regex: keyword, $options: "i" } },
+            ],
          });
       }
 
@@ -568,9 +554,7 @@ export class ReviewService {
       teachingRequestIds: string[];
       learningCommitments?: any[];
    }> {
-      const student = await Student.findOne({
-         userId: new Types.ObjectId(studentUserId),
-      }).select("_id");
+      const student = await Student.findOne({ userId: new Types.ObjectId(studentUserId) }).select("_id");
       if (!student) {
          throw new NotFoundError("Student profile not found");
       }
@@ -579,19 +563,17 @@ export class ReviewService {
       const completedCommitments = await LearningCommitment.find({
          student: student._id,
          tutor: tutorUserId,
-         status: "completed",
-      })
-         .populate("teachingRequest", "_id")
-         .lean();
+         status: "completed"
+      }).populate("teachingRequest", "_id").lean();
 
       const teachingRequestIds = completedCommitments
-         .filter((commitment) => commitment.teachingRequest)
-         .map((commitment) => commitment.teachingRequest._id.toString());
+         .filter(commitment => commitment.teachingRequest)
+         .map(commitment => commitment.teachingRequest._id.toString());
 
       return {
          hasCompleted: completedCommitments.length > 0,
          teachingRequestIds,
-         learningCommitments: completedCommitments,
+         learningCommitments: completedCommitments
       };
    }
 }

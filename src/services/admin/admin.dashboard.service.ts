@@ -464,18 +464,29 @@ class AdminDashboardService {
    }
 
    private async getTutorCounts() {
-      const [pendingApproval, approved, rejected, banned] = await Promise.all([
-         Tutor.countDocuments({
-            isApproved: false,
-            $or: [{ rejectedAt: { $exists: false } }, { rejectedAt: null }],
-         }),
+      // Lấy tất cả tutors chưa approved, chưa reject, chưa bị report
+      const pendingTutors = await Tutor.find({
+         isApproved: false,
+         rejectedAt: { $exists: false },
+         hasBeenReported: { $ne: true },
+      })
+         .populate('userId', 'isBanned')
+         .lean();
+
+      // Filter out tutors có user bị banned
+      const validPendingTutors = pendingTutors.filter((tutor: any) => {
+         const user = tutor.userId;
+         return user && !user.isBanned;
+      });
+
+      const [approved, rejected, banned] = await Promise.all([
          Tutor.countDocuments({ isApproved: true }),
          Tutor.countDocuments({ rejectedAt: { $ne: null } }),
          User.countDocuments({ role: "TUTOR", isBanned: true }),
       ]);
 
       return {
-         pendingApproval,
+         pendingApproval: validPendingTutors.length,
          approved,
          rejected,
          banned,
