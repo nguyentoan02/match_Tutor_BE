@@ -5,6 +5,7 @@ import { UnauthorizedError } from "../utils/error.response";
 import { IUser } from "../types/types/user";
 import { Role } from "../types/enums";
 import sessionWrongService from "../services/sessionWrong.service";
+import adminSessionService from "../services/adminSession.service";
 // Import Role type
 
 class SessionController {
@@ -196,7 +197,7 @@ class SessionController {
          if (!req.user?._id)
             throw new UnauthorizedError("Authentication required");
          const currentUser = req.user as IUser;
-         const result = await sessionService.listDeletedRejectedForUser(
+         const result = await sessionWrongService.listDeletedRejectedForUser(
             (currentUser._id as string).toString()
          );
          new OK({
@@ -214,7 +215,7 @@ class SessionController {
          if (!req.user?._id)
             throw new UnauthorizedError("Authentication required");
          const currentUser = req.user as IUser;
-         const result = await sessionService.listCancelledForUser(
+         const result = await sessionWrongService.listCancelledForUser(
             (currentUser._id as string).toString()
          );
          new OK({
