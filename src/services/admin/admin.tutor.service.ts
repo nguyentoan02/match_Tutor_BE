@@ -36,10 +36,7 @@ export class AdminTutorService {
       const user = tutor.userId as any;
       if (user && user.isBanned) {
          throw new BadRequestError("Cannot approve tutor profile for banned user");
-      }
-      
-      // add create embeding job
-      await addEmbeddingJob(user.toString());     
+      }  
 
       // Update tutor approval status (cho phép approve lại ngay cả khi đã bị report)
       tutor.isApproved = true;
