@@ -386,8 +386,28 @@ class QuizService {
             );
          }
 
-         await quizModel.deleteOne({ _id: quizId }, { session });
-         await quizSubmissionModel.deleteMany({ quizId }, { session });
+         await Promise.all([
+            await quizModel.deleteOne({ _id: quizId }, { session }),
+            await quizSubmissionModel.deleteMany({ quizId }, { session }),
+            await sessionModel.updateMany(
+               {
+                  $or: [
+                     { quizIds: quizId },
+                     { mcqQuizIds: quizId },
+                     { saqQuizIds: quizId },
+                  ],
+               },
+               {
+                  $pull: {
+                     quizIds: quizId,
+                     mcqQuizIds: quizId,
+                     saqQuizIds: quizId,
+                  },
+               },
+               { session }
+            ),
+         ]);
+
          await session.commitTransaction();
       } catch (error) {
          await session.abortTransaction();
