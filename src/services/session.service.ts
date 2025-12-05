@@ -17,6 +17,8 @@ import { SessionStatus } from "../types/enums/session.enum";
 import mongoose from "mongoose";
 import { getVietnamTime } from "../utils/date.util";
 import moment from "moment-timezone";
+import { addNotificationJob } from "../queues/notification.queue";
+import User from "../models/user.model";
 
 class SessionService {
    private TUTOR_CHECKIN_GRACE_MINUTES = 15;
@@ -84,6 +86,24 @@ class SessionService {
             note: "Buổi học đã bị hủy: Học sinh không xác nhận trước 15 phút khi bắt đầu",
          });
          await session.save();
+
+         // Notify tutor about auto-cancellation
+         const commitment = await LearningCommitment.findById(
+            session.learningCommitmentId
+         )
+            .populate({
+               path: "tutor",
+               select: "userId",
+            })
+            .lean();
+         if (commitment && (commitment as any).tutor?.userId) {
+            const tutorUserId = (commitment as any).tutor.userId.toString();
+            await addNotificationJob(
+               tutorUserId,
+               "Buổi học đã bị hủy tự động",
+               "Một buổi học đã bị hủy do học sinh không xác nhận tham gia."
+            );
+         }
       }
    }
 
@@ -138,6 +158,19 @@ class SessionService {
          await this.extendCommitmentForAbsences(
             session.learningCommitmentId._id.toString()
          );
+         // Notify student about tutor's absence
+         const student = await Student.findById(
+            session.learningCommitmentId.student
+         )
+            .select("userId")
+            .lean();
+         if (student?.userId) {
+            await addNotificationJob(
+               student.userId.toString(),
+               "Gia sư vắng mặt",
+               "Gia sư đã không điểm danh đúng hạn cho một buổi học."
+            );
+         }
       }
 
       // Student miss check-in deadline (after tutor accepted)
@@ -165,6 +198,17 @@ class SessionService {
          await this.extendCommitmentForAbsences(
             session.learningCommitmentId._id.toString()
          );
+         // Notify tutor about student's absence
+         const tutor = await Tutor.findById(session.learningCommitmentId.tutor)
+            .select("userId")
+            .lean();
+         if (tutor?.userId) {
+            await addNotificationJob(
+               tutor.userId.toString(),
+               "Học sinh vắng mặt",
+               "Học sinh đã không điểm danh đúng hạn cho một buổi học."
+            );
+         }
       }
 
       return session;
@@ -363,6 +407,18 @@ class SessionService {
          },
       });
 
+      // Notify student about the new session
+      const student = await Student.findById(commitment.student)
+         .select("userId")
+         .lean();
+      if (student?.userId) {
+         const studentUserId = student.userId.toString();
+         const tutorName = currentUser.name || "Gia sư của bạn";
+         const title = "Buổi học mới đã được tạo";
+         const message = `${tutorName} đã tạo một buổi học mới. Vui lòng vào và xác nhận.`;
+         await addNotificationJob(studentUserId, title, message);
+      }
+
       return newSession;
    }
 
@@ -445,6 +501,26 @@ class SessionService {
       }
 
       await session.save();
+
+      // Notify tutor about student's decision
+      const commitment = await LearningCommitment.findById(
+         session.learningCommitmentId
+      )
+         .populate({ path: "tutor", select: "userId" })
+         .lean();
+      const student = await User.findById(studentUserId).select("name").lean();
+      if (commitment && (commitment as any).tutor?.userId && student) {
+         const tutorUserId = (commitment as any).tutor.userId.toString();
+         const studentName = student.name || "Học sinh";
+         const title = `Buổi học đã được ${
+            decision === "ACCEPTED" ? "xác nhận" : "từ chối"
+         }`;
+         const message = `${studentName} đã ${
+            decision === "ACCEPTED" ? "xác nhận" : "từ chối"
+         } tham gia buổi học.`;
+         await addNotificationJob(tutorUserId, title, message);
+      }
+
       return session;
    }
 
@@ -554,6 +630,30 @@ class SessionService {
                   commitment.status === "active"
                ) {
                   commitment.status = "completed" as any;
+                  // Notify both that commitment is completed
+                  const studentUser = await Student.findById(commitment.student)
+                     .select("userId")
+                     .lean();
+                  const tutorUser = await Tutor.findById(commitment.tutor)
+                     .select("userId")
+                     .lean();
+                  const notifTitle = "Hoàn thành cam kết học";
+                  const notifMessage =
+                     "Chúc mừng! Bạn đã hoàn thành tất cả các buổi học trong cam kết.";
+                  if (studentUser?.userId) {
+                     await addNotificationJob(
+                        studentUser.userId.toString(),
+                        notifTitle,
+                        notifMessage
+                     );
+                  }
+                  if (tutorUser?.userId) {
+                     await addNotificationJob(
+                        tutorUser.userId.toString(),
+                        notifTitle,
+                        notifMessage
+                     );
+                  }
                }
                await commitment.save();
             }
@@ -866,122 +966,34 @@ class SessionService {
       };
 
       await session.save();
+
+      // Notify the other participant about the cancellation
+      const commitment = await LearningCommitment.findById(
+         session.learningCommitmentId
+      )
+         .populate({ path: "student", select: "userId" })
+         .populate({ path: "tutor", select: "userId" })
+         .lean();
+
+      if (commitment) {
+         const canceller = await User.findById(userId).select("name").lean();
+         const cancellerName = canceller?.name || "Một người dùng";
+         const studentUserId = (commitment as any).student?.userId?.toString();
+         const tutorUserId = (commitment as any).tutor?.userId?.toString();
+         const isCancelledByStudent = userId.toString() === studentUserId;
+
+         const targetUserId = isCancelledByStudent
+            ? tutorUserId
+            : studentUserId;
+         if (targetUserId) {
+            await addNotificationJob(
+               targetUserId,
+               "Buổi học đã bị hủy",
+               `${cancellerName} đã hủy một buổi học sắp tới. Lý do: ${reason}`
+            );
+         }
+      }
       return session;
-   }
-
-   async listDeletedRejectedForUser(userId: string) {
-      const tutor = await Tutor.findOne({ userId }).select("_id").lean();
-      const student = await Student.findOne({ userId }).select("_id").lean();
-
-      const commitments = await LearningCommitment.find({
-         $or: [{ tutor: tutor?._id }, { student: student?._id }],
-      })
-         .select("_id")
-         .lean();
-      const commitmentIds = commitments.map((c) => c._id);
-
-      if (commitmentIds.length === 0) return [];
-
-      const sessions = await Session.find({
-         status: SessionStatus.REJECTED,
-         isDeleted: true,
-         learningCommitmentId: { $in: commitmentIds },
-      })
-         .populate({
-            path: "learningCommitmentId",
-            select: "student tutor teachingRequest",
-            populate: [
-               {
-                  path: "student",
-                  select: "userId",
-                  populate: {
-                     path: "userId",
-                     select: "_id name email avatarUrl role",
-                  },
-               },
-               {
-                  path: "tutor",
-                  select: "userId",
-                  populate: {
-                     path: "userId",
-                     select: "_id name email avatarUrl role",
-                  },
-               },
-               {
-                  path: "teachingRequest",
-                  select: "subject level",
-               },
-            ],
-         })
-         .populate({
-            path: "createdBy",
-            select: "_id name email role avatarUrl",
-         })
-         .populate({
-            path: "deletedBy",
-            select: "_id name email role avatarUrl",
-         })
-         .sort({ startTime: -1 })
-         .lean();
-
-      return sessions;
-   }
-
-   async listCancelledForUser(userId: string) {
-      const tutor = await Tutor.findOne({ userId }).select("_id").lean();
-      const student = await Student.findOne({ userId }).select("_id").lean();
-
-      const commitments = await LearningCommitment.find({
-         $or: [{ tutor: tutor?._id }, { student: student?._id }],
-      })
-         .select("_id")
-         .lean();
-      const commitmentIds = commitments.map((c) => c._id);
-
-      if (commitmentIds.length === 0) return [];
-
-      const sessions = await Session.find({
-         status: SessionStatus.CANCELLED,
-         learningCommitmentId: { $in: commitmentIds },
-      })
-         .populate({
-            path: "learningCommitmentId",
-            select: "student tutor teachingRequest",
-            populate: [
-               {
-                  path: "student",
-                  select: "userId",
-                  populate: {
-                     path: "userId",
-                     select: "_id name email avatarUrl role",
-                  },
-               },
-               {
-                  path: "tutor",
-                  select: "userId",
-                  populate: {
-                     path: "userId",
-                     select: "_id name email avatarUrl role",
-                  },
-               },
-               {
-                  path: "teachingRequest",
-                  select: "subject level",
-               },
-            ],
-         })
-         .populate({
-            path: "createdBy",
-            select: "_id name email role avatarUrl",
-         })
-         .populate({
-            path: "cancellation.cancelledBy",
-            select: "_id name email role avatarUrl",
-         })
-         .sort({ "cancellation.cancelledAt": -1 })
-         .lean();
-
-      return sessions;
    }
 }
 
