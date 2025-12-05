@@ -8,28 +8,12 @@ const router = Router();
 // GET /dashboardTutor/
 router.get("/", authenticate, isRole(Role.TUTOR), controller.getDashboard);
 
-// GET /dashboardTutor/bubble?month=MM&year=YYYY&week=1..4
+//  biểu đồ phân tích (Radar & Bar)
 router.get(
-   "/bubble",
+   "/analysis-charts",
    authenticate,
    isRole(Role.TUTOR),
-   controller.getBubbleData
-);
-
-// GET /dashboardTutor/sessions/status-line?month=MM&year=YYYY&week=1..4
-router.get(
-   "/sessions/status-line",
-   authenticate,
-   isRole(Role.TUTOR),
-   controller.getSessionStatusLine
-);
-
-// GET /dashboardTutor/charts?month=MM&year=YYYY&week=1..4
-router.get(
-   "/charts",
-   authenticate,
-   isRole(Role.TUTOR),
-   controller.getAllDashboard
+   controller.getAnalysisCharts
 );
 
 // NEW pie endpoint
