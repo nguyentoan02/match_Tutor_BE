@@ -777,13 +777,23 @@ class SessionService {
          })
          .sort({ startTime: "desc" });
 
-      // Kiểm tra và cập nhật trạng thái các buổi học chưa xác nhận và attendance
-      for (const session of sessions) {
-         await this.autoFinalizeStudentConfirmationIfDue(session as any);
-         await this.autoFinalizeAttendanceIfDue(session as any);
-      }
+      await Promise.all(
+         sessions.map(async (session) => {
+            try {
+               await this.autoFinalizeStudentConfirmationIfDue(session as any);
 
-      await Promise.all(sessions.map((s) => (s as any).save()));
+               await this.autoFinalizeAttendanceIfDue(session as any);
+
+               // Nếu dữ liệu có thay đổi sau các hàm check trên thì lưu lại
+               if ((session as any).isModified()) {
+                  await (session as any).save();
+               }
+            } catch (error) {
+               console.error(`Error updating session ${session._id}:`, error);
+            }
+         })
+      );
+
       return sessions;
    }
 

@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import {
    getWalletByUserId,
    withdrawFromWallet,
+   getPayoutHistory,
 } from "../services/wallet.service";
 
 import { OK } from "../utils/success.response";
@@ -21,11 +22,10 @@ export const getWallet = async (req: Request, res: Response) => {
 
       const wallet = await getWalletByUserId(userId);
 
-      res.status(200).json({
-         success: true,
+      new OK({
          message: "Wallet information retrieved successfully",
-         data: wallet,
-      });
+         metadata: wallet,
+      }).send(res);
    } catch (error: any) {
       res.status(404).json({
          success: false,
@@ -59,6 +59,36 @@ export const withdraw = async (
 
       new OK({
          message: "Withdrawal request created successfully",
+         metadata: result,
+      }).send(res);
+   } catch (error: any) {
+      next(error);
+   }
+};
+
+export const getPayoutHistoryController = async (
+   req: Request,
+   res: Response,
+   next: NextFunction
+) => {
+   try {
+      const userId = req.user?.id || req.user?._id;
+      if (!userId) {
+         return res
+            .status(401)
+            .json({ success: false, message: "User not authenticated" });
+      }
+
+      const { limit = 6, skip = 0 } = req.query;
+
+      const result = await getPayoutHistory(
+         userId,
+         parseInt(limit as string),
+         parseInt(skip as string)
+      );
+
+      new OK({
+         message: "Payout history retrieved successfully",
          metadata: result,
       }).send(res);
    } catch (error: any) {
