@@ -362,3 +362,70 @@ export const getReportRejectedEmailTemplateForStudent = (
 </body>
 </html>
 `;
+
+export const getTutorBannedEmailTemplateForStudent = (
+    studentName: string,
+    tutorName: string,
+    bannedAt: string,
+    reason?: string
+): string => `
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thông báo về gia sư bị tạm khóa</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f4f4f4; margin: 0; padding: 0; }
+        .container { max-width: 600px; margin: 20px auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px; background-color: #ffffff; }
+        .header { background-color: #dc3545; color: white; padding: 10px; text-align: center; border-radius: 5px 5px 0 0; }
+        .content { padding: 20px; }
+        .warning-box { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 15px 0; }
+        .action-box { background-color: #e7f3ff; border-left: 4px solid #007bff; padding: 15px; margin: 15px 0; }
+        .footer { margin-top: 20px; font-size: 0.8em; text-align: center; color: #777; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚠️ Thông báo quan trọng về gia sư</h1>
+        </div>
+        <div class="content">
+            <p>Xin chào ${studentName},</p>
+            <p>Chúng tôi muốn thông báo rằng gia sư <strong>${tutorName}</strong> mà bạn đang có cam kết học tập đã bị tạm khóa tài khoản do vi phạm điều khoản dịch vụ của MatchTutor.</p>
+            
+            <div class="warning-box">
+                <h3>📋 Thông tin:</h3>
+                <p><strong>Gia sư:</strong> ${tutorName}</p>
+                <p><strong>Thời gian tạm khóa:</strong> ${bannedAt}</p>
+                ${reason ? `<p><strong>Lý do:</strong> ${reason}</p>` : ''}
+            </div>
+            
+            <div class="action-box">
+                <h3>🔧 Các hành động đã được thực hiện:</h3>
+                <ul>
+                    <li>Hồ sơ gia sư đã bị ẩn khỏi hệ thống</li>
+                    <li>Tất cả các cam kết học tập đang hoạt động đã được hủy</li>
+                    <li>Tất cả các buổi học sắp tới đã được hủy</li>
+                    <li>Các yêu cầu dạy học chưa được xử lý đã bị từ chối</li>
+                </ul>
+            </div>
+            
+            <p><strong>Về cam kết học tập của bạn:</strong></p>
+            <p>Nếu bạn đã thanh toán cho các buổi học chưa diễn ra, chúng tôi sẽ xử lý hoàn tiền theo chính sách của MatchTutor. Vui lòng kiểm tra tài khoản của bạn hoặc liên hệ với đội ngũ hỗ trợ nếu bạn có bất kỳ câu hỏi nào.</p>
+            
+            <p>Chúng tôi rất tiếc về sự bất tiện này và cam kết đảm bảo trải nghiệm học tập tốt nhất cho bạn. Chúng tôi khuyến khích bạn tìm một gia sư mới phù hợp trên nền tảng của chúng tôi.</p>
+            
+            <p style="text-align: center;">
+                <a href="${process.env.FRONTEND_URL || 'https://matchtutor.com'}/student/tutors" style="display: inline-block; padding: 12px 25px; margin: 20px 0; background-color: #007bff; color: white !important; text-decoration: none; border-radius: 5px; font-weight: bold;">Tìm gia sư mới</a>
+            </p>
+            
+            <p>Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với đội ngũ hỗ trợ của chúng tôi.</p>
+        </div>
+        <div class="footer">
+            <p>&copy; ${new Date().getFullYear()} MatchTutor. Bảo lưu mọi quyền.</p>
+        </div>
+    </div>
+</body>
+</html>
+`;

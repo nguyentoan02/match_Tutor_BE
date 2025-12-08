@@ -19,6 +19,7 @@ import { SessionStatus } from "../../types/enums/session.enum";
 import { TeachingRequestStatus } from "../../types/enums/teachingRequest.enum";
 import { ViolationStatusEnum } from "../../types/enums/violationReport.enum";
 import { Types } from "mongoose";
+import { processMoneyTransfer } from "../learningCommitment.service";
 
 export class AdminTutorService {
    // Accept tutor profile (cho phép accept lại ngay cả khi đã bị report)
@@ -336,7 +337,7 @@ export class AdminTutorService {
       if (!tutorUserId) {
          throw new NotFoundError("Tutor user not found");
       }
-
+      
       // 1. Xử lý learning commitments đang active -> cancelled
       const activeCommitments = await LearningCommitment.find({
          tutor: tutor._id,
@@ -362,7 +363,33 @@ export class AdminTutorService {
             commitment.cancellationDecision.requestedAt = getVietnamTime();
             commitment.cancellationDecision.reason = "Gia sư bị report";
          }
+         
+         // Cập nhật cancellationDecisionHistory để processMoneyTransfer biết tutor là người hủy
+         if (!commitment.cancellationDecisionHistory) {
+            commitment.cancellationDecisionHistory = [];
+         }
+         commitment.cancellationDecisionHistory.push({
+            student: commitment.cancellationDecision.student || { status: "PENDING" as any },
+            tutor: commitment.cancellationDecision.tutor || { status: "ACCEPTED" as any },
+            requestedBy: "tutor",
+            requestedAt: getVietnamTime(),
+            reason: "Gia sư bị report",
+            resolvedDate: getVietnamTime()
+         });
+         
          await commitment.save();
+         
+         // Gọi processMoneyTransfer để hoàn tiền về ví student (tiền buổi chưa học)
+         // và chia tiền buổi đã học cho tutor và admin
+         try {
+            await processMoneyTransfer(commitment);
+         } catch (error) {
+            console.error(
+               `Failed to process money transfer for commitment ${commitment._id} when hiding tutor:`,
+               error
+            );
+            // Không throw error để không block việc hide tutor
+         }
       }
 
       // 2. Xử lý learning commitments pending_agreement -> rejected
@@ -391,7 +418,90 @@ export class AdminTutorService {
             commitment.cancellationDecision.tutor.reason = "Gia sư bị report";
             commitment.cancellationDecision.reason = "Gia sư bị report";
          }
+         
+         // Cập nhật cancellationDecisionHistory để processMoneyTransfer biết tutor là người hủy
+         if (!commitment.cancellationDecisionHistory) {
+            commitment.cancellationDecisionHistory = [];
+         }
+         if (commitment.cancellationDecision) {
+            commitment.cancellationDecisionHistory.push({
+               student: commitment.cancellationDecision.student || { status: "PENDING" as any },
+               tutor: commitment.cancellationDecision.tutor || { status: "ACCEPTED" as any },
+               requestedBy: "tutor",
+               requestedAt: commitment.cancellationDecision.requestedAt || getVietnamTime(),
+               reason: "Gia sư bị report",
+               resolvedDate: getVietnamTime()
+            });
+         }
+         
          await commitment.save();
+         
+         // Gọi processMoneyTransfer để hoàn tiền về ví student (tiền buổi chưa học)
+         // và chia tiền buổi đã học cho tutor và admin
+         try {
+            await processMoneyTransfer(commitment);
+         } catch (error) {
+            console.error(
+               `Failed to process money transfer for commitment ${commitment._id} when hiding tutor:`,
+               error
+            );
+            // Không throw error để không block việc hide tutor
+         }
+      }
+
+      // 4. Xử lý learning commitments admin_review -> cancelled
+      const adminReviewCommitments = await LearningCommitment.find({
+         tutor: tutor._id,
+         status: "admin_review"
+      });
+
+      for (const commitment of adminReviewCommitments) {
+         commitment.status = "cancelled";
+         commitment.cancellationReason = "Gia sư bị report";
+         // Set cancellation decision với tutor là người hủy
+         if (!commitment.cancellationDecision) {
+            commitment.cancellationDecision = {
+               student: { status: "PENDING" as any },
+               tutor: { status: "ACCEPTED" as any },
+               requestedBy: "tutor",
+               requestedAt: getVietnamTime(),
+               reason: "Gia sư bị report"
+            };
+         } else {
+            commitment.cancellationDecision.requestedBy = "tutor";
+            commitment.cancellationDecision.tutor.status = "ACCEPTED" as any;
+            commitment.cancellationDecision.tutor.reason = "Gia sư bị report";
+            commitment.cancellationDecision.requestedAt = getVietnamTime();
+            commitment.cancellationDecision.reason = "Gia sư bị report";
+            commitment.cancellationDecision.adminReviewRequired = false;
+         }
+         
+         // Cập nhật cancellationDecisionHistory để processMoneyTransfer biết tutor là người hủy
+         if (!commitment.cancellationDecisionHistory) {
+            commitment.cancellationDecisionHistory = [];
+         }
+         commitment.cancellationDecisionHistory.push({
+            student: commitment.cancellationDecision.student || { status: "PENDING" as any },
+            tutor: commitment.cancellationDecision.tutor || { status: "ACCEPTED" as any },
+            requestedBy: "tutor",
+            requestedAt: getVietnamTime(),
+            reason: "Gia sư bị report",
+            resolvedDate: getVietnamTime()
+         });
+         
+         await commitment.save();
+         
+         // Gọi processMoneyTransfer để hoàn tiền về ví student (tiền buổi chưa học)
+         // và chia tiền buổi đã học cho tutor và admin
+         try {
+            await processMoneyTransfer(commitment);
+         } catch (error) {
+            console.error(
+               `Failed to process money transfer for commitment ${commitment._id} when hiding tutor:`,
+               error
+            );
+            // Không throw error để không block việc hide tutor
+         }
       }
 
       // 4. Xử lý sessions chưa học

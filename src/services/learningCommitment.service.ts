@@ -332,7 +332,7 @@ export const rejectLearningCommitment = async (
    return commitment;
 };
 
-async function processMoneyTransfer(commitment: ILearningCommitment) {
+export async function processMoneyTransfer(commitment: ILearningCommitment) {
    // Double check to ensure we don't process again
    if (commitment.isMoneyTransferred) {
       return;

@@ -47,7 +47,7 @@ export class ViolationReportService {
 
    /**
     * Kiểm tra student có thể report tutor không
-    * Student phải có ít nhất 1 learning commitment với tutor ở status completed hoặc cancelled
+    * Student phải có ít nhất 1 learning commitment với tutor ở status active, admin_review, completed, cancelled hoặc cancellation_pending
     * Và chưa có report đang PENDING hoặc RESOLVED
     */
    async canStudentReportTutor(studentUserId: string, tutorId: string): Promise<{
@@ -73,18 +73,18 @@ export class ViolationReportService {
          throw new NotFoundError("Tutor user not found");
       }
 
-      // Kiểm tra có learning commitment với status completed hoặc cancelled
+      // Kiểm tra có learning commitment với status active, admin_review, completed, cancelled hoặc cancellation_pending
       const commitment = await LearningCommitment.findOne({
          student: student._id,
          tutor: tutor._id,
-         status: { $in: ["completed", "cancelled","cancellation_pending"] }
+         status: { $in: ["active", "admin_review", "completed", "cancelled", "cancellation_pending"] }
       });
 
       if (!commitment) {
          return {
             canReport: false,
             hasReported: false, // Chưa report, chỉ là chưa đủ điều kiện
-            reason: "You can only report a tutor if you have at least one completed or cancelled learning commitment with them"
+            reason: "You can only report a tutor if you have at least one active, admin_review, completed or cancelled learning commitment with them"
          };
       }
 
