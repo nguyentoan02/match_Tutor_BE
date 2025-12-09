@@ -65,7 +65,7 @@ export class ReviewService {
       const tutorId = tr.tutorId.userId._id;
 
       // Find the learning commitment for this teaching request
-      const learningCommitment = await LearningCommitment.findOne({
+      const learningCommitment = await LearningCommitment.find({
          teachingRequest: new Types.ObjectId(teachingRequestId),
          student: tr.studentId._id,
          tutor: tr.tutorId._id
@@ -78,44 +78,44 @@ export class ReviewService {
       }
 
       // Check if learning commitment is completed
-      if (learningCommitment.status !== "completed") {
-         throw new BadRequestError(
-            `Chỉ có thể đánh giá khi cam kết học đã hoàn thành. Trạng thái hiện tại: ${learningCommitment.status}`
-         );
+      for(const learning of learningCommitment) {
+         if(learning.status === "completed") {
+            // Check if review already exists for this teaching request
+            const existingReview = await Review.findOne({
+               reviewerId: new Types.ObjectId(reviewerId),
+               revieweeId: tutorId,
+               teachingRequestId: new Types.ObjectId(teachingRequestId),
+               isVisible: true
+            });
+
+            if (existingReview) {
+               throw new BadRequestError("Bạn đã đánh giá yêu cầu học này trước đó");
+            }
+
+            // Create the review
+            const review = new Review({
+               type: ReviewTypeEnum.OVERALL,
+               teachingRequestId: new Types.ObjectId(teachingRequestId),
+               reviewerId: new Types.ObjectId(reviewerId),
+               revieweeId: tutorId,
+               rating,
+               comment,
+               isVisible: true
+            });
+
+            await review.save();
+
+            const populatedReview = await Review.findById(review._id)
+               .populate("reviewerId", "name avatarUrl")
+               .populate("revieweeId", "name avatarUrl")
+               .populate("teachingRequestId", "subject level")
+               .lean();
+
+            return populatedReview as IReview;
+         }
       }
 
-      // Check if review already exists for this teaching request
-      const existingReview = await Review.findOne({
-         reviewerId: new Types.ObjectId(reviewerId),
-         revieweeId: tutorId,
-         teachingRequestId: new Types.ObjectId(teachingRequestId),
-         isVisible: true
-      });
-
-      if (existingReview) {
-         throw new BadRequestError("Bạn đã đánh giá yêu cầu học này trước đó");
-      }
-
-      // Create the review
-      const review = new Review({
-         type: ReviewTypeEnum.OVERALL,
-         teachingRequestId: new Types.ObjectId(teachingRequestId),
-         reviewerId: new Types.ObjectId(reviewerId),
-         revieweeId: tutorId,
-         rating,
-         comment,
-         isVisible: true
-      });
-
-      await review.save();
-
-      const populatedReview = await Review.findById(review._id)
-         .populate("reviewerId", "name avatarUrl")
-         .populate("revieweeId", "name avatarUrl")
-         .populate("teachingRequestId", "subject level")
-         .lean();
-
-      return populatedReview as IReview;
+      throw new BadRequestError("hãy hoàn thành ít nhất một cam kết học")
    }
 
    /**
