@@ -1,7 +1,12 @@
 import mongoose, { Schema, Types } from "mongoose";
 import { IReview } from "../types/types/review";
 import { getVietnamTime } from "../utils/date.util";
-import { REVIEW_TYPE_VALUES, ReviewTypeEnum } from "../types/enums/review.enum";
+import {
+   REVIEW_TYPE_VALUES,
+   ReviewTypeEnum,
+   ReviewVisibilityRequestStatusEnum,
+   REVIEW_VISIBILITY_REQUEST_STATUS_VALUES,
+} from "../types/enums/review.enum";
 import Tutor from "./tutor.model";
 // Utility to recalc tutor ratings
 async function recalcTutorRatings(tutorId: Types.ObjectId) {
@@ -60,6 +65,20 @@ const ReviewSchema: Schema<IReview> = new Schema(
       comment: { type: String },
       // Ẩn/hiện review
       isVisible: { type: Boolean, default: true },
+      // Trạng thái yêu cầu ẩn review từ gia sư
+      visibilityRequestStatus: {
+         type: String,
+         enum: REVIEW_VISIBILITY_REQUEST_STATUS_VALUES,
+         default: ReviewVisibilityRequestStatusEnum.NONE,
+      },
+      // Lý do gia sư yêu cầu ẩn review
+      visibilityRequestReason: { type: String },
+      // Ghi chú/nhận xét của admin khi duyệt
+      visibilityRequestAdminNote: { type: String },
+      // Dấu thời gian admin xử lý
+      visibilityReviewedAt: { type: Date },
+      // Admin xử lý
+      visibilityReviewedBy: { type: Schema.Types.ObjectId, ref: "User" },
    },
    {
       timestamps: {

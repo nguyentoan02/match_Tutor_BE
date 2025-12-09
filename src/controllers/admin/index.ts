@@ -10,6 +10,7 @@ import adminTutorPackageController from "./admin.tutorPackage.controller";
 import adminDashboardController from "./admin.dashboard.controller";
 import adminRevenueController from "./admin.revenue.controller";
 import adminTransactionController from "./admin.transaction.controller";
+import adminReviewController from "./admin.review.controller";
 
 class AdminController {
    // User Ban Management
@@ -41,6 +42,8 @@ class AdminController {
    getTutorViolationReports = adminTutorDetailsController.getTutorViolationReports;
    getTutorReviews = adminTutorDetailsController.getTutorReviews;
    getTutorStatistics = adminTutorDetailsController.getTutorStatistics;
+   getReviewVisibilityRequests = adminReviewController.getVisibilityRequests;
+   handleReviewVisibilityRequest = adminReviewController.handleVisibilityRequest;
 
    // Tutor Package Management
    createTutorPackage = adminTutorPackageController.createTutorPackage;

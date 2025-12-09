@@ -123,6 +123,35 @@ class ReviewController {
             metadata: reviews,
         }).send(res);
     }
+
+    /**
+     * POST /api/reviews/:reviewId/request-hide
+     * Tutor submits a hide request for a review (admin will approve/reject)
+     */
+    async requestHideReview(req: Request, res: Response, next: NextFunction) {
+        try {
+            const currentUser = req.user;
+            if (!currentUser || !currentUser._id) {
+                throw new Error("Chưa xác thực người dùng");
+            }
+
+            const { reviewId } = req.params;
+            const { reason } = req.body;
+
+            const review = await reviewService.requestHideReview(
+                reviewId,
+                currentUser._id.toString(),
+                reason
+            );
+
+            new OK({
+                message: "Đã gửi yêu cầu ẩn đánh giá tới quản trị viên",
+                metadata: { review },
+            }).send(res);
+        } catch (err) {
+            next(err);
+        }
+    }
     /**
      * PUT /api/reviews/:reviewId
      * Update a review

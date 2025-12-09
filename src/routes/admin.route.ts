@@ -31,6 +31,8 @@ import {
    getTutorViolationReportsSchema,
    getTutorReviewsSchema,
    getTutorStatisticsSchema,
+   handleReviewVisibilitySchema,
+   getReviewVisibilityRequestsSchema,
 } from "../schemas/admin.schema";
 
 const router = Router();
@@ -162,6 +164,18 @@ router.get(
    "/tutor/:id/statistics",
    validate(getTutorStatisticsSchema),
    adminController.getTutorStatistics
+);
+
+// ========== REVIEW VISIBILITY REQUESTS ==========
+router.get(
+   "/reviews/visibility-requests",
+   validate(getReviewVisibilityRequestsSchema),
+   adminController.getReviewVisibilityRequests
+);
+router.patch(
+   "/reviews/:reviewId/visibility",
+   validate(handleReviewVisibilitySchema),
+   adminController.handleReviewVisibilityRequest
 );
 
 // ========== PACKAGE MANAGEMENT ==========

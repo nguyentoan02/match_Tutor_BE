@@ -1,5 +1,8 @@
 import { Document, Types } from "mongoose";
-import { ReviewTypeEnum } from "../enums/review.enum";
+import {
+   ReviewTypeEnum,
+   ReviewVisibilityRequestStatusEnum
+} from "../enums/review.enum";
 
 export type ReviewType = ReviewTypeEnum;
 
@@ -13,4 +16,9 @@ export interface IReview extends Document {
    comment?: string;
    createdAt?: Date;
    isVisible?: boolean;
+    visibilityRequestStatus?: ReviewVisibilityRequestStatusEnum;
+    visibilityRequestReason?: string;
+    visibilityRequestAdminNote?: string;
+    visibilityReviewedAt?: Date;
+    visibilityReviewedBy?: Types.ObjectId;
 }
