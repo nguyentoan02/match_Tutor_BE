@@ -339,3 +339,97 @@ export const hideTutorSchema = z.object({
 });
 
 export type HideTutorParams = z.infer<typeof hideTutorSchema>["params"];
+
+// ========== TUTOR DETAILS SCHEMAS ==========
+// Schema for getting tutor full details
+export const getTutorFullDetailsSchema = z.object({
+   params: z.object({
+      id: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid tutor ID format"),
+   }),
+});
+
+// Schema for getting tutor learning commitments
+export const getTutorLearningCommitmentsSchema = z.object({
+   params: z.object({
+      id: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid tutor ID format"),
+   }),
+   query: z.object({
+      page: z.coerce.number().int().positive().optional().default(1),
+      limit: z.coerce.number().int().positive().max(100).optional().default(10),
+      status: z.string().optional(),
+      search: z.string().optional(),
+   }),
+});
+
+// Schema for getting tutor sessions
+export const getTutorSessionsSchema = z.object({
+   params: z.object({
+      id: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid tutor ID format"),
+   }),
+   query: z.object({
+      page: z.coerce.number().int().positive().optional().default(1),
+      limit: z.coerce.number().int().positive().max(100).optional().default(10),
+      status: z.string().optional(),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+   }),
+});
+
+// Schema for getting tutor teaching requests
+export const getTutorTeachingRequestsSchema = z.object({
+   params: z.object({
+      id: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid tutor ID format"),
+   }),
+   query: z.object({
+      page: z.coerce.number().int().positive().optional().default(1),
+      limit: z.coerce.number().int().positive().max(100).optional().default(10),
+      status: z.string().optional(),
+      search: z.string().optional(),
+   }),
+});
+
+// Schema for getting tutor violation reports
+export const getTutorViolationReportsSchema = z.object({
+   params: z.object({
+      id: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid tutor ID format"),
+   }),
+   query: z.object({
+      page: z.coerce.number().int().positive().optional().default(1),
+      limit: z.coerce.number().int().positive().max(100).optional().default(10),
+      status: z.string().optional(),
+   }),
+});
+
+// Schema for getting tutor reviews
+export const getTutorReviewsSchema = z.object({
+   params: z.object({
+      id: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid tutor ID format"),
+   }),
+   query: z.object({
+      page: z.coerce.number().int().positive().optional().default(1),
+      limit: z.coerce.number().int().positive().max(100).optional().default(10),
+      rating: z.coerce.number().int().min(1).max(5).optional(),
+      type: z.string().optional(),
+   }),
+});
+
+// Schema for getting tutor statistics
+export const getTutorStatisticsSchema = z.object({
+   params: z.object({
+      id: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid tutor ID format"),
+   }),
+});
+
+// Export types for TypeScript
+export type GetTutorFullDetailsParams = z.infer<typeof getTutorFullDetailsSchema>["params"];
+export type GetTutorLearningCommitmentsParams = z.infer<typeof getTutorLearningCommitmentsSchema>["params"];
+export type GetTutorLearningCommitmentsQuery = z.infer<typeof getTutorLearningCommitmentsSchema>["query"];
+export type GetTutorSessionsParams = z.infer<typeof getTutorSessionsSchema>["params"];
+export type GetTutorSessionsQuery = z.infer<typeof getTutorSessionsSchema>["query"];
+export type GetTutorTeachingRequestsParams = z.infer<typeof getTutorTeachingRequestsSchema>["params"];
+export type GetTutorTeachingRequestsQuery = z.infer<typeof getTutorTeachingRequestsSchema>["query"];
+export type GetTutorViolationReportsParams = z.infer<typeof getTutorViolationReportsSchema>["params"];
+export type GetTutorViolationReportsQuery = z.infer<typeof getTutorViolationReportsSchema>["query"];
+export type GetTutorReviewsParams = z.infer<typeof getTutorReviewsSchema>["params"];
+export type GetTutorReviewsQuery = z.infer<typeof getTutorReviewsSchema>["query"];
+export type GetTutorStatisticsParams = z.infer<typeof getTutorStatisticsSchema>["params"];

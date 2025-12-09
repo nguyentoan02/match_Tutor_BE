@@ -24,6 +24,13 @@ import {
    getTransactionHistorySchema,
    getAdminWalletBalanceSchema,
    hideTutorSchema,
+   getTutorFullDetailsSchema,
+   getTutorLearningCommitmentsSchema,
+   getTutorSessionsSchema,
+   getTutorTeachingRequestsSchema,
+   getTutorViolationReportsSchema,
+   getTutorReviewsSchema,
+   getTutorStatisticsSchema,
 } from "../schemas/admin.schema";
 
 const router = Router();
@@ -119,6 +126,43 @@ router.get(
 );
 router.get("/tutors/mapping", adminController.getTutorsWithMapping);
 router.get("/tutor/:id", adminController.getTutorProfile);
+
+// ========== TUTOR DETAILS MANAGEMENT ==========
+router.get(
+   "/tutor/:id/full",
+   validate(getTutorFullDetailsSchema),
+   adminController.getTutorFullDetails
+);
+router.get(
+   "/tutor/:id/commitments",
+   validate(getTutorLearningCommitmentsSchema),
+   adminController.getTutorLearningCommitments
+);
+router.get(
+   "/tutor/:id/sessions",
+   validate(getTutorSessionsSchema),
+   adminController.getTutorSessions
+);
+router.get(
+   "/tutor/:id/teaching-requests",
+   validate(getTutorTeachingRequestsSchema),
+   adminController.getTutorTeachingRequests
+);
+router.get(
+   "/tutor/:id/reports",
+   validate(getTutorViolationReportsSchema),
+   adminController.getTutorViolationReports
+);
+router.get(
+   "/tutor/:id/reviews",
+   validate(getTutorReviewsSchema),
+   adminController.getTutorReviews
+);
+router.get(
+   "/tutor/:id/statistics",
+   validate(getTutorStatisticsSchema),
+   adminController.getTutorStatistics
+);
 
 // ========== PACKAGE MANAGEMENT ==========
 // New preferred routes
