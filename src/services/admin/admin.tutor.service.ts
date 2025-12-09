@@ -22,15 +22,13 @@ import { Types } from "mongoose";
 
 export class AdminTutorService {
    // Accept tutor profile (cho phép accept lại ngay cả khi đã bị report)
-   async acceptTutor(tutorId: string, adminId: string): Promise<{ tutor: ITutor; approvedAt: Date }> {
+   async acceptTutor(tutorId: string, adminId: string): Promise<{ tutor: ITutor; approvedAt: Date; message?: string }> {
       const tutor = await Tutor.findById(tutorId).populate('userId', 'name email isBanned');
       if (!tutor) {
          throw new NotFoundError("Tutor not found");
       }
 
-      if (tutor.isApproved) {
-         throw new BadRequestError("Tutor profile is already approved");
-      }
+      const alreadyApproved = tutor.isApproved;
 
       // Check if user is banned
       const user = tutor.userId as any;
@@ -39,47 +37,57 @@ export class AdminTutorService {
       }  
 
       // Update tutor approval status (cho phép approve lại ngay cả khi đã bị report)
-      tutor.isApproved = true;
-      tutor.approvedAt = getVietnamTime();
-      tutor.rejectedReason = undefined; // Xóa lý do từ chối cũ (nếu có)
-      tutor.rejectedAt = undefined;
-      // Giữ lại hasBeenReported và reportedAt để lưu lịch sử, không xóa
-      await tutor.save();
-      const approvedAt = tutor.approvedAt;
+      // Nếu chưa approved thì approve; nếu đã approved nhưng thiếu approvedAt (dữ liệu cũ) thì bổ sung và lưu
+      if (!alreadyApproved) {
+         tutor.isApproved = true;
+         tutor.approvedAt = getVietnamTime();
+         tutor.rejectedReason = undefined; // Xóa lý do từ chối cũ (nếu có)
+         tutor.rejectedAt = undefined;
+         // Giữ lại hasBeenReported và reportedAt để lưu lịch sử, không xóa
+         await tutor.save();
+      } else if (!tutor.approvedAt) {
+         tutor.approvedAt = getVietnamTime();
+         await tutor.save();
+      }
+      const approvedAt = tutor.approvedAt!;
 
       // Send acceptance notification email
-      try {
-         const approvalDate = approvedAt.toLocaleString("vi-VN", {
-            timeZone: "Asia/Ho_Chi_Minh",
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-         });
+      if (!alreadyApproved) {
+         try {
+            const approvalDate = approvedAt.toLocaleString("vi-VN", {
+               timeZone: "Asia/Ho_Chi_Minh",
+               year: "numeric",
+               month: "long",
+               day: "numeric",
+               hour: "2-digit",
+               minute: "2-digit",
+            });
 
-         const emailTemplate = getTutorAcceptanceEmailTemplate(
-            user.name,
-            approvalDate
-         );
+            const emailTemplate = getTutorAcceptanceEmailTemplate(
+               user.name,
+               approvalDate
+            );
 
-         await addEmbeddingJob(user._id.toString());
+            await addEmbeddingJob(user._id.toString());
 
-         // Sử dụng queue để gửi email nhanh chóng (không block request)
-         await addEmailJob({
-            from: `"MatchTutor" <${process.env.EMAIL_USER}>`,
-            to: user.email,
-            subject: "Hồ sơ gia sư đã được duyệt - MatchTutor",
-            html: emailTemplate,
-         });
-      } catch (emailError) {
-         console.error("Failed to send tutor acceptance email:", emailError);
-         // Don't throw error, just log it
+            // Sử dụng queue để gửi email nhanh chóng (không block request)
+            await addEmailJob({
+               from: `"MatchTutor" <${process.env.EMAIL_USER}>`,
+               to: user.email,
+               subject: "Hồ sơ gia sư đã được duyệt - MatchTutor",
+               html: emailTemplate,
+            });
+         } catch (emailError) {
+            console.error("Failed to send tutor acceptance email:", emailError);
+            // Don't throw error, just log it
+         }
       }
 
       return {
          tutor: tutor.toObject() as ITutor,
-         approvedAt
+         approvedAt,
+         // Giữ idempotent: không ném lỗi nếu đã approved trước đó
+         message: alreadyApproved ? "Tutor already approved" : "Tutor approved successfully"
       };
    }
 
@@ -330,13 +338,20 @@ export class AdminTutorService {
          throw new NotFoundError("Tutor not found");
       }
 
-      if (!tutor.isApproved) {
-         throw new BadRequestError("Tutor is already hidden (not approved)");
-      }
+      // Cho phép tiếp tục xử lý report ngay cả khi hồ sơ đã bị ẩn (ví dụ: user bị ban trước đó)
+      const alreadyHidden = !tutor.isApproved;
 
       const tutorUserId = (tutor.userId as any)?._id || tutor.userId;
       if (!tutorUserId) {
          throw new NotFoundError("Tutor user not found");
+      }
+
+      // Nếu đã ẩn trước đó, bỏ qua xử lý nặng để tránh ghi lặp
+      if (alreadyHidden) {
+         return {
+            tutor: tutor.toObject() as ITutor,
+            message: "Tutor already hidden; no further actions taken"
+         };
       }
 
       // 1. Xử lý learning commitments đang active -> cancelled
@@ -546,7 +561,9 @@ export class AdminTutorService {
 
       return {
          tutor: tutor.toObject() as ITutor,
-         message: "Tutor hidden successfully and all related commitments/sessions processed"
+         message: alreadyHidden
+            ? "Tutor already hidden; reports and related commitments/sessions processed"
+            : "Tutor hidden successfully and all related commitments/sessions processed"
       };
    }
 }

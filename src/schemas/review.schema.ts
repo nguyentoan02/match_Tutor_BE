@@ -60,6 +60,16 @@ export const deleteReviewSchema = z.object({
     }),
 });
 
+// Schema for tutor requesting to hide a review
+export const requestHideReviewSchema = z.object({
+    params: z.object({
+        reviewId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid review ID format"),
+    }),
+    body: z.object({
+        reason: z.string().max(1000, "Lý do tối đa 1000 ký tự").optional().or(z.literal("")),
+    }),
+});
+
 // Schema for getting tutor rating stats
 export const getTutorRatingStatsSchema = z.object({
     params: z.object({
@@ -76,3 +86,5 @@ export type GetTeachingRequestReviewsParams = z.infer<typeof getTeachingRequestR
 export type GetStudentReviewForTeachingRequestParams = z.infer<typeof getStudentReviewForTeachingRequestSchema>["params"];
 export type DeleteReviewParams = z.infer<typeof deleteReviewSchema>["params"];
 export type GetTutorRatingStatsParams = z.infer<typeof getTutorRatingStatsSchema>["params"];
+export type RequestHideReviewParams = z.infer<typeof requestHideReviewSchema>["params"];
+export type RequestHideReviewBody = z.infer<typeof requestHideReviewSchema>["body"];

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { REVIEW_VISIBILITY_REQUEST_STATUS_VALUES } from "../types/enums/review.enum";
 
 // Schema for banning a user
 export const banUserSchema = z.object({
@@ -420,6 +421,37 @@ export const getTutorStatisticsSchema = z.object({
    }),
 });
 
+// Schema for handling a review visibility (hide) request
+export const handleReviewVisibilitySchema = z.object({
+   params: z.object({
+      reviewId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid review ID format"),
+   }),
+   body: z.object({
+      action: z.enum(["approve", "reject", "restore"]),
+      note: z
+         .string()
+         .max(1000, "Ghi chú tối đa 1000 ký tự")
+         .optional()
+         .or(z.literal("")),
+   }),
+});
+
+// Schema for listing review visibility requests
+export const getReviewVisibilityRequestsSchema = z.object({
+   query: z.object({
+      page: z.coerce.number().int().positive().optional().default(1),
+      limit: z.coerce.number().int().positive().max(100).optional().default(10),
+      // status: truyền PENDING, APPROVED, REJECTED, NONE; nếu không truyền sẽ lấy tất cả
+      status: z
+         .enum(REVIEW_VISIBILITY_REQUEST_STATUS_VALUES as unknown as [string, ...string[]])
+         .optional(),
+      tutorUserId: z
+         .string()
+         .regex(/^[0-9a-fA-F]{24}$/, "Invalid tutor user ID format")
+         .optional(),
+   }),
+});
+
 // Export types for TypeScript
 export type GetTutorFullDetailsParams = z.infer<typeof getTutorFullDetailsSchema>["params"];
 export type GetTutorLearningCommitmentsParams = z.infer<typeof getTutorLearningCommitmentsSchema>["params"];
@@ -433,3 +465,6 @@ export type GetTutorViolationReportsQuery = z.infer<typeof getTutorViolationRepo
 export type GetTutorReviewsParams = z.infer<typeof getTutorReviewsSchema>["params"];
 export type GetTutorReviewsQuery = z.infer<typeof getTutorReviewsSchema>["query"];
 export type GetTutorStatisticsParams = z.infer<typeof getTutorStatisticsSchema>["params"];
+export type HandleReviewVisibilityParams = z.infer<typeof handleReviewVisibilitySchema>["params"];
+export type HandleReviewVisibilityBody = z.infer<typeof handleReviewVisibilitySchema>["body"];
+export type GetReviewVisibilityRequestsQuery = z.infer<typeof getReviewVisibilityRequestsSchema>["query"];

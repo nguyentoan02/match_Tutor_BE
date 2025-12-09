@@ -4,7 +4,7 @@ import Tutor from "../models/tutor.model";
 import Student from "../models/student.model";
 import LearningCommitment from "../models/learningCommitment.model"; // Import LearningCommitment
 import { IReview } from "../types/types/review";
-import { ReviewTypeEnum } from "../types/enums/review.enum";
+import { ReviewTypeEnum, ReviewVisibilityRequestStatusEnum } from "../types/enums/review.enum";
 import { TeachingRequestStatus } from "../types/enums/teachingRequest.enum";
 import {
    NotFoundError,
@@ -282,6 +282,159 @@ export class ReviewService {
          limit,
          totalPages: Math.ceil(total / limit),
          reviews,
+      };
+   }
+
+   /**
+    * Tutor requests to hide a review (sends to admin)
+    */
+   async requestHideReview(
+      reviewId: string,
+      tutorUserId: string,
+      reason?: string
+   ): Promise<IReview> {
+      const review = await Review.findById(reviewId);
+      if (!review) {
+         throw new NotFoundError("Không tìm thấy đánh giá");
+      }
+
+      if (review.revieweeId.toString() !== tutorUserId) {
+         throw new ForbiddenError("Bạn chỉ có thể yêu cầu ẩn đánh giá của mình");
+      }
+
+      if (!review.isVisible) {
+         throw new BadRequestError("Đánh giá này đã bị ẩn");
+      }
+
+      if (review.visibilityRequestStatus === ReviewVisibilityRequestStatusEnum.PENDING) {
+         throw new BadRequestError("Yêu cầu ẩn đánh giá đang được xử lý");
+      }
+
+      review.visibilityRequestStatus = ReviewVisibilityRequestStatusEnum.PENDING;
+      review.visibilityRequestReason = reason;
+      review.visibilityRequestAdminNote = undefined;
+      review.visibilityReviewedAt = undefined;
+      review.visibilityReviewedBy = undefined;
+
+      await review.save();
+
+      const populated = await Review.findById(review._id)
+         .populate("reviewerId", "name avatarUrl")
+         .populate("revieweeId", "name avatarUrl")
+         .populate("teachingRequestId", "subject level")
+         .lean();
+
+      return populated as IReview;
+   }
+
+   /**
+    * Admin handles a tutor's hide-review request
+    */
+   async handleVisibilityRequest(
+      reviewId: string,
+      adminUserId: string,
+      action: "approve" | "reject" | "restore",
+      adminNote?: string
+   ): Promise<IReview> {
+      const review = await Review.findById(reviewId);
+
+      if (!review) {
+         throw new NotFoundError("Không tìm thấy đánh giá");
+      }
+
+      review.visibilityRequestAdminNote = adminNote;
+      review.visibilityReviewedAt = new Date();
+      review.visibilityReviewedBy = new Types.ObjectId(adminUserId);
+
+      if (action === "approve") {
+         if (review.visibilityRequestStatus !== ReviewVisibilityRequestStatusEnum.PENDING) {
+            throw new BadRequestError("Đánh giá này không có yêu cầu ẩn cần xử lý");
+         }
+         review.visibilityRequestStatus = ReviewVisibilityRequestStatusEnum.APPROVED;
+         review.isVisible = false;
+      } else if (action === "reject") {
+         if (review.visibilityRequestStatus !== ReviewVisibilityRequestStatusEnum.PENDING) {
+            throw new BadRequestError("Đánh giá này không có yêu cầu ẩn cần xử lý");
+         }
+         review.visibilityRequestStatus = ReviewVisibilityRequestStatusEnum.REJECTED;
+         review.isVisible = true;
+      } else if (action === "restore") {
+         if (review.visibilityRequestStatus !== ReviewVisibilityRequestStatusEnum.APPROVED) {
+            throw new BadRequestError("Chỉ có thể bật lại review đã được ẩn");
+         }
+         review.visibilityRequestStatus = ReviewVisibilityRequestStatusEnum.REJECTED;
+         review.isVisible = true;
+      }
+
+      await review.save();
+
+      if (action === "approve" || action === "restore") {
+         await this.recalculateTutorRatings(review.revieweeId as Types.ObjectId);
+      }
+
+      const populated = await Review.findById(review._id)
+         .populate("reviewerId", "name avatarUrl")
+         .populate("revieweeId", "name avatarUrl")
+         .populate("teachingRequestId", "subject level")
+         .lean();
+
+      return populated as IReview;
+   }
+
+   /**
+    * Admin: list visibility requests
+    */
+   async getVisibilityRequests(filters: {
+      status?: ReviewVisibilityRequestStatusEnum;
+      page?: number;
+      limit?: number;
+      tutorUserId?: string;
+   }) {
+      const { status, page = 1, limit = 10, tutorUserId } = filters || {};
+
+      const query: any = {};
+
+      if (status) {
+         query.visibilityRequestStatus = status;
+      } else {
+         // Không truyền status -> lấy tất cả yêu cầu đã được tạo (PENDING/APPROVED/REJECTED)
+         query.visibilityRequestStatus = {
+            $in: [
+               ReviewVisibilityRequestStatusEnum.PENDING,
+               ReviewVisibilityRequestStatusEnum.APPROVED,
+               ReviewVisibilityRequestStatusEnum.REJECTED,
+            ],
+         };
+      }
+
+      if (tutorUserId) {
+         query.revieweeId = new Types.ObjectId(tutorUserId);
+      }
+
+      const skip = (page - 1) * limit;
+
+      const [reviews, total] = await Promise.all([
+         Review.find(query)
+            .populate("reviewerId", "name email avatarUrl")
+            .populate("revieweeId", "name email avatarUrl")
+            .populate("teachingRequestId", "subject level")
+            .sort({
+               createdAt: -1,
+            })
+            .skip(skip)
+            .limit(limit)
+            .lean(),
+         Review.countDocuments(query),
+      ]);
+
+      return {
+         reviews,
+         pagination: {
+            page,
+            limit,
+            total,
+            pages: Math.ceil(total / limit),
+         },
       };
    }
 
@@ -575,6 +728,36 @@ export class ReviewService {
          teachingRequestIds,
          learningCommitments: completedCommitments
       };
+   }
+
+   private async recalculateTutorRatings(tutorUserId: Types.ObjectId) {
+      const stats = await Review.aggregate([
+         { $match: { revieweeId: tutorUserId, isVisible: true } },
+         {
+            $group: {
+               _id: "$revieweeId",
+               average: { $avg: "$rating" },
+               totalReviews: { $sum: 1 },
+            },
+         },
+      ]);
+
+      if (stats.length > 0) {
+         await Tutor.findOneAndUpdate(
+            { userId: tutorUserId },
+            {
+               "ratings.average": stats[0].average,
+               "ratings.totalReviews": stats[0].totalReviews,
+            },
+            { new: true }
+         );
+      } else {
+         await Tutor.findOneAndUpdate(
+            { userId: tutorUserId },
+            { "ratings.average": 0, "ratings.totalReviews": 0 },
+            { new: true }
+         );
+      }
    }
 }
 

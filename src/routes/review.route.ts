@@ -3,7 +3,8 @@ import reviewController from "../controllers/review.controller";
 import { validate } from "../middlewares/validation.middleware";
 import {
     createReviewSchema,
-    updateReviewSchema
+    updateReviewSchema,
+    requestHideReviewSchema
 } from "../schemas/review.schema";
 import { authenticate, isRole } from "../middlewares/auth.middleware";
 import { Role } from "../types/enums";
@@ -39,6 +40,15 @@ router.put(
     authenticate,
     isRole(Role.STUDENT),
     reviewController.updateReview
+);
+
+// Tutor requests to hide a review (requires admin approval)
+router.post(
+    "/:reviewId/request-hide",
+    validate(requestHideReviewSchema),
+    authenticate,
+    isRole(Role.TUTOR),
+    reviewController.requestHideReview
 );
 
 // Delete a review
