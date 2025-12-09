@@ -5,6 +5,7 @@ import { UnauthorizedError } from "../../utils/error.response";
 import adminBanController from "./admin.ban.controller";
 import adminUserController from "./admin.user.controller";
 import adminTutorController from "./admin.tutor.controller";
+import adminTutorDetailsController from "./admin.tutor.details.controller";
 import adminTutorPackageController from "./admin.tutorPackage.controller";
 import adminDashboardController from "./admin.dashboard.controller";
 import adminRevenueController from "./admin.revenue.controller";
@@ -31,6 +32,15 @@ class AdminController {
    getPendingTutors = adminTutorController.getPendingTutors;
    getTutorProfile = adminTutorController.getTutorProfile;
    getTutorsWithMapping = adminTutorController.getTutorsWithMapping;
+
+   // Tutor Details Management
+   getTutorFullDetails = adminTutorDetailsController.getTutorFullDetails;
+   getTutorLearningCommitments = adminTutorDetailsController.getTutorLearningCommitments;
+   getTutorSessions = adminTutorDetailsController.getTutorSessions;
+   getTutorTeachingRequests = adminTutorDetailsController.getTutorTeachingRequests;
+   getTutorViolationReports = adminTutorDetailsController.getTutorViolationReports;
+   getTutorReviews = adminTutorDetailsController.getTutorReviews;
+   getTutorStatistics = adminTutorDetailsController.getTutorStatistics;
 
    // Tutor Package Management
    createTutorPackage = adminTutorPackageController.createTutorPackage;
