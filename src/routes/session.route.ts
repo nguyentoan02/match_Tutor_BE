@@ -8,6 +8,7 @@ import {
    cancelSessionSchema,
    confirmAttendanceSchema,
    rejectAttendanceSchema,
+   createManySessionSchema,
 } from "../schemas/session.schema";
 import { Role } from "../types/enums/role.enum";
 
@@ -29,7 +30,7 @@ router.get("/me/cancelled", controller.listCancelledForUser);
 router.get("/me/absences", controller.listAbsenceSessionsForUser);
 
 // Tạo một session mới cho một learning commitment
-router.post("/", validate(createSessionSchema), controller.create);
+// router.post("/", validate(createSessionSchema), controller.create);
 
 // Lấy chi tiết một session
 router.get("/:id", controller.getById);
@@ -67,5 +68,7 @@ router.patch(
    validate(rejectAttendanceSchema),
    controller.rejectAttendance
 );
+
+router.post("/batch", validate(createManySessionSchema), controller.createMany);
 
 export default router;
