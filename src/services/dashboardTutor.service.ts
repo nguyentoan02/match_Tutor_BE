@@ -214,6 +214,61 @@ class DashboardService {
 
       return { levelDistribution: agg };
    }
+
+   // Cập nhật hàm để mặc định là tháng/năm hiện tại nếu không nhập
+   public async getSessionStatsByMonthYear(
+      userId: string,
+      month?: number,
+      year?: number
+   ) {
+      const tutor = await Tutor.findOne({ userId }).select("_id").lean();
+      if (!tutor) throw new Error("Tutor profile not found");
+
+      // Nếu không có month/year, dùng tháng/năm hiện tại
+      const now = new Date();
+      const currentMonth = month ?? now.getMonth() + 1; // getMonth() trả về 0-11, cộng 1 để thành 1-12
+      const currentYear = year ?? now.getFullYear();
+
+      // Lọc session theo createdBy (tutor), tháng/năm của startTime
+      const startOfMonth = new Date(currentYear, currentMonth - 1, 1); // Tháng bắt đầu từ 0
+      const endOfMonth = new Date(currentYear, currentMonth, 1);
+
+      const agg = await Session.aggregate([
+         {
+            $match: {
+               createdBy: new Types.ObjectId(userId),
+               startTime: { $gte: startOfMonth, $lt: endOfMonth },
+            },
+         },
+         {
+            $group: {
+               _id: "$status",
+               count: { $sum: 1 },
+            },
+         },
+      ]);
+
+      // Khởi tạo counts mặc định
+      const stats = {
+         completed: 0,
+         notCompleted: 0, // Gộp ABSENT và NOT_CONDUCTED nếu có
+         cancelled: 0,
+         rejected: 0,
+      };
+
+      // Map từ aggregation result
+      agg.forEach((item: any) => {
+         const status = item._id;
+         const count = item.count;
+         if (status === "COMPLETED") stats.completed = count;
+         else if (status === "ABSENT" || status === "NOT_CONDUCTED")
+            stats.notCompleted += count;
+         else if (status === "CANCELLED") stats.cancelled = count;
+         else if (status === "REJECTED") stats.rejected = count;
+      });
+
+      return { stats };
+   }
 }
 
 export default new DashboardService();

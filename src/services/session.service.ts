@@ -248,180 +248,6 @@ class SessionService {
       return commitment;
    }
 
-   async create(data: CreateSessionBody, currentUser: IUser) {
-      const commitment = await LearningCommitment.findById(
-         (data as any).learningCommitmentId
-      );
-      if (!commitment) throw new NotFoundError("Learning commitment not found");
-
-      if (currentUser.role !== Role.TUTOR) {
-         throw new ForbiddenError("Only the tutor can create sessions.");
-      }
-
-      const tutor = await Tutor.findOne({ userId: currentUser._id });
-      if (!tutor || String(commitment.tutor) !== String(tutor._id)) {
-         throw new ForbiddenError(
-            "You are not the designated tutor for this learning commitment."
-         );
-      }
-
-      if (commitment.status !== "active") {
-         throw new BadRequestError(
-            "Sessions can only be created for active learning commitments."
-         );
-      }
-
-      if ((commitment.studentPaidAmount || 0) < (commitment.totalAmount || 0)) {
-         throw new BadRequestError(
-            "Cannot create session: learning commitment is not fully paid."
-         );
-      }
-
-      const newStart = new Date((data as any).startTime);
-      const newEnd = new Date((data as any).endTime);
-      if (!(newStart < newEnd)) {
-         throw new BadRequestError(
-            "Thời gian bắt đầu cần trước thời gian kết thúc"
-         );
-      }
-
-      // Kiểm tra session phải nằm trong cùng một ngày (Vietnam timezone)
-      const vnStart = moment(newStart).tz("Asia/Ho_Chi_Minh");
-      const vnEnd = moment(newEnd).tz("Asia/Ho_Chi_Minh");
-
-      if (!vnStart.isSame(vnEnd, "day")) {
-         throw new BadRequestError(
-            "Thời gian tạo buổi học nên nằm trong cùng một ngày"
-         );
-      }
-
-      const commitmentStartVN = moment(commitment.startDate)
-         .tz("Asia/Ho_Chi_Minh")
-         .startOf("day");
-      const commitmentEndVN = moment(commitment.endDate)
-         .tz("Asia/Ho_Chi_Minh")
-         .endOf("day");
-
-      if (
-         vnStart.isBefore(commitmentStartVN) ||
-         vnEnd.isAfter(commitmentEndVN)
-      ) {
-         throw new BadRequestError(
-            "Thời gian buổi học nên nằm trong thời gian cam kết học"
-         );
-      }
-
-      const now = new Date();
-      if (newStart < now) {
-         throw new BadRequestError("Không thể tạo buổi học trong quá khứ");
-      }
-
-      const completed = commitment.completedSessions || 0;
-      const total = commitment.totalSessions;
-
-      // Count pending sessions (SCHEDULED, CONFIRMED, DISPUTED)
-      // Đếm các buổi học đang chờ xử lý (chưa kết thúc)
-      // SCHEDULED: vừa tạo, chờ học sinh xác nhận
-      // CONFIRMED: cả 2 đã xác nhận, chờ học
-      // DISPUTED: có tranh chấp, chờ admin giải quyết
-      const pendingSessions = await Session.countDocuments({
-         learningCommitmentId: commitment._id,
-         isDeleted: { $ne: true },
-         status: {
-            $in: [
-               SessionStatus.SCHEDULED,
-               SessionStatus.CONFIRMED,
-               SessionStatus.DISPUTED,
-            ],
-         },
-      });
-      //Cam kết 2 buổi = tạo được 2 buổi, không thêm, không bớt
-      // Nếu học sinh vắng → extend thời hạn, không tính vào hạn mức tạo
-      if (completed + pendingSessions >= total) {
-         throw new BadRequestError(
-            `Cannot create session: Already have ${completed} completed and ${pendingSessions} pending sessions. Total commitment requires ${total} sessions.`
-         );
-      }
-
-      const tutorCommitments = await LearningCommitment.find({
-         tutor: commitment.tutor,
-         status: { $in: ["active", "pending_agreement", "in_dispute"] },
-      })
-         .select("_id")
-         .lean();
-      const tutorCommitmentIds = tutorCommitments.map((c) => c._id);
-
-      const tutorConflict = await Session.findOne({
-         learningCommitmentId: { $in: tutorCommitmentIds },
-         isDeleted: { $ne: true },
-         status: {
-            $nin: [
-               SessionStatus.REJECTED,
-               SessionStatus.CANCELLED,
-               SessionStatus.NOT_CONDUCTED,
-            ],
-         },
-         $or: [{ startTime: { $lt: newEnd }, endTime: { $gt: newStart } }],
-      }).lean();
-      if (tutorConflict) {
-         throw new BadRequestError(
-            "You have a conflicting session at this time (tutor)."
-         );
-      }
-
-      const studentCommitments = await LearningCommitment.find({
-         student: commitment.student,
-         status: { $in: ["active", "pending_agreement", "in_dispute"] },
-      })
-         .select("_id")
-         .lean();
-      const studentCommitmentIds = studentCommitments.map((c) => c._id);
-      const studentConflict = await Session.findOne({
-         learningCommitmentId: { $in: studentCommitmentIds },
-         isDeleted: { $ne: true },
-         status: {
-            $nin: [
-               SessionStatus.REJECTED,
-               SessionStatus.CANCELLED,
-               SessionStatus.NOT_CONDUCTED,
-            ],
-         },
-         $or: [{ startTime: { $lt: newEnd }, endTime: { $gt: newStart } }],
-      }).lean();
-      if (studentConflict) {
-         throw new BadRequestError(
-            "Student has a conflicting session at this time."
-         );
-      }
-
-      const newSession = await Session.create({
-         learningCommitmentId: commitment._id,
-         startTime: newStart,
-         endTime: newEnd,
-         location: (data as any).location,
-         notes: (data as any).notes,
-         createdBy: currentUser._id,
-         attendanceWindow: {
-            tutorDeadline: new Date(newEnd.getTime() + 15 * 60 * 1000),
-            studentDeadline: new Date(newEnd.getTime() + 30 * 60 * 1000),
-         },
-      });
-
-      // Notify student about the new session
-      const student = await Student.findById(commitment.student)
-         .select("userId")
-         .lean();
-      if (student?.userId) {
-         const studentUserId = student.userId.toString();
-         const tutorName = currentUser.name || "Gia sư của bạn";
-         const title = "Buổi học mới đã được tạo";
-         const message = `${tutorName} đã tạo một buổi học mới. Vui lòng vào và xác nhận.`;
-         await addNotificationJob(studentUserId, title, message);
-      }
-
-      return newSession;
-   }
-
    async getById(sessionId: string, userId: string) {
       const session = await Session.findById(sessionId)
          .populate({
@@ -916,10 +742,128 @@ class SessionService {
             "Không thể cập nhật buổi học đã được xác nhận"
          );
       }
-      await this.checkParticipantByCommitment(
+      const commitment = await this.checkParticipantByCommitment(
          (session.learningCommitmentId as any).toString(),
          (currentUser._id as mongoose.Types.ObjectId | string).toString()
       );
+
+      if (commitment.status !== "active") {
+         throw new BadRequestError(
+            "Chỉ có thể cập nhật buổi học cho cam kết học tập đang hoạt động."
+         );
+      }
+
+      // Validate time changes
+      if (data.startTime || data.endTime) {
+         const newStart = data.startTime
+            ? new Date(data.startTime)
+            : session.startTime;
+         const newEnd = data.endTime ? new Date(data.endTime) : session.endTime;
+
+         if (!(newStart < newEnd)) {
+            throw new BadRequestError(
+               "Thời gian bắt đầu cần trước thời gian kết thúc"
+            );
+         }
+
+         const now = new Date();
+         if (newStart < now) {
+            throw new BadRequestError(
+               "Không thể cập nhật buổi học vào quá khứ"
+            );
+         }
+
+         const vnStart = moment(newStart).tz("Asia/Ho_Chi_Minh");
+         const vnEnd = moment(newEnd).tz("Asia/Ho_Chi_Minh");
+
+         if (!vnStart.isSame(vnEnd, "day")) {
+            throw new BadRequestError(
+               "Thời gian buổi học nên nằm trong cùng một ngày"
+            );
+         }
+
+         const commitmentStartVN = moment(commitment.startDate)
+            .tz("Asia/Ho_Chi_Minh")
+            .startOf("day");
+         const commitmentEndVN = moment(commitment.endDate)
+            .tz("Asia/Ho_Chi_Minh")
+            .endOf("day");
+
+         if (
+            vnStart.isBefore(commitmentStartVN) ||
+            vnEnd.isAfter(commitmentEndVN)
+         ) {
+            throw new BadRequestError(
+               "Thời gian buổi học nên nằm trong thời gian cam kết học"
+            );
+         }
+
+         // Check conflicts
+         const tutorId = (commitment as any).tutor._id;
+         const studentId = (commitment as any).student._id;
+
+         const tutorCommitments = await LearningCommitment.find({
+            tutor: tutorId,
+            status: { $in: ["active", "pending_agreement", "in_dispute"] },
+         })
+            .select("_id")
+            .lean();
+         const tutorCommitmentIds = tutorCommitments.map((c) => c._id);
+
+         const tutorConflict = await Session.findOne({
+            _id: { $ne: sessionId },
+            learningCommitmentId: { $in: tutorCommitmentIds },
+            isDeleted: { $ne: true },
+            status: {
+               $nin: [
+                  SessionStatus.REJECTED,
+                  SessionStatus.CANCELLED,
+                  SessionStatus.NOT_CONDUCTED,
+               ],
+            },
+            $or: [{ startTime: { $lt: newEnd }, endTime: { $gt: newStart } }],
+         }).lean();
+
+         if (tutorConflict) {
+            throw new BadRequestError(
+               "Gia sư có lịch trùng vào thời gian này."
+            );
+         }
+
+         const studentCommitments = await LearningCommitment.find({
+            student: studentId,
+            status: { $in: ["active", "pending_agreement", "admin_review"] },
+         })
+            .select("_id")
+            .lean();
+         const studentCommitmentIds = studentCommitments.map((c) => c._id);
+
+         const studentConflict = await Session.findOne({
+            _id: { $ne: sessionId },
+            learningCommitmentId: { $in: studentCommitmentIds },
+            isDeleted: { $ne: true },
+            status: {
+               $nin: [
+                  SessionStatus.REJECTED,
+                  SessionStatus.CANCELLED,
+                  SessionStatus.NOT_CONDUCTED,
+               ],
+            },
+            $or: [{ startTime: { $lt: newEnd }, endTime: { $gt: newStart } }],
+         }).lean();
+
+         if (studentConflict) {
+            throw new BadRequestError(
+               "Học sinh có lịch trùng vào thời gian này."
+            );
+         }
+
+         // Update attendance window
+         session.attendanceWindow = {
+            tutorDeadline: new Date(newEnd.getTime() + 15 * 60 * 1000),
+            studentDeadline: new Date(newEnd.getTime() + 30 * 60 * 1000),
+         };
+      }
 
       Object.assign(session, data);
       await session.save();
@@ -1004,6 +948,219 @@ class SessionService {
          }
       }
       return session;
+   }
+
+   async createMany(
+      data: {
+         learningCommitmentId: string;
+         sessions: { startTime: Date | string; endTime: Date | string }[];
+         location?: string;
+         notes?: string;
+      },
+      currentUser: IUser
+   ) {
+      // 1. Validate cơ bản & Quyền hạn (Giống create)
+      const commitment = await LearningCommitment.findById(
+         data.learningCommitmentId
+      );
+      if (!commitment) throw new NotFoundError("Learning commitment not found");
+
+      if (currentUser.role !== Role.TUTOR) {
+         throw new ForbiddenError("Only the tutor can create sessions.");
+      }
+
+      const tutor = await Tutor.findOne({ userId: currentUser._id });
+      if (!tutor || String(commitment.tutor) !== String(tutor._id)) {
+         throw new ForbiddenError(
+            "You are not the designated tutor for this learning commitment."
+         );
+      }
+
+      if (commitment.status !== "active") {
+         throw new BadRequestError(
+            "Sessions can only be created for active learning commitments."
+         );
+      }
+
+      // [FIX 1] Check Payment
+      if ((commitment.studentPaidAmount || 0) < (commitment.totalAmount || 0)) {
+         throw new BadRequestError(
+            "Cannot create session: learning commitment is not fully paid."
+         );
+      }
+
+      // 2. Validate hạn mức
+      const completed = commitment.completedSessions || 0;
+      const total = commitment.totalSessions;
+
+      const currentPendingSessions = await Session.countDocuments({
+         learningCommitmentId: commitment._id,
+         isDeleted: { $ne: true },
+         status: {
+            $in: [
+               SessionStatus.SCHEDULED,
+               SessionStatus.CONFIRMED,
+               SessionStatus.DISPUTED,
+            ],
+         },
+      });
+
+      const sessionsToCreateCount = data.sessions.length;
+
+      if (completed + currentPendingSessions + sessionsToCreateCount > total) {
+         throw new BadRequestError(
+            `Cannot create session: Already have ${completed} completed and ${currentPendingSessions} pending. Attempting to add ${sessionsToCreateCount} more exceeds total ${total}.`
+         );
+      }
+
+      // --- [FIX 2] CHUẨN BỊ BOUNDARY NGÀY CAM KẾT (Tính 1 lần) ---
+      const commitmentStartVN = moment(commitment.startDate)
+         .tz("Asia/Ho_Chi_Minh")
+         .startOf("day");
+      const commitmentEndVN = moment(commitment.endDate)
+         .tz("Asia/Ho_Chi_Minh")
+         .endOf("day");
+
+      // Chuẩn bị query conflict
+      const tutorCommitments = await LearningCommitment.find({
+         tutor: commitment.tutor,
+         status: { $in: ["active", "pending_agreement", "in_dispute"] },
+      })
+         .select("_id")
+         .lean();
+      const tutorCommitmentIds = tutorCommitments.map((c) => c._id);
+
+      const studentCommitments = await LearningCommitment.find({
+         student: commitment.student,
+         status: { $in: ["active", "pending_agreement", "in_dispute"] },
+      })
+         .select("_id")
+         .lean();
+      const studentCommitmentIds = studentCommitments.map((c) => c._id);
+
+      const sessionDocs = [];
+      const now = new Date();
+
+      // 3. Loop validate từng buổi
+      for (const sessionTime of data.sessions) {
+         const newStart = new Date(sessionTime.startTime);
+         const newEnd = new Date(sessionTime.endTime);
+
+         if (newStart < now) {
+            throw new BadRequestError(
+               `Không thể tạo buổi học trong quá khứ: ${moment(newStart).format(
+                  "HH:mm DD/MM/YYYY"
+               )}`
+            );
+         }
+
+         // [FIX 3] Check start < end
+         if (!(newStart < newEnd)) {
+            throw new BadRequestError(
+               "Thời gian bắt đầu cần trước thời gian kết thúc"
+            );
+         }
+
+         // --- [FIX 4] VALIDATE LOGIC NGÀY GIỜ (Copy từ create) ---
+         const vnStart = moment(newStart).tz("Asia/Ho_Chi_Minh");
+         const vnEnd = moment(newEnd).tz("Asia/Ho_Chi_Minh");
+
+         // Check: Cùng 1 ngày VN
+         if (!vnStart.isSame(vnEnd, "day")) {
+            throw new BadRequestError(
+               `Buổi học bắt đầu lúc ${vnStart.format(
+                  "HH:mm DD/MM"
+               )} không hợp lệ. Thời gian tạo buổi học nên nằm trong cùng một ngày.`
+            );
+         }
+
+         // Check: Nằm trong khoảng thời gian cam kết
+         if (
+            vnStart.isBefore(commitmentStartVN) ||
+            vnEnd.isAfter(commitmentEndVN)
+         ) {
+            throw new BadRequestError(
+               `Buổi học ngày ${vnStart.format(
+                  "DD/MM/YYYY"
+               )} nằm ngoài thời gian cam kết học (${commitmentStartVN.format(
+                  "DD/MM"
+               )} - ${commitmentEndVN.format("DD/MM")}).`
+            );
+         }
+         //
+
+         // Check Conflict Tutor
+         const tutorConflict = await Session.findOne({
+            learningCommitmentId: { $in: tutorCommitmentIds },
+            isDeleted: { $ne: true },
+            status: {
+               $nin: [
+                  SessionStatus.REJECTED,
+                  SessionStatus.CANCELLED,
+                  SessionStatus.NOT_CONDUCTED,
+               ],
+            },
+            $or: [{ startTime: { $lt: newEnd }, endTime: { $gt: newStart } }],
+         }).lean();
+         if (tutorConflict) {
+            throw new BadRequestError(
+               `Giáo viên bị trùng lịch vào lúc ${vnStart.format(
+                  "HH:mm DD/MM/YYYY"
+               )}`
+            );
+         }
+
+         // Check Conflict Student
+         const studentConflict = await Session.findOne({
+            learningCommitmentId: { $in: studentCommitmentIds },
+            isDeleted: { $ne: true },
+            status: {
+               $nin: [
+                  SessionStatus.REJECTED,
+                  SessionStatus.CANCELLED,
+                  SessionStatus.NOT_CONDUCTED,
+               ],
+            },
+            $or: [{ startTime: { $lt: newEnd }, endTime: { $gt: newStart } }],
+         }).lean();
+         if (studentConflict) {
+            throw new BadRequestError(
+               `Học sinh bị trùng lịch vào lúc ${vnStart.format(
+                  "HH:mm DD/MM/YYYY"
+               )}`
+            );
+         }
+
+         sessionDocs.push({
+            learningCommitmentId: commitment._id,
+            startTime: newStart,
+            endTime: newEnd,
+            location: data.location,
+            notes: data.notes,
+            createdBy: currentUser._id,
+            attendanceWindow: {
+               tutorDeadline: new Date(newEnd.getTime() + 15 * 60 * 1000),
+               studentDeadline: new Date(newEnd.getTime() + 30 * 60 * 1000),
+            },
+            status: SessionStatus.SCHEDULED,
+         });
+      }
+
+      const createdSessions = await Session.insertMany(sessionDocs);
+
+      //  Notify  about new sessions
+      const student = await Student.findById(commitment.student)
+         .select("userId")
+         .lean();
+      if (student?.userId) {
+         const studentUserId = student.userId.toString();
+         const tutorName = currentUser.name || "Gia sư của bạn";
+         const title = "Các buổi học mới đã được tạo";
+         const message = `${tutorName} đã tạo ${createdSessions.length} buổi học mới. Vui lòng vào và xác nhận.`;
+         await addNotificationJob(studentUserId, title, message);
+      }
+
+      return createdSessions;
    }
 }
 

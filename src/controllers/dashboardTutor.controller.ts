@@ -72,3 +72,36 @@ export const getPieData = async (
       next(err);
    }
 };
+
+// Cập nhật handler để mặc định tháng/năm hiện tại
+export const getSessionStats = async (
+   req: Request,
+   res: Response,
+   next: NextFunction
+) => {
+   try {
+      const userId = (req as any).userId || (req.user && (req.user as any)._id);
+      if (!userId) throw new Error("User id missing");
+
+      const { month, year } = req.query;
+      const monthNum = month ? parseInt(month as string, 10) : undefined;
+      const yearNum = year ? parseInt(year as string, 10) : undefined;
+
+      // Validate nếu có nhập (optional)
+      if (monthNum && (monthNum < 1 || monthNum > 12)) {
+         throw new Error("Invalid month. Must be 1-12.");
+      }
+      if (yearNum && yearNum < 1900) {
+         throw new Error("Invalid year.");
+      }
+
+      const data = await dashboardService.getSessionStatsByMonthYear(
+         userId.toString(),
+         monthNum,
+         yearNum
+      );
+      return new OK({ metadata: data }).send(res);
+   } catch (err) {
+      next(err);
+   }
+};
