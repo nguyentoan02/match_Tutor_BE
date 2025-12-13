@@ -1,31 +1,34 @@
-# Stage 1: Build the application
+# Stage 1: Build & Dependencies
 FROM node:22-alpine AS builder
 WORKDIR /app
 
-# Copy package files and install dependencies
-COPY package*.json ./
+# Cài đặt system dependency cho pdftotext
+RUN apk add --no-cache poppler-utils
+
+# Copy và cài đặt Node dependencies
+COPY package.json package-lock.json ./
 RUN npm install
 
-# Copy the rest of the application source code
+# Copy source code và Build
 COPY . .
-
-# Build the TypeScript project
 RUN npm run build
 
-# Stage 2: Create the production image
+# Stage 2: Production Final Image
 FROM node:22-alpine
 WORKDIR /app
 
-# Copy package files and install only production dependencies
-COPY package*.json ./
+# Cài đặt system dependency cho pdftotext (BẮT BUỘC)
+RUN apk add --no-cache poppler-utils
+
+# Tận dụng cache từ Stage 1
+COPY package.json package-lock.json ./
 RUN npm install --production
 
-# Copy the built application from the builder stage
+# Copy built code từ builder stage
 COPY --from=builder /app/dist ./dist
 
-# Expose the port the app runs on
+# EXPOSE port
 EXPOSE 5000
 
-# Command to run the application
-# Assumes your entry point after build is 'dist/server.js'
-CMD ["node", "dist/server.js"]
+# Khởi động ứng dụng và các worker
+CMD ["npm", "run", "start"]
