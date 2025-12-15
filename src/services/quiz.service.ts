@@ -236,6 +236,11 @@ class QuizService {
          }));
 
          if (deleteQueries.length) {
+            await quizSubmissionModel.updateMany(
+               { quizId },
+               { $pull: { answers: { questionId: { $in: deleteIds } } } },
+               { session: s }
+            );
             return quizQuestionModel.bulkWrite(deleteQueries, { session: s });
          }
 
