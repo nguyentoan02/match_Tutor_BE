@@ -4,12 +4,15 @@ import Tutor from "../models/tutor.model";
 import Student from "../models/student.model";
 import LearningCommitment from "../models/learningCommitment.model"; // Import LearningCommitment
 import { IReview } from "../types/types/review";
-import { ReviewTypeEnum, ReviewVisibilityRequestStatusEnum } from "../types/enums/review.enum";
+import {
+   ReviewTypeEnum,
+   ReviewVisibilityRequestStatusEnum,
+} from "../types/enums/review.enum";
 import { TeachingRequestStatus } from "../types/enums/teachingRequest.enum";
 import {
    NotFoundError,
    BadRequestError,
-   ForbiddenError
+   ForbiddenError,
 } from "../utils/error.response";
 import { Types } from "mongoose";
 import { ITeachingRequest } from "../types/types/teachingRequest";
@@ -30,11 +33,11 @@ export class ReviewService {
       const teachingRequest = await TeachingRequest.findById(teachingRequestId)
          .populate({
             path: "studentId",
-            populate: { path: "userId", select: "_id" }
+            populate: { path: "userId", select: "_id" },
          })
          .populate({
             path: "tutorId",
-            populate: { path: "userId", select: "_id" }
+            populate: { path: "userId", select: "_id" },
          })
          .lean<PopulatedTeachingRequest | null>();
 
@@ -68,7 +71,7 @@ export class ReviewService {
       const learningCommitment = await LearningCommitment.find({
          teachingRequest: new Types.ObjectId(teachingRequestId),
          student: tr.studentId._id,
-         tutor: tr.tutorId._id
+         tutor: tr.tutorId._id,
       });
 
       if (!learningCommitment) {
@@ -78,18 +81,19 @@ export class ReviewService {
       }
 
       // Check if learning commitment is completed
-      for(const learning of learningCommitment) {
-         if(learning.status === "completed") {
+      for (const learning of learningCommitment) {
+         if (learning.status === "completed") {
             // Check if review already exists for this teaching request
             const existingReview = await Review.findOne({
                reviewerId: new Types.ObjectId(reviewerId),
                revieweeId: tutorId,
                teachingRequestId: new Types.ObjectId(teachingRequestId),
-               isVisible: true
             });
 
             if (existingReview) {
-               throw new BadRequestError("Bạn đã đánh giá yêu cầu học này trước đó");
+               throw new BadRequestError(
+                  "Bạn đã đánh giá yêu cầu học này trước đó"
+               );
             }
 
             // Create the review
@@ -100,7 +104,7 @@ export class ReviewService {
                revieweeId: tutorId,
                rating,
                comment,
-               isVisible: true
+               isVisible: true,
             });
 
             await review.save();
@@ -115,7 +119,7 @@ export class ReviewService {
          }
       }
 
-      throw new BadRequestError("hãy hoàn thành ít nhất một cam kết học")
+      throw new BadRequestError("hãy hoàn thành ít nhất một cam kết học");
    }
 
    /**
@@ -173,7 +177,9 @@ export class ReviewService {
       const skip = (page - 1) * limit;
 
       // Find tutor document by userId
-      const tutor = await Tutor.findOne({ userId: new Types.ObjectId(tutorUserId) });
+      const tutor = await Tutor.findOne({
+         userId: new Types.ObjectId(tutorUserId),
+      });
       if (!tutor) {
          throw new NotFoundError("Tutor profile not found");
       }
@@ -213,7 +219,12 @@ export class ReviewService {
                as: "teachingRequestId",
             },
          },
-         { $unwind: { path: "$teachingRequestId", preserveNullAndEmptyArrays: true } },
+         {
+            $unwind: {
+               path: "$teachingRequestId",
+               preserveNullAndEmptyArrays: true,
+            },
+         },
       ];
 
       // Filter by subject or level
@@ -231,12 +242,10 @@ export class ReviewService {
          });
       }
 
-      // Keyword search in reviewer name 
+      // Keyword search in reviewer name
       if (keyword) {
          andConditions.push({
-            $or: [
-               { "reviewerId.name": { $regex: keyword, $options: "i" } },
-            ],
+            $or: [{ "reviewerId.name": { $regex: keyword, $options: "i" } }],
          });
       }
 
@@ -299,18 +308,24 @@ export class ReviewService {
       }
 
       if (review.revieweeId.toString() !== tutorUserId) {
-         throw new ForbiddenError("Bạn chỉ có thể yêu cầu ẩn đánh giá của mình");
+         throw new ForbiddenError(
+            "Bạn chỉ có thể yêu cầu ẩn đánh giá của mình"
+         );
       }
 
       if (!review.isVisible) {
          throw new BadRequestError("Đánh giá này đã bị ẩn");
       }
 
-      if (review.visibilityRequestStatus === ReviewVisibilityRequestStatusEnum.PENDING) {
+      if (
+         review.visibilityRequestStatus ===
+         ReviewVisibilityRequestStatusEnum.PENDING
+      ) {
          throw new BadRequestError("Yêu cầu ẩn đánh giá đang được xử lý");
       }
 
-      review.visibilityRequestStatus = ReviewVisibilityRequestStatusEnum.PENDING;
+      review.visibilityRequestStatus =
+         ReviewVisibilityRequestStatusEnum.PENDING;
       review.visibilityRequestReason = reason;
       review.visibilityRequestAdminNote = undefined;
       review.visibilityReviewedAt = undefined;
@@ -347,29 +362,47 @@ export class ReviewService {
       review.visibilityReviewedBy = new Types.ObjectId(adminUserId);
 
       if (action === "approve") {
-         if (review.visibilityRequestStatus !== ReviewVisibilityRequestStatusEnum.PENDING) {
-            throw new BadRequestError("Đánh giá này không có yêu cầu ẩn cần xử lý");
+         if (
+            review.visibilityRequestStatus !==
+            ReviewVisibilityRequestStatusEnum.PENDING
+         ) {
+            throw new BadRequestError(
+               "Đánh giá này không có yêu cầu ẩn cần xử lý"
+            );
          }
-         review.visibilityRequestStatus = ReviewVisibilityRequestStatusEnum.APPROVED;
+         review.visibilityRequestStatus =
+            ReviewVisibilityRequestStatusEnum.APPROVED;
          review.isVisible = false;
       } else if (action === "reject") {
-         if (review.visibilityRequestStatus !== ReviewVisibilityRequestStatusEnum.PENDING) {
-            throw new BadRequestError("Đánh giá này không có yêu cầu ẩn cần xử lý");
+         if (
+            review.visibilityRequestStatus !==
+            ReviewVisibilityRequestStatusEnum.PENDING
+         ) {
+            throw new BadRequestError(
+               "Đánh giá này không có yêu cầu ẩn cần xử lý"
+            );
          }
-         review.visibilityRequestStatus = ReviewVisibilityRequestStatusEnum.REJECTED;
+         review.visibilityRequestStatus =
+            ReviewVisibilityRequestStatusEnum.REJECTED;
          review.isVisible = true;
       } else if (action === "restore") {
-         if (review.visibilityRequestStatus !== ReviewVisibilityRequestStatusEnum.APPROVED) {
+         if (
+            review.visibilityRequestStatus !==
+            ReviewVisibilityRequestStatusEnum.APPROVED
+         ) {
             throw new BadRequestError("Chỉ có thể bật lại review đã được ẩn");
          }
-         review.visibilityRequestStatus = ReviewVisibilityRequestStatusEnum.REJECTED;
+         review.visibilityRequestStatus =
+            ReviewVisibilityRequestStatusEnum.REJECTED;
          review.isVisible = true;
       }
 
       await review.save();
 
       if (action === "approve" || action === "restore") {
-         await this.recalculateTutorRatings(review.revieweeId as Types.ObjectId);
+         await this.recalculateTutorRatings(
+            review.revieweeId as Types.ObjectId
+         );
       }
 
       const populated = await Review.findById(review._id)
@@ -454,7 +487,9 @@ export class ReviewService {
 
       // Kiểm tra người dùng có phải là chủ review này không
       if (review.reviewerId.toString() !== reviewerId) {
-         throw new ForbiddenError("Bạn chỉ có thể cập nhật đánh giá của chính mình");
+         throw new ForbiddenError(
+            "Bạn chỉ có thể cập nhật đánh giá của chính mình"
+         );
       }
 
       // Kiểm tra nếu review đã hơn 24 giờ
@@ -466,7 +501,9 @@ export class ReviewService {
       const hoursPassed = timeSinceCreation / (1000 * 60 * 60);
 
       if (hoursPassed > 24) {
-         throw new ForbiddenError("Bạn chỉ có thể chỉnh sửa đánh giá trong vòng 24 giờ sau khi đăng");
+         throw new ForbiddenError(
+            "Bạn chỉ có thể chỉnh sửa đánh giá trong vòng 24 giờ sau khi đăng"
+         );
       }
 
       // Cập nhật các trường
@@ -487,7 +524,6 @@ export class ReviewService {
 
       return updatedReview as IReview;
    }
-
 
    /**
     * Delete a review (soft delete by setting isVisible to false)
@@ -619,17 +655,28 @@ export class ReviewService {
                as: "teachingRequestId",
             },
          },
-         { $unwind: { path: "$teachingRequestId", preserveNullAndEmptyArrays: true } },
+         {
+            $unwind: {
+               path: "$teachingRequestId",
+               preserveNullAndEmptyArrays: true,
+            },
+         },
       ];
 
       // Filter by subject, level, and keyword
       const andConditions: any[] = [];
 
       // Normalize subjects and levels
-      const normalizedSubjects = Array.isArray(subjects) ? subjects :
-         (typeof subjects === 'string' && subjects ? [subjects] : []);
-      const normalizedLevels = Array.isArray(levels) ? levels :
-         (typeof levels === 'string' && levels ? [levels] : []);
+      const normalizedSubjects = Array.isArray(subjects)
+         ? subjects
+         : typeof subjects === "string" && subjects
+         ? [subjects]
+         : [];
+      const normalizedLevels = Array.isArray(levels)
+         ? levels
+         : typeof levels === "string" && levels
+         ? [levels]
+         : [];
 
       if (normalizedSubjects.length > 0) {
          andConditions.push({
@@ -643,12 +690,10 @@ export class ReviewService {
          });
       }
 
-      // Keyword search in tutor name 
+      // Keyword search in tutor name
       if (keyword) {
          andConditions.push({
-            $or: [
-               { "revieweeId.name": { $regex: keyword, $options: "i" } },
-            ],
+            $or: [{ "revieweeId.name": { $regex: keyword, $options: "i" } }],
          });
       }
 
@@ -707,7 +752,9 @@ export class ReviewService {
       teachingRequestIds: string[];
       learningCommitments?: any[];
    }> {
-      const student = await Student.findOne({ userId: new Types.ObjectId(studentUserId) }).select("_id");
+      const student = await Student.findOne({
+         userId: new Types.ObjectId(studentUserId),
+      }).select("_id");
       if (!student) {
          throw new NotFoundError("Student profile not found");
       }
@@ -716,17 +763,19 @@ export class ReviewService {
       const completedCommitments = await LearningCommitment.find({
          student: student._id,
          tutor: tutorUserId,
-         status: "completed"
-      }).populate("teachingRequest", "_id").lean();
+         status: "completed",
+      })
+         .populate("teachingRequest", "_id")
+         .lean();
 
       const teachingRequestIds = completedCommitments
-         .filter(commitment => commitment.teachingRequest)
-         .map(commitment => commitment.teachingRequest._id.toString());
+         .filter((commitment) => commitment.teachingRequest)
+         .map((commitment) => commitment.teachingRequest._id.toString());
 
       return {
          hasCompleted: completedCommitments.length > 0,
          teachingRequestIds,
-         learningCommitments: completedCommitments
+         learningCommitments: completedCommitments,
       };
    }
 
