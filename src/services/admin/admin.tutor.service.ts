@@ -301,22 +301,6 @@ export class AdminTutorService {
             } : null
          };
       });
-
-      // Filter out tutors bị ban hoặc bị report (trừ khi status là 'banned')
-      if (status !== 'banned') {
-         tutorsWithMapping = tutorsWithMapping.filter(item => {
-            // Loại trừ user bị banned
-            if (item.user.isBanned) {
-               return false;
-            }
-            // Loại trừ tutor đã bị report và xử lý
-            if (item.tutor && item.tutor.hasBeenReported) {
-               return false;
-            }
-            return true;
-         });
-      }
-
       // Recalculate total after filtering
       const filteredTotal = tutorsWithMapping.length;
 
@@ -339,19 +323,11 @@ export class AdminTutorService {
       }
 
       // Cho phép tiếp tục xử lý report ngay cả khi hồ sơ đã bị ẩn (ví dụ: user bị ban trước đó)
-      const alreadyHidden = !tutor.isApproved;
+      const wasAlreadyHidden = !tutor.isApproved;
 
       const tutorUserId = (tutor.userId as any)?._id || tutor.userId;
       if (!tutorUserId) {
          throw new NotFoundError("Tutor user not found");
-      }
-
-      // Nếu đã ẩn trước đó, bỏ qua xử lý nặng để tránh ghi lặp
-      if (alreadyHidden) {
-         return {
-            tutor: tutor.toObject() as ITutor,
-            message: "Tutor already hidden; no further actions taken"
-         };
       }
 
       // 1. Xử lý learning commitments đang active -> cancelled
@@ -560,10 +536,10 @@ export class AdminTutorService {
     }
 
       return {
-         tutor: tutor.toObject() as ITutor,
-         message: alreadyHidden
-            ? "Tutor already hidden; reports and related commitments/sessions processed"
-            : "Tutor hidden successfully and all related commitments/sessions processed"
+    tutor: tutor.toObject() as ITutor,
+    message: wasAlreadyHidden
+       ? "Tutor was already hidden; reports and related commitments/sessions processed"
+       : "Tutor hidden successfully and all related commitments/sessions processed"
       };
    }
 }
