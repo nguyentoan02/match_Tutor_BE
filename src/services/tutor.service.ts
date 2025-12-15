@@ -572,7 +572,7 @@ export class TutorService {
       //chỉ tạo embed cho tutor đã được approve
       if (tutor.isApproved) {
          // add create embeding job
-         await addEmbeddingJob(userId.toString());
+         await addEmbeddingJob(tutor.userId.toString());
       }
 
       await tutor.save();
