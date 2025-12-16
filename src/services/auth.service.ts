@@ -114,7 +114,7 @@ export class AuthService {
          .update(resetToken)
          .digest("hex");
       // set reset token expiry to 15 minutes
-      user.passwordResetExpires = new Date(Date.now() + 1 * 60 * 1000); // 15 minutes
+      user.passwordResetExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
       await user.save();
 
