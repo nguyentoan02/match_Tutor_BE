@@ -966,26 +966,26 @@ class SessionService {
       if (!commitment) throw new NotFoundError("Learning commitment not found");
 
       if (currentUser.role !== Role.TUTOR) {
-         throw new ForbiddenError("Only the tutor can create sessions.");
+         throw new ForbiddenError("Chỉ gia sư mới được tạo buổi học");
       }
 
       const tutor = await Tutor.findOne({ userId: currentUser._id });
       if (!tutor || String(commitment.tutor) !== String(tutor._id)) {
          throw new ForbiddenError(
-            "You are not the designated tutor for this learning commitment."
+            "Bạn không phải là gia sư có thể tạo buổi học cho học sinh này"
          );
       }
 
       if (commitment.status !== "active") {
          throw new BadRequestError(
-            "Sessions can only be created for active learning commitments."
+            "Buổi học chỉ có thể tạo khi trạng thái cam kết là đang hoạt động"
          );
       }
 
       // [FIX 1] Check Payment
       if ((commitment.studentPaidAmount || 0) < (commitment.totalAmount || 0)) {
          throw new BadRequestError(
-            "Cannot create session: learning commitment is not fully paid."
+            "Không thể tạo buổi học. Học sinh chưa thanh toán đủ"
          );
       }
 
@@ -1009,7 +1009,7 @@ class SessionService {
 
       if (completed + currentPendingSessions + sessionsToCreateCount > total) {
          throw new BadRequestError(
-            `Cannot create session: Already have ${completed} completed and ${currentPendingSessions} pending. Attempting to add ${sessionsToCreateCount} more exceeds total ${total}.`
+            `Không thể tạo buổi học: Đã có ${completed} hoàn thành và ${currentPendingSessions} đang chờ. Cố gắng thêm ${sessionsToCreateCount} hơn số lượng sẽ vượt quá tổng cam kết ${total}.`
          );
       }
 
