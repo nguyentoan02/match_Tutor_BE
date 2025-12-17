@@ -37,7 +37,7 @@ export const withdrawFromWallet = async (
       const wallet = await getWalletByUserId(userId);
 
       if (wallet.balance < amount) {
-         throw new BadRequestError("Insufficient balance");
+         throw new BadRequestError("Số dư của bạn không đủ để rút");
       }
 
       const referenceId = `withdraw_${userId}_${uuidv4()}`;

@@ -558,7 +558,7 @@ export class AdminLearningService {
             session.status = SessionStatus.CANCELLED;
             session.cancellation = {
                cancelledBy: new Types.ObjectId(), // System cancellation
-               reason: "Learning commitment was cancelled",
+               reason: "Cam kết đã bị huỷ",
                cancelledAt: now,
             };
          }
