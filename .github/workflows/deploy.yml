@@ -5,7 +5,7 @@ on:
       branches: ["master"]
 
 jobs:
-   # --- GIAI ĐOẠN 1: BUILD & PUSH ----
+   # ---- GIAI ĐOẠN 1: BUILD & PUSH ----
    build-and-push:
       runs-on: ubuntu-latest
       steps:
