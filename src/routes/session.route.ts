@@ -31,6 +31,7 @@ router.get("/me/absences", controller.listAbsenceSessionsForUser);
 
 // Tạo một session mới cho một learning commitment
 // router.post("/", validate(createSessionSchema), controller.create);
+router.get("/busy",controller.getBusy)
 
 // Lấy chi tiết một session
 router.get("/:id", controller.getById);

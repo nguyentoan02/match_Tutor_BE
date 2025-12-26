@@ -41,7 +41,7 @@ const worker = new Worker(
          })),
          experienceYears: tutor.experienceYears,
          bio: tutor.bio,
-         availability: tutor.availability,
+         // availability: tutor.availability,
          ratings: tutor.ratings,
       };
       const textEmbed = JSON.stringify(tutorData);

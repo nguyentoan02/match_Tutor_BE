@@ -19,6 +19,9 @@ import { getVietnamTime } from "../utils/date.util";
 import moment from "moment-timezone";
 import { addNotificationJob } from "../queues/notification.queue";
 import User from "../models/user.model";
+import teachingRequestModel from "../models/teachingRequest.model";
+import { TeachingRequestStatus } from "../types/enums";
+import tutorModel from "../models/tutor.model";
 
 class SessionService {
    private TUTOR_CHECKIN_GRACE_MINUTES = 15;
@@ -1161,6 +1164,50 @@ class SessionService {
       }
 
       return createdSessions;
+   }
+
+   async getBusy(userId: string) {
+      console.log(userId);
+      const tutorId = await tutorModel.findOne({ userId });
+      if (!tutorId) {
+         throw new BadRequestError("no tutorId");
+      }
+      const trStuList = await teachingRequestModel
+         .find({
+            tutorId: tutorId._id,
+            status: TeachingRequestStatus.ACCEPTED,
+         })
+         .select("studentId");
+
+      const stuIds = trStuList.map((s) => s.studentId);
+
+      const stuLCList = await LearningCommitment.find({
+         student: { $in: stuIds },
+         status: "active",
+      }).select("_id");
+
+      const stuLCIds = stuLCList.map((t) => t._id);
+      const stuSessions = await Session.find({
+         learningCommitmentId: { $in: stuLCIds },
+         "studentConfirmation.status": "ACCEPTED",
+      })
+         .select("startTime endTime studentConfirmation.status learningCommitmentId")
+         .populate({
+            path: "learningCommitmentId",
+            select: "teachingRequest",
+            populate: [
+               {
+                  path: "student",
+                  select: "userId",
+                  populate: {
+                     path: "userId",
+                     select: "_id name avatarUrl email",
+                  },
+               },
+            ],
+         });
+      console.log(stuSessions);
+      return stuSessions;
    }
 }
 

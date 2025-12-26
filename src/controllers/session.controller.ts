@@ -241,6 +241,25 @@ class SessionController {
          next(err);
       }
    }
+
+   async getBusy(req: Request, res: Response) {
+      if (!req.user?._id) {
+         throw new UnauthorizedError("Authentication required");
+      }
+      const currentUser = req.user as IUser;
+      let result: any = [];
+      console.log(currentUser)
+      if (currentUser.role === "TUTOR") {
+         result = await sessionService.getBusy(
+            (currentUser._id as string).toString()
+         );
+      }
+
+      new OK({
+         message: "oke",
+         metadata: result,
+      }).send(res);
+   }
 }
 
 export default new SessionController();

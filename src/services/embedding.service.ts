@@ -102,7 +102,7 @@ class embeddingService {
       }));
 
       const filteredResults = results.filter(
-         (result) => result.similarity > 0.5
+         (result) => result.similarity > 0.46
       );
 
       // Sắp xếp theo similarity và lấy top results
