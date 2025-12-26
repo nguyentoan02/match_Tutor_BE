@@ -10,8 +10,8 @@ export enum CancellationStatus {
 export const CANCELLATION_STATUS_VALUES = Object.values(CancellationStatus);
 
 export interface ICancellationDecision {
-   student: { status: CancellationStatus; reason?: string };
-   tutor: { status: CancellationStatus; reason?: string };
+   student: { status: CancellationStatus; reason?: string; linkUrl?: string };
+   tutor: { status: CancellationStatus; reason?: string; linkUrl?: string };
    requestedBy?: "student" | "tutor";
    requestedAt?: Date;
    reason?: string;
@@ -44,6 +44,7 @@ export interface IAdminDisputeLog {
    handledAt: Date;
    statusAfter: LearningCommitmentStatus;
    cancellationDecisionSnapshot?: ICancellationDecision;
+   linkUrl?: string; // <-- added
    _id?: Types.ObjectId;
 }
 
@@ -52,8 +53,8 @@ export interface ILearningCommitment extends Document {
    student: Types.ObjectId;
    teachingRequest: Types.ObjectId;
    totalSessions: number;
+   sessionsPerWeek: number;
    startDate: Date;
-   endDate: Date;
    totalAmount: number;
    studentPaidAmount: number;
    status: LearningCommitmentStatus; // Thêm trạng thái này
@@ -79,8 +80,8 @@ const learningCommitmentSchema = new Schema<ILearningCommitment>(
          required: true,
       },
       totalSessions: { type: Number, required: true },
+      sessionsPerWeek: { type: Number, required: true },
       startDate: { type: Date, required: true },
-      endDate: { type: Date, required: true },
       totalAmount: { type: Number, required: true },
       studentPaidAmount: { type: Number, default: 0 },
       status: {
@@ -110,6 +111,7 @@ const learningCommitmentSchema = new Schema<ILearningCommitment>(
                default: CancellationStatus.PENDING,
             },
             reason: { type: String },
+            linkUrl: { type: String },
          },
          tutor: {
             status: {
@@ -118,6 +120,7 @@ const learningCommitmentSchema = new Schema<ILearningCommitment>(
                default: CancellationStatus.PENDING,
             },
             reason: { type: String },
+            linkUrl: { type: String },
          },
          requestedBy: { type: String, enum: ["student", "tutor"] },
          requestedAt: { type: Date },
@@ -136,6 +139,7 @@ const learningCommitmentSchema = new Schema<ILearningCommitment>(
                   default: CancellationStatus.PENDING,
                },
                reason: { type: String },
+               linkUrl: { type: String },
             },
             tutor: {
                status: {
@@ -144,6 +148,7 @@ const learningCommitmentSchema = new Schema<ILearningCommitment>(
                   default: CancellationStatus.PENDING,
                },
                reason: { type: String },
+               linkUrl: { type: String },
             },
             requestedBy: { type: String, enum: ["student", "tutor"] },
             requestedAt: { type: Date },
@@ -190,6 +195,7 @@ const learningCommitmentSchema = new Schema<ILearningCommitment>(
                      default: CancellationStatus.PENDING,
                   },
                   reason: { type: String },
+                  linkUrl: { type: String }, // <-- added
                },
                tutor: {
                   status: {
@@ -198,6 +204,7 @@ const learningCommitmentSchema = new Schema<ILearningCommitment>(
                      default: CancellationStatus.PENDING,
                   },
                   reason: { type: String },
+                  linkUrl: { type: String }, // <-- added
                },
                requestedBy: { type: String, enum: ["student", "tutor"] },
                requestedAt: { type: Date },
@@ -207,6 +214,7 @@ const learningCommitmentSchema = new Schema<ILearningCommitment>(
                adminResolvedAt: { type: Date },
                adminNotes: { type: String },
             },
+            linkUrl: { type: String }, // <-- added at adminDisputeLogs level
          },
       ],
       isMoneyTransferred: { type: Boolean, default: false },

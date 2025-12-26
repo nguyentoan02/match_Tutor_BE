@@ -3,25 +3,27 @@ import { Document, model, Schema, Types } from "mongoose";
 
 export interface IPaymentTemp extends Document {
    userId: Types.ObjectId;
-   type: "package" | "learningCommitment";
+   type: "package" | "learningCommitment" | "topup";
    referenceId?: Types.ObjectId; // ID của learningCommitment
    packageId?: Types.ObjectId; // ID của package
    orderCode: number;
+   additionalSessions?: number; // <-- thêm để tương thích với payment.service.ts
    createdAt: Date;
    updatedAt: Date;
 }
 
 const paymentTempSchema = new Schema<IPaymentTemp>(
    {
+      orderCode: { type: Schema.Types.Mixed, required: true, unique: true },
       userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+      referenceId: { type: Schema.Types.ObjectId, ref: "LearningCommitment" },
+      packageId: { type: Schema.Types.ObjectId, ref: "Package" },
       type: {
          type: String,
-         enum: ["package", "learningCommitment"],
+         enum: ["learningCommitment", "package", "topup"],
          required: true,
       },
-      referenceId: { type: Schema.Types.ObjectId },
-      packageId: { type: Schema.Types.ObjectId, ref: "Package" },
-      orderCode: { type: Number, required: true, unique: true },
+      additionalSessions: { type: Number }, // <-- added for topup
    },
    { timestamps: true }
 );

@@ -144,6 +144,31 @@ class SessionController {
       }
    }
 
+   async confirmAttendanceFake(
+      req: Request,
+      res: Response,
+      next: NextFunction
+   ) {
+      try {
+         if (!req.user?._id) {
+            throw new UnauthorizedError("Authentication required");
+         }
+
+         const result = await adminSessionService.confirmAttendanceFake(
+            req.params.sessionId,
+            req.user._id.toString(),
+            req.user.role as Role
+         );
+
+         new OK({
+            message: "Attendance confirmed successfully",
+            metadata: result,
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
    // Reject attendance after session
    async rejectAttendance(req: Request, res: Response, next: NextFunction) {
       try {
@@ -152,6 +177,29 @@ class SessionController {
          }
 
          const result = await sessionService.rejectAttendance(
+            req.params.sessionId,
+            req.user._id.toString(),
+            req.user.role as Role,
+            req.body
+         );
+
+         new OK({
+            message: "Attendance rejected successfully",
+            metadata: result,
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   // Reject attendance after session
+   async rejectAttendanceFake(req: Request, res: Response, next: NextFunction) {
+      try {
+         if (!req.user?._id) {
+            throw new UnauthorizedError("Authentication required");
+         }
+
+         const result = await adminSessionService.rejectAttendanceFake(
             req.params.sessionId,
             req.user._id.toString(),
             req.user.role as Role,
@@ -235,6 +283,32 @@ class SessionController {
 
          new CREATED({
             message: "Batch sessions created successfully",
+            metadata: result,
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   // NEW: Lấy tất cả session của một learning commitment
+   async getSessionsByCommitmentId(
+      req: Request,
+      res: Response,
+      next: NextFunction
+   ) {
+      try {
+         if (!req.user?._id) {
+            throw new UnauthorizedError("Authentication required");
+         }
+
+         const { commitmentId } = req.params;
+         const result = await adminSessionService.getSessionsByCommitmentId(
+            commitmentId,
+            req.user._id.toString()
+         );
+
+         new OK({
+            message: "Sessions for commitment retrieved successfully",
             metadata: result,
          }).send(res);
       } catch (err) {

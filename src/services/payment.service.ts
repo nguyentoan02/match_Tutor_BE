@@ -67,6 +67,39 @@ export const createPackagePayment = async (
    };
 };
 
+export const createTopUpPayment = async (
+   learningCommitmentId: string,
+   userId: string,
+   amount: number,
+   additionalSessions: number
+) => {
+   const orderCode = Date.now();
+   const paymentData = {
+      orderCode,
+      amount,
+      description: `Top-up ${additionalSessions} session(s)`,
+      returnUrl: `${process.env.FRONTEND_URL}/student/learning-commitments?status=success&id=${learningCommitmentId}`,
+      cancelUrl: `${process.env.FRONTEND_URL}/student/learning-commitments?status=cancelled&id=${learningCommitmentId}`,
+   };
+
+   const paymentLink = await payos.paymentRequests.create(paymentData);
+   console.log("PayOS TopUp Response:", paymentLink);
+
+   const tempPayment = new PaymentTemp({
+      orderCode,
+      userId,
+      referenceId: learningCommitmentId,
+      type: "topup",
+      additionalSessions,
+   });
+   await tempPayment.save();
+
+   return {
+      paymentLink: paymentLink.checkoutUrl,
+      orderCode,
+   };
+};
+
 export const webHook = async (webhookData: { data: any }) => {
    console.log("Full webhookData:", JSON.stringify(webhookData, null, 2));
    const { data: innerData } = webhookData.data;
@@ -79,7 +112,6 @@ export const webHook = async (webhookData: { data: any }) => {
 
    // BƯỚC 2: Chỉ xử lý khi thanh toán thành công (code === "00")
    if (webhookData.data.code === "00") {
-      // Retrieve temp data
       const tempPayment = await PaymentTemp.findOne({
          orderCode: innerData.orderCode,
       });
@@ -142,6 +174,36 @@ export const webHook = async (webhookData: { data: any }) => {
             "Package payment processed successfully for user:",
             tempPayment.userId
          );
+      } else if (tempPayment.type === "topup") {
+         // Top-up: tăng cả totalAmount và studentPaidAmount bằng cùng 1 số tiền
+         const commitment = await LearningCommitment.findById(
+            tempPayment.referenceId
+         );
+         if (!commitment) {
+            console.error(
+               "Webhook Error: LearningCommitment not found (topup)"
+            );
+            throw new Error("LearningCommitment not found");
+         }
+
+         const addSessions = Number(tempPayment.additionalSessions || 0);
+         if (!isNaN(addSessions) && addSessions > 0) {
+            commitment.totalSessions =
+               (commitment.totalSessions || 0) + addSessions;
+         }
+
+         // tăng BOTH totalAmount và studentPaidAmount bằng amount của webhook
+         const paidAmount = Number(innerData.amount || 0);
+         commitment.totalAmount = (commitment.totalAmount || 0) + paidAmount;
+         commitment.studentPaidAmount =
+            (commitment.studentPaidAmount || 0) + paidAmount;
+
+         // Nếu muốn: đánh dấu active khi đã trả đủ
+         if (commitment.studentPaidAmount >= commitment.totalAmount) {
+            commitment.status = "active";
+         }
+
+         await commitment.save();
       }
 
       // Clean up temp data
