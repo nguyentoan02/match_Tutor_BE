@@ -7,6 +7,7 @@ import User from "../models/user.model";
 import { IMessage } from "../types/types/message";
 import conversationModel from "../models/conversation.model";
 import { IConversation } from "../types/types/conversation";
+import chatService from "../services/chat.service";
 
 declare module "socket.io" {
    interface Socket {
@@ -125,6 +126,48 @@ class SocketService {
          s.on("chatPing", () => {
             s.emit("chatPong", { timestamp: new Date().toISOString() });
          });
+
+         // Client requests mark-as-read
+         s.on(
+            "markRead",
+            async (data: { chatId: string; messageIds?: string[] }) => {
+               try {
+                  if (!s.userId) {
+                     s.emit("message_error", { message: "Unauthenticated" });
+                     return;
+                  }
+                  const updatedMessages = await chatService.markMessagesAsRead(
+                     data.chatId,
+                     s.userId,
+                     data.messageIds
+                  );
+
+                  // notify all in the chat room that these messages were read
+                  this.chatNamespace
+                     ?.to(`chat_${data.chatId}`)
+                     .emit("messagesRead", {
+                        chatId: data.chatId,
+                        userId: s.userId,
+                        messageIds:
+                           data.messageIds ||
+                           updatedMessages.map((m: any) => m._id),
+                        messages: updatedMessages,
+                        timestamp: new Date().toISOString(),
+                     });
+
+                  // ack to sender
+                  s.emit("markRead_ack", {
+                     chatId: data.chatId,
+                     timestamp: new Date().toISOString(),
+                  });
+               } catch (err) {
+                  console.error("markRead error:", err);
+                  s.emit("message_error", {
+                     message: "Failed to mark messages as read",
+                  });
+               }
+            }
+         );
 
          s.on("disconnect", (reason) => {
             if (s.userId) {

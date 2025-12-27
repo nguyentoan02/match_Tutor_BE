@@ -286,6 +286,43 @@ class ChatService {
 
       return { success: true };
    }
+
+   async markMessagesAsRead(
+      conversationId: string,
+      userId: string,
+      messageIds?: string[]
+   ) {
+      // ensure conversation and participant check
+      const conversation = await conversationModel.findById(conversationId);
+      if (!conversation) throw new Error("Conversation not found");
+      const isParticipant = conversation.participants.some(
+         (id) => id.toString() === userId
+      );
+      if (!isParticipant) throw new Error("Unauthorized access");
+
+      const filter: any = {
+         conversationId: new Types.ObjectId(conversationId),
+      };
+      if (messageIds && messageIds.length) {
+         filter._id = { $in: messageIds.map((id) => new Types.ObjectId(id)) };
+      }
+
+      await messageModel.updateMany(filter, {
+         $addToSet: { isReadBy: new Types.ObjectId(userId) },
+      });
+
+      // return updated messages (populated)
+      const updated = await messageModel
+         .find(filter)
+         .populate("senderId", "name avatarUrl email role")
+         .lean();
+
+      return updated.map((m: any) => ({
+         ...m,
+         sender: m.senderId,
+         senderId: undefined,
+      }));
+   }
 }
 
 export default new ChatService();

@@ -63,12 +63,28 @@ router.patch(
    controller.confirmAttendance
 );
 
+// Both tutor and student confirm attendance after session
+router.patch(
+   "/:sessionId/confirm-attendance-fake",
+   validate(confirmAttendanceSchema),
+   controller.confirmAttendanceFake
+);
+
 // Both tutor and student can reject attendance after session
 router.patch(
    "/:sessionId/reject-attendance",
    validate(rejectAttendanceSchema),
    controller.rejectAttendance
 );
+
+router.patch(
+   "/:sessionId/reject-attendance-fake",
+   validate(rejectAttendanceSchema),
+   controller.rejectAttendanceFake
+);
+
+// Lấy tất cả session của một learning commitment
+router.get("/commitment/:commitmentId", controller.getSessionsByCommitmentId);
 
 router.post("/batch", validate(createManySessionSchema), controller.createMany);
 

@@ -22,235 +22,16 @@ import User from "../models/user.model";
 import teachingRequestModel from "../models/teachingRequest.model";
 import { TeachingRequestStatus } from "../types/enums";
 import tutorModel from "../models/tutor.model";
+import {
+   TUTOR_CHECKIN_GRACE_MINUTES,
+   STUDENT_CHECKIN_GRACE_MINUTES,
+   appendLog,
+   autoFinalizeStudentConfirmationIfDue,
+   autoFinalizeAttendanceIfDue,
+   checkParticipantByCommitment,
+} from "../utils/sessionAuto.util";
 
 class SessionService {
-   private TUTOR_CHECKIN_GRACE_MINUTES = 15;
-   private STUDENT_CHECKIN_GRACE_MINUTES = 30;
-
-   private appendLog(
-      session: any,
-      entry: {
-         userRole: "TUTOR" | "STUDENT" | "SYSTEM";
-         action: string;
-         note?: string;
-      }
-   ) {
-      if (!session.attendanceLogs) session.attendanceLogs = [];
-      session.attendanceLogs.push({ ...entry, createdAt: new Date() });
-   }
-
-   private async extendCommitmentForAbsences(commitmentId: string) {
-      const commitment = await LearningCommitment.findById(commitmentId);
-      if (!commitment) return;
-
-      commitment.absentSessions = (commitment.absentSessions || 0) + 1;
-
-      const newExtendedWeeks = Math.ceil(commitment.absentSessions / 2);
-      const oldExtendedWeeks = commitment.extendedWeeks || 0;
-
-      if (newExtendedWeeks > oldExtendedWeeks) {
-         const weeksToAdd = newExtendedWeeks - oldExtendedWeeks;
-         const endDateMoment = moment(commitment.endDate).tz(
-            "Asia/Ho_Chi_Minh"
-         );
-         endDateMoment.add(weeksToAdd, "weeks");
-         commitment.endDate = endDateMoment.toDate();
-         commitment.extendedWeeks = newExtendedWeeks;
-      }
-
-      await commitment.save();
-   }
-
-   private async autoFinalizeStudentConfirmationIfDue(session: any) {
-      const now = new Date();
-      const start = session.startTime as Date;
-
-      // 15 phút trước thời gian bắt đầu buổi học
-      const studentConfirmationDeadline = new Date(
-         start.getTime() - 15 * 60 * 1000
-      );
-
-      // Chỉ xử lý nếu buổi học chưa bắt đầu và học sinh chưa xác nhận
-      if (
-         session.status === SessionStatus.SCHEDULED &&
-         session.studentConfirmation?.status === "PENDING" &&
-         now > studentConfirmationDeadline
-      ) {
-         session.studentConfirmation = {
-            status: "REJECTED",
-            confirmedAt: now,
-         };
-         session.isDeleted = true;
-         session.deletedAt = now;
-         session.status = SessionStatus.REJECTED;
-         this.appendLog(session, {
-            userRole: "SYSTEM",
-            action: "ABSENT_AUTO",
-            note: "Buổi học đã bị hủy: Học sinh không xác nhận trước 15 phút khi bắt đầu",
-         });
-         await session.save();
-
-         // Notify tutor about auto-cancellation
-         const commitment = await LearningCommitment.findById(
-            session.learningCommitmentId
-         )
-            .populate({
-               path: "tutor",
-               select: "userId",
-            })
-            .lean();
-         if (commitment && (commitment as any).tutor?.userId) {
-            const tutorUserId = (commitment as any).tutor.userId.toString();
-            await addNotificationJob(
-               tutorUserId,
-               "Buổi học đã bị hủy tự động",
-               "Một buổi học đã bị hủy do học sinh không xác nhận tham gia."
-            );
-         }
-      }
-   }
-
-   private async autoFinalizeAttendanceIfDue(session: any) {
-      const now = new Date();
-      const end = session.endTime as Date;
-
-      const tutorDeadline =
-         session.attendanceWindow?.tutorDeadline ||
-         new Date(end.getTime() + this.TUTOR_CHECKIN_GRACE_MINUTES * 60 * 1000);
-      const studentDeadline =
-         session.attendanceWindow?.studentDeadline ||
-         new Date(
-            end.getTime() + this.STUDENT_CHECKIN_GRACE_MINUTES * 60 * 1000
-         );
-      session.attendanceWindow = { tutorDeadline, studentDeadline };
-
-      const tutorStatus =
-         session.attendanceConfirmation?.tutor?.status || "PENDING";
-      const studentStatus =
-         session.attendanceConfirmation?.student?.status || "PENDING";
-
-      if (
-         [
-            SessionStatus.COMPLETED,
-            SessionStatus.CANCELLED,
-            SessionStatus.DISPUTED,
-         ].includes(session.status)
-      )
-         return session;
-
-      // Tutor miss check-in deadline
-      if (tutorStatus === "PENDING" && now > tutorDeadline) {
-         session.attendanceConfirmation = session.attendanceConfirmation || {
-            tutor: { status: "PENDING" },
-            student: { status: "PENDING" },
-            isAttended: false,
-         };
-         session.attendanceConfirmation.tutor.status = "REJECTED";
-         session.attendanceConfirmation.tutor.decidedAt = now;
-         session.absence = session.absence || {};
-         session.absence.tutorAbsent = true;
-         session.absence.decidedAt = now;
-         session.absence.reason = "Gia sư đã vượt quá thời hạn điểm danh";
-         session.absence.evidenceUrls = [];
-         this.appendLog(session, {
-            userRole: "SYSTEM",
-            action: "ABSENT_AUTO",
-            note: "Gia sư đã vượt quá thời hạn điểm danh",
-         });
-         session.status = SessionStatus.NOT_CONDUCTED;
-         await this.extendCommitmentForAbsences(
-            session.learningCommitmentId._id.toString()
-         );
-         // Notify student about tutor's absence
-         const student = await Student.findById(
-            session.learningCommitmentId.student
-         )
-            .select("userId")
-            .lean();
-         if (student?.userId) {
-            await addNotificationJob(
-               student.userId.toString(),
-               "Gia sư vắng mặt",
-               "Gia sư đã không điểm danh đúng hạn cho một buổi học."
-            );
-         }
-      }
-
-      // Student miss check-in deadline (after tutor accepted)
-      const tutorAccepted =
-         (session.attendanceConfirmation?.tutor?.status || "PENDING") ===
-         "ACCEPTED";
-      if (
-         tutorAccepted &&
-         studentStatus === "PENDING" &&
-         now > studentDeadline
-      ) {
-         session.attendanceConfirmation.student.status = "REJECTED";
-         session.attendanceConfirmation.student.decidedAt = now;
-         session.absence = session.absence || {};
-         session.absence.studentAbsent = true;
-         session.absence.decidedAt = now;
-         session.absence.reason = "Học sinh đã vượt quá thời hạn điểm danh";
-         session.absence.evidenceUrls = [];
-         this.appendLog(session, {
-            userRole: "SYSTEM",
-            action: "ABSENT_AUTO",
-            note: "Học sinh đã vượt quá thời hạn điểm danh",
-         });
-         session.status = SessionStatus.NOT_CONDUCTED;
-         await this.extendCommitmentForAbsences(
-            session.learningCommitmentId._id.toString()
-         );
-         // Notify tutor about student's absence
-         const tutor = await Tutor.findById(session.learningCommitmentId.tutor)
-            .select("userId")
-            .lean();
-         if (tutor?.userId) {
-            await addNotificationJob(
-               tutor.userId.toString(),
-               "Học sinh vắng mặt",
-               "Học sinh đã không điểm danh đúng hạn cho một buổi học."
-            );
-         }
-      }
-
-      return session;
-   }
-
-   private async checkParticipantByCommitment(
-      learningCommitmentId: string,
-      userId: string
-   ) {
-      const commitment = await LearningCommitment.findById(learningCommitmentId)
-         .populate({
-            path: "student",
-            select: "userId",
-            populate: { path: "userId", select: "_id" },
-         })
-         .populate({
-            path: "tutor",
-            select: "userId",
-            populate: { path: "userId", select: "_id" },
-         });
-
-      if (!commitment) {
-         throw new NotFoundError("Learning commitment not found");
-      }
-
-      const userIdStr = userId.toString();
-      const studentUserId = (
-         commitment as any
-      )?.student?.userId?._id?.toString();
-      const tutorUserId = (commitment as any)?.tutor?.userId?._id?.toString();
-
-      if (userIdStr !== studentUserId && userIdStr !== tutorUserId) {
-         throw new ForbiddenError(
-            "You are not a participant of this learning commitment."
-         );
-      }
-      return commitment;
-   }
-
    async getById(sessionId: string, userId: string) {
       const session = await Session.findById(sessionId)
          .populate({
@@ -275,7 +56,7 @@ class SessionService {
                },
                {
                   path: "teachingRequest",
-                  select: "subject level status", // Thêm level và status
+                  select: "subject level status",
                },
             ],
          })
@@ -286,12 +67,12 @@ class SessionService {
 
       if (!session) throw new NotFoundError("Session not found");
 
-      await this.checkParticipantByCommitment(
+      await checkParticipantByCommitment(
          (session.learningCommitmentId as any)._id.toString(),
          userId.toString()
       );
-      await this.autoFinalizeStudentConfirmationIfDue(session as any);
-      await this.autoFinalizeAttendanceIfDue(session as any);
+      await autoFinalizeStudentConfirmationIfDue(session as any);
+      await autoFinalizeAttendanceIfDue(session as any);
       await session.save();
       return session.toObject();
    }
@@ -304,7 +85,7 @@ class SessionService {
       const session = await Session.findById(sessionId);
       if (!session) throw new NotFoundError("Không tìm thấy buổi học");
 
-      await this.checkParticipantByCommitment(
+      await checkParticipantByCommitment(
          session.learningCommitmentId.toString(),
          studentUserId
       );
@@ -330,6 +111,31 @@ class SessionService {
       }
 
       await session.save();
+
+      // Nếu học sinh xác nhận tham gia, cập nhật các buổi còn lại trong cùng LearningCommitment
+      if (decision === "ACCEPTED") {
+         try {
+            const now = new Date();
+            await Session.updateMany(
+               {
+                  learningCommitmentId: session.learningCommitmentId,
+                  _id: { $ne: session._id },
+                  isDeleted: { $ne: true },
+                  status: SessionStatus.SCHEDULED,
+                  "studentConfirmation.status": "PENDING",
+               },
+               {
+                  $set: {
+                     "studentConfirmation.status": "ACCEPTED",
+                     "studentConfirmation.confirmedAt": now,
+                     status: SessionStatus.CONFIRMED,
+                  },
+               }
+            );
+         } catch (e) {
+            console.error("Failed to bulk-confirm remaining sessions:", e);
+         }
+      }
 
       // Notify tutor about student's decision
       const commitment = await LearningCommitment.findById(
@@ -357,7 +163,7 @@ class SessionService {
       const session = await Session.findById(sessionId);
       if (!session) throw new NotFoundError("Không tìm thấy buổi học");
 
-      await this.checkParticipantByCommitment(
+      await checkParticipantByCommitment(
          session.learningCommitmentId.toString(),
          userId
       );
@@ -365,6 +171,14 @@ class SessionService {
       if (session.status !== SessionStatus.CONFIRMED) {
          throw new BadRequestError(
             "Chỉ có thể xác nhận điểm danh cho buổi học có trạng thái ĐÃ XÁC NHẬN"
+         );
+      }
+
+      const now = new Date();
+
+      if (now < session.startTime) {
+         throw new BadRequestError(
+            "Chỉ có thể điểm danh khi đến thời gian bắt đầu buổi học"
          );
       }
 
@@ -380,19 +194,16 @@ class SessionService {
          };
       }
 
-      const now = new Date();
-
       const tutorDeadline =
          session.attendanceWindow?.tutorDeadline ||
          new Date(
-            session.endTime.getTime() +
-               this.TUTOR_CHECKIN_GRACE_MINUTES * 60 * 1000
+            session.endTime.getTime() + TUTOR_CHECKIN_GRACE_MINUTES * 60 * 1000
          );
       const studentDeadline =
          session.attendanceWindow?.studentDeadline ||
          new Date(
             session.endTime.getTime() +
-               this.STUDENT_CHECKIN_GRACE_MINUTES * 60 * 1000
+               STUDENT_CHECKIN_GRACE_MINUTES * 60 * 1000
          );
       session.attendanceWindow = { tutorDeadline, studentDeadline };
 
@@ -406,12 +217,12 @@ class SessionService {
       }
 
       if (userRole === Role.TUTOR && now > tutorDeadline) {
-         await this.autoFinalizeAttendanceIfDue(session);
+         await autoFinalizeAttendanceIfDue(session);
          await session.save();
          throw new BadRequestError("Thời hạn điểm danh của gia sư đã hết");
       }
       if (userRole === Role.STUDENT && now > studentDeadline) {
-         await this.autoFinalizeAttendanceIfDue(session);
+         await autoFinalizeAttendanceIfDue(session);
          await session.save();
          throw new BadRequestError("Thời hạn điểm danh của học sinh đã hết");
       }
@@ -422,14 +233,14 @@ class SessionService {
          }
          session.attendanceConfirmation.tutor.status = "ACCEPTED";
          session.attendanceConfirmation.tutor.decidedAt = now;
-         this.appendLog(session, { userRole: "TUTOR", action: "CHECKED_IN" });
+         appendLog(session, { userRole: "TUTOR", action: "CHECKED_IN" });
       } else if (userRole === Role.STUDENT) {
          if (session.attendanceConfirmation.student.status !== "PENDING") {
             throw new BadRequestError("Học sinh đã xác nhận điểm danh rồi");
          }
          session.attendanceConfirmation.student.status = "ACCEPTED";
          session.attendanceConfirmation.student.decidedAt = now;
-         this.appendLog(session, { userRole: "STUDENT", action: "CHECKED_IN" });
+         appendLog(session, { userRole: "STUDENT", action: "CHECKED_IN" });
       }
 
       const tutorResponded =
@@ -489,16 +300,12 @@ class SessionService {
          } else {
             session.attendanceConfirmation.isAttended = false;
             session.status = SessionStatus.NOT_CONDUCTED;
-            await this.extendCommitmentForAbsences(
-               session.learningCommitmentId._id.toString()
-            );
          }
       }
 
       await session.save();
       return session;
    }
-
    async rejectAttendance(
       sessionId: string,
       userId: string,
@@ -508,7 +315,7 @@ class SessionService {
       const session = await Session.findById(sessionId);
       if (!session) throw new NotFoundError("Không tìm thấy buổi học");
 
-      await this.checkParticipantByCommitment(
+      await checkParticipantByCommitment(
          session.learningCommitmentId.toString(),
          userId
       );
@@ -516,6 +323,13 @@ class SessionService {
       if (session.status !== SessionStatus.CONFIRMED) {
          throw new BadRequestError(
             "Chỉ có thể từ chối điểm danh cho buổi học có trạng thái ĐÃ XÁC NHẬN"
+         );
+      }
+
+      const now = new Date();
+      if (now < session.startTime) {
+         throw new BadRequestError(
+            "Chỉ có thể báo vắng, khiếu nại khi tới thời gian bắt đầu"
          );
       }
 
@@ -531,19 +345,18 @@ class SessionService {
          };
       }
 
-      const now = new Date();
+      // const now = new Date();
 
       const tutorDeadline =
          session.attendanceWindow?.tutorDeadline ||
          new Date(
-            session.endTime.getTime() +
-               this.TUTOR_CHECKIN_GRACE_MINUTES * 60 * 1000
+            session.endTime.getTime() + TUTOR_CHECKIN_GRACE_MINUTES * 60 * 1000
          );
       const studentDeadline =
          session.attendanceWindow?.studentDeadline ||
          new Date(
             session.endTime.getTime() +
-               this.STUDENT_CHECKIN_GRACE_MINUTES * 60 * 1000
+               STUDENT_CHECKIN_GRACE_MINUTES * 60 * 1000
          );
       session.attendanceWindow = { tutorDeadline, studentDeadline };
 
@@ -567,10 +380,8 @@ class SessionService {
          session.absence.reason = payload?.reason;
          session.absence.evidenceUrls = payload?.evidenceUrls || [];
          session.status = SessionStatus.NOT_CONDUCTED;
-         await this.extendCommitmentForAbsences(
-            session.learningCommitmentId._id.toString()
-         );
-         this.appendLog(session, {
+
+         appendLog(session, {
             userRole: "TUTOR",
             action: "ABSENT_MANUAL",
             note: payload?.reason,
@@ -598,7 +409,7 @@ class SessionService {
                openedAt: now,
             } as any;
             session.status = SessionStatus.DISPUTED;
-            this.appendLog(session, {
+            appendLog(session, {
                userRole: "STUDENT",
                action: "DISPUTE_OPENED",
                note: payload.reason,
@@ -612,10 +423,7 @@ class SessionService {
             session.absence.reason = payload?.reason;
             session.absence.evidenceUrls = payload?.evidenceUrls || [];
             session.status = SessionStatus.NOT_CONDUCTED;
-            await this.extendCommitmentForAbsences(
-               session.learningCommitmentId._id.toString()
-            );
-            this.appendLog(session, {
+            appendLog(session, {
                userRole: "STUDENT",
                action: "ABSENT_MANUAL",
                note: payload?.reason,
@@ -709,9 +517,9 @@ class SessionService {
       await Promise.all(
          sessions.map(async (session) => {
             try {
-               await this.autoFinalizeStudentConfirmationIfDue(session as any);
+               await autoFinalizeStudentConfirmationIfDue(session as any);
 
-               await this.autoFinalizeAttendanceIfDue(session as any);
+               await autoFinalizeAttendanceIfDue(session as any);
 
                // Nếu dữ liệu có thay đổi sau các hàm check trên thì lưu lại
                if ((session as any).isModified()) {
@@ -740,12 +548,18 @@ class SessionService {
       if (session.status === SessionStatus.COMPLETED) {
          throw new BadRequestError("Không thể cập nhật buổi học đã hoàn thành");
       }
-      if (session.status === SessionStatus.CONFIRMED) {
-         throw new BadRequestError(
-            "Không thể cập nhật buổi học đã được xác nhận"
-         );
+      // Allow updating confirmed sessions — but after update revert to SCHEDULED
+      const wasConfirmed = session.status === SessionStatus.CONFIRMED;
+      if (wasConfirmed) {
+         session.status = SessionStatus.SCHEDULED;
+         session.studentConfirmation = { status: "PENDING" } as any;
+         // clear soft-delete flags if set
+         session.isDeleted = false;
+         session.deletedAt = undefined as any;
+         session.deletedBy = undefined as any;
       }
-      const commitment = await this.checkParticipantByCommitment(
+
+      const commitment = await checkParticipantByCommitment(
          (session.learningCommitmentId as any).toString(),
          (currentUser._id as mongoose.Types.ObjectId | string).toString()
       );
@@ -784,12 +598,18 @@ class SessionService {
                "Thời gian buổi học nên nằm trong cùng một ngày"
             );
          }
-
+         // Compute commitment boundaries from startDate + duration (totalSessions / sessionsPerWeek) + extendedWeeks
+         const sessionsPerWeek = commitment.sessionsPerWeek || 1;
+         const weeksNeeded = Math.ceil(
+            (commitment.totalSessions || 0) / sessionsPerWeek
+         );
+         const totalWeeks = weeksNeeded + (commitment.extendedWeeks || 0);
          const commitmentStartVN = moment(commitment.startDate)
             .tz("Asia/Ho_Chi_Minh")
             .startOf("day");
-         const commitmentEndVN = moment(commitment.endDate)
+         const commitmentEndVN = moment(commitment.startDate)
             .tz("Asia/Ho_Chi_Minh")
+            .add(totalWeeks, "weeks")
             .endOf("day");
 
          if (
@@ -869,7 +689,50 @@ class SessionService {
       }
 
       Object.assign(session, data);
+
+      if (wasConfirmed) {
+         // revert to scheduled so student must confirm again
+         session.status = SessionStatus.SCHEDULED;
+         session.studentConfirmation = { status: "PENDING" } as any;
+         // clear soft-delete flags if set
+         session.isDeleted = false;
+         session.deletedAt = undefined as any;
+         session.deletedBy = undefined as any;
+      }
+
       await session.save();
+
+      // Notify the other participant about the update
+      try {
+         const comm = await LearningCommitment.findById(
+            session.learningCommitmentId
+         )
+            .populate({ path: "student", select: "userId" })
+            .populate({ path: "tutor", select: "userId" })
+            .lean();
+
+         if (comm) {
+            const studentUserId = (comm as any).student?.userId?.toString();
+            const tutorUserId = (comm as any).tutor?.userId?.toString();
+            const isUpdatedByStudent =
+               (currentUser._id as any).toString() === studentUserId;
+            const targetUserId = isUpdatedByStudent
+               ? tutorUserId
+               : studentUserId;
+            if (targetUserId) {
+               const updaterName = currentUser.name || "Một người dùng";
+               const timeStr = moment(session.startTime)
+                  .tz("Asia/Ho_Chi_Minh")
+                  .format("HH:mm DD/MM/YYYY");
+               const title = "Buổi học đã được cập nhật";
+               const message = `${updaterName} đã cập nhật buổi học vào ${timeStr}. Vui lòng kiểm tra chi tiết.`;
+               await addNotificationJob(targetUserId, title, message);
+            }
+         }
+      } catch (e) {
+         console.error("Failed to notify participant about session update:", e);
+      }
+
       return session;
    }
 
@@ -877,7 +740,7 @@ class SessionService {
       const session = await Session.findById(sessionId);
       if (!session) throw new NotFoundError("Không tìm thấy buổi học");
 
-      await this.checkParticipantByCommitment(
+      await checkParticipantByCommitment(
          (session.learningCommitmentId as any).toString(),
          userId
       );
@@ -895,7 +758,7 @@ class SessionService {
       const session = await Session.findById(sessionId);
       if (!session) throw new NotFoundError("Không tìm thấy buổi học");
 
-      await this.checkParticipantByCommitment(
+      await checkParticipantByCommitment(
          (session.learningCommitmentId as any).toString(),
          userId
       );
@@ -1008,23 +871,29 @@ class SessionService {
          },
       });
 
-      const sessionsToCreateCount = data.sessions.length;
-
-      if (completed + currentPendingSessions + sessionsToCreateCount > total) {
+      const remainingSlots = total - completed - currentPendingSessions;
+      if (remainingSlots <= 0) {
          throw new BadRequestError(
-            `Không thể tạo buổi học: Đã có ${completed} hoàn thành và ${currentPendingSessions} đang chờ. Cố gắng thêm ${sessionsToCreateCount} hơn số lượng sẽ vượt quá tổng cam kết ${total}.`
+            "Không thể tạo thêm buổi: đã đủ số buổi cam kết."
          );
       }
 
       // --- [FIX 2] CHUẨN BỊ BOUNDARY NGÀY CAM KẾT (Tính 1 lần) ---
+      // Compute commitment boundaries from startDate + duration (totalSessions / sessionsPerWeek) + extendedWeeks
+      const sessionsPerWeek = commitment.sessionsPerWeek || 1;
+      const weeksNeeded = Math.ceil(
+         (commitment.totalSessions || 0) / sessionsPerWeek
+      );
+      const totalWeeks = weeksNeeded + (commitment.extendedWeeks || 0);
       const commitmentStartVN = moment(commitment.startDate)
          .tz("Asia/Ho_Chi_Minh")
          .startOf("day");
-      const commitmentEndVN = moment(commitment.endDate)
+      const commitmentEndVN = moment(commitment.startDate)
          .tz("Asia/Ho_Chi_Minh")
+         .add(totalWeeks, "weeks")
          .endOf("day");
 
-      // Chuẩn bị query conflict
+      // Chuẩn bị query conflict (các cam kết liên quan cho tutor/student)
       const tutorCommitments = await LearningCommitment.find({
          tutor: commitment.tutor,
          status: { $in: ["active", "pending_agreement", "in_dispute"] },
@@ -1041,58 +910,124 @@ class SessionService {
          .lean();
       const studentCommitmentIds = studentCommitments.map((c) => c._id);
 
-      const sessionDocs = [];
+      const sessionDocs: any[] = [];
       const now = new Date();
 
-      // 3. Loop validate từng buổi
-      for (const sessionTime of data.sessions) {
-         const newStart = new Date(sessionTime.startTime);
-         const newEnd = new Date(sessionTime.endTime);
+      // Nếu không truyền sessions thì lỗi
+      if (!data.sessions || data.sessions.length === 0) {
+         throw new BadRequestError(
+            "Cần cung cấp ít nhất một buổi mẫu để tự động lặp hàng tuần."
+         );
+      }
 
-         if (newStart < now) {
-            throw new BadRequestError(
-               `Không thể tạo buổi học trong quá khứ: ${moment(newStart).format(
-                  "HH:mm DD/MM/YYYY"
-               )}`
-            );
-         }
-
-         // [FIX 3] Check start < end
-         if (!(newStart < newEnd)) {
+      // chuẩn hóa template sessions (ứng với 1 tuần mẫu)
+      const templateSessions = data.sessions.map((s) => {
+         const sStart = new Date(s.startTime);
+         const sEnd = new Date(s.endTime);
+         if (!(sStart < sEnd)) {
             throw new BadRequestError(
                "Thời gian bắt đầu cần trước thời gian kết thúc"
             );
          }
+         return { start: sStart, end: sEnd };
+      });
 
-         // --- [FIX 4] VALIDATE LOGIC NGÀY GIỜ (Copy từ create) ---
-         const vnStart = moment(newStart).tz("Asia/Ho_Chi_Minh");
-         const vnEnd = moment(newEnd).tz("Asia/Ho_Chi_Minh");
+      // Tạo các buổi lặp hàng tuần dựa trên template
+      const maxToCreate = Math.min(remainingSlots, total); // limit tổng
+      let createdCount = 0;
+      const weekCounts: Record<string, number> = {}; // key: `${year}-W${isoWeek}`
+      const tz = "Asia/Ho_Chi_Minh";
+      const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+      const MAX_WEEKS = 520; // giới hạn tối đa số tuần để tránh vòng lặp vô hạn
 
-         // Check: Cùng 1 ngày VN
-         if (!vnStart.isSame(vnEnd, "day")) {
-            throw new BadRequestError(
-               `Buổi học bắt đầu lúc ${vnStart.format(
-                  "HH:mm DD/MM"
-               )} không hợp lệ. Thời gian tạo buổi học nên nằm trong cùng một ngày.`
-            );
+      // helper
+      const weekKeyFor = (dt: Date) => {
+         const m = moment(dt).tz(tz);
+         return `${m.isoWeekYear()}-W${m.isoWeek()}`;
+      };
+
+      // chuẩn bị candidates: cho mỗi template tìm lần xuất hiện đầu tiên >= now (và >= commitment.startDate)
+      type Candidate = {
+         start: Date;
+         end: Date;
+         templateIndex: number;
+      };
+
+      const candidates: Candidate[] = templateSessions.map((t, i) => {
+         // compute minimal weeks to add so that start >= now AND start >= commitment.startDate
+         const baseStart = t.start;
+         const baseEnd = t.end;
+         const minRef = moment
+            .max(moment(now).tz(tz), moment(commitment.startDate).tz(tz))
+            .toDate();
+         let weeksToAdd = Math.ceil(
+            (minRef.getTime() - baseStart.getTime()) / WEEK_MS
+         );
+         if (isNaN(weeksToAdd) || weeksToAdd < 0) weeksToAdd = 0;
+         const curStart = new Date(baseStart.getTime() + weeksToAdd * WEEK_MS);
+         const curEnd = new Date(baseEnd.getTime() + weeksToAdd * WEEK_MS);
+         return { start: curStart, end: curEnd, templateIndex: i };
+      });
+
+      // guard to avoid infinite loops
+      const MAX_ITER = MAX_WEEKS * Math.max(1, templateSessions.length);
+      let iter = 0;
+
+      while (
+         createdCount < maxToCreate &&
+         iter < MAX_ITER &&
+         candidates.length > 0
+      ) {
+         // pick earliest candidate
+         candidates.sort((a, b) => a.start.getTime() - b.start.getTime());
+         const cand = candidates.shift()!;
+
+         iter++;
+
+         const vnNewStart = moment(cand.start).tz(tz);
+         const vnNewEnd = moment(cand.end).tz(tz);
+
+         // stop if beyond commitment end
+         if (vnNewStart.isAfter(commitmentEndVN)) {
+            // this candidate and further weekly advances will also be beyond end => discard candidate
+            continue;
          }
 
-         // Check: Nằm trong khoảng thời gian cam kết
+         // ensure within commitment boundaries
          if (
-            vnStart.isBefore(commitmentStartVN) ||
-            vnEnd.isAfter(commitmentEndVN)
+            vnNewStart.isBefore(commitmentStartVN) ||
+            vnNewEnd.isAfter(commitmentEndVN)
          ) {
-            throw new BadRequestError(
-               `Buổi học ngày ${vnStart.format(
-                  "DD/MM/YYYY"
-               )} nằm ngoài thời gian cam kết học (${commitmentStartVN.format(
-                  "DD/MM"
-               )} - ${commitmentEndVN.format("DD/MM")}).`
-            );
+            // advance this candidate by 1 week and push back
+            cand.start = new Date(cand.start.getTime() + WEEK_MS);
+            cand.end = new Date(cand.end.getTime() + WEEK_MS);
+            candidates.push(cand);
+            continue;
          }
-         //
 
-         // Check Conflict Tutor
+         // skip if in the past (shouldn't happen because we initialized >= now), but guard
+         if (cand.start.getTime() < now.getTime()) {
+            cand.start = new Date(cand.start.getTime() + WEEK_MS);
+            cand.end = new Date(cand.end.getTime() + WEEK_MS);
+            candidates.push(cand);
+            continue;
+         }
+
+         const key = weekKeyFor(cand.start);
+         weekCounts[key] = weekCounts[key] || 0;
+         const weeklyLimit =
+            commitment.sessionsPerWeek || templateSessions.length || 1;
+
+         // respect sessionsPerWeek
+         if (weekCounts[key] >= weeklyLimit) {
+            // cannot schedule more in this calendar week => advance candidate by 1 week
+            cand.start = new Date(cand.start.getTime() + WEEK_MS);
+            cand.end = new Date(cand.end.getTime() + WEEK_MS);
+            candidates.push(cand);
+            continue;
+         }
+
+         // Conflict checks (tutor & student)
          const tutorConflict = await Session.findOne({
             learningCommitmentId: { $in: tutorCommitmentIds },
             isDeleted: { $ne: true },
@@ -1103,17 +1038,18 @@ class SessionService {
                   SessionStatus.NOT_CONDUCTED,
                ],
             },
-            $or: [{ startTime: { $lt: newEnd }, endTime: { $gt: newStart } }],
+            $or: [
+               { startTime: { $lt: cand.end }, endTime: { $gt: cand.start } },
+            ],
          }).lean();
          if (tutorConflict) {
             throw new BadRequestError(
-               `Giáo viên bị trùng lịch vào lúc ${vnStart.format(
+               `Giáo viên bị trùng lịch vào lúc ${vnNewStart.format(
                   "HH:mm DD/MM/YYYY"
                )}`
             );
          }
 
-         // Check Conflict Student
          const studentConflict = await Session.findOne({
             learningCommitmentId: { $in: studentCommitmentIds },
             isDeleted: { $ne: true },
@@ -1124,29 +1060,46 @@ class SessionService {
                   SessionStatus.NOT_CONDUCTED,
                ],
             },
-            $or: [{ startTime: { $lt: newEnd }, endTime: { $gt: newStart } }],
+            $or: [
+               { startTime: { $lt: cand.end }, endTime: { $gt: cand.start } },
+            ],
          }).lean();
          if (studentConflict) {
             throw new BadRequestError(
-               `Học sinh bị trùng lịch vào lúc ${vnStart.format(
+               `Học sinh bị trùng lịch vào lúc ${vnNewStart.format(
                   "HH:mm DD/MM/YYYY"
                )}`
             );
          }
 
+         // tạo session doc
          sessionDocs.push({
             learningCommitmentId: commitment._id,
-            startTime: newStart,
-            endTime: newEnd,
+            startTime: cand.start,
+            endTime: cand.end,
             location: data.location,
             notes: data.notes,
             createdBy: currentUser._id,
             attendanceWindow: {
-               tutorDeadline: new Date(newEnd.getTime() + 15 * 60 * 1000),
-               studentDeadline: new Date(newEnd.getTime() + 30 * 60 * 1000),
+               tutorDeadline: new Date(cand.end.getTime() + 15 * 60 * 1000),
+               studentDeadline: new Date(cand.end.getTime() + 30 * 60 * 1000),
             },
             status: SessionStatus.SCHEDULED,
          });
+
+         weekCounts[key] += 1;
+         createdCount += 1;
+
+         // advance this candidate by 1 week and push back for next rounds
+         cand.start = new Date(cand.start.getTime() + WEEK_MS);
+         cand.end = new Date(cand.end.getTime() + WEEK_MS);
+         candidates.push(cand);
+      } // end while
+
+      if (sessionDocs.length === 0) {
+         throw new BadRequestError(
+            "Không có buổi hợp lệ nào để tạo dựa trên template và giới hạn cam kết."
+         );
       }
 
       const createdSessions = await Session.insertMany(sessionDocs);
