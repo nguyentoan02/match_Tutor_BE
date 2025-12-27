@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { SuccessResponse } from "../utils/success.response";
+import { OK, SuccessResponse } from "../utils/success.response";
 import tutorService from "../services/tutor.service";
 import { UnauthorizedError } from "../utils/error.response";
 
@@ -167,6 +167,14 @@ export class TutorController {
             message: "Xóa hình chứng chỉ thành công",
             metadata: updatedTutor
         }).send(res);
+    }
+
+    async updateAllAvailTime(req:Request,res:Response) {
+        const result = await tutorService.updateAllTutor()
+        new OK({
+            message: "oke",
+            metadata: result
+        }).send(res)
     }
 }
 
