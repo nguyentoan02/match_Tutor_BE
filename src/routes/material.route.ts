@@ -28,6 +28,13 @@ const upload = multer({
    },
 });
 
+router.get(
+   "/filter",
+   authenticate,
+   isRole(Role.TUTOR),
+   materialController.getMaterialsByFilters
+);
+
 router.post(
    "/upload",
    authenticate,

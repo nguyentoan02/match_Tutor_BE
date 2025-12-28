@@ -13,7 +13,6 @@ import { OK } from "../utils/success.response";
 import { QuestionTypeEnum } from "../types/enums";
 import notificationSocketService from "../socket/notificationSocket";
 
-
 class QuizController {
    async tutorCreateQuiz(req: Request, res: Response) {
       const currentUser = req.user;
@@ -28,6 +27,8 @@ class QuizController {
             description: quizArt.description,
             settings: quizArt.settings,
             tags: quizArt.tags,
+            subject: quizArt.subject,
+            level: quizArt.level,
          },
          quizArt.questionArr
       );
@@ -41,8 +42,11 @@ class QuizController {
       if (!currentUser || !currentUser._id) {
          throw new UnauthorizedError("Not authenticated");
       }
+      const { subject, level } = req.query;
       const quizes = await quizService.getFlashcardQuizesByTutor(
-         currentUser._id.toString()
+         currentUser._id.toString(),
+         subject as string | undefined,
+         level as string | undefined
       );
       new OK({ message: "get quizes success", metadata: quizes }).send(res);
    }
@@ -83,6 +87,8 @@ class QuizController {
             settings: editQuizArt.settings,
             tags: editQuizArt.tags,
             quizMode: editQuizArt.quizMode,
+            subject: editQuizArt.subject,
+            level: editQuizArt.level,
          },
          editQuizArt.editQuestionArr,
          editQuizArt.newQuestionArr,
@@ -119,6 +125,8 @@ class QuizController {
             tags: createQuiz.tags,
             quizMode: createQuiz.quizMode,
             quizType: QuestionTypeEnum.MULTIPLE_CHOICE,
+            subject: createQuiz.subject,
+            level: createQuiz.level,
          },
          createQuiz.questionArr
       );
@@ -155,6 +163,8 @@ class QuizController {
             tags: editQuiz.tags,
             quizMode: editQuiz.quizMode,
             quizType: QuestionTypeEnum.MULTIPLE_CHOICE,
+            subject: editQuiz.subject,
+            level: editQuiz.level,
          },
          editQuiz.newMultipleChoiceQuizQuestionsArr ?? [],
          editQuiz.editMultipleChoiceQuizQuestionsArr ?? [],
@@ -185,8 +195,11 @@ class QuizController {
       if (!currentUser || !currentUser._id) {
          throw new UnauthorizedError("Not authenticated");
       }
+      const { subject, level } = req.query;
       const quizes = await quizService.getMultipleChoiceQuizesByTutor(
-         currentUser._id.toString()
+         currentUser._id.toString(),
+         subject as string | undefined,
+         level as string | undefined
       );
       new OK({ message: "get quizes success", metadata: quizes }).send(res);
    }
