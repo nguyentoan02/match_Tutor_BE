@@ -6,11 +6,15 @@ const SuggestionSchedulesSchema: Schema<ISuggestionSchedules> = new Schema({
       type: Schema.Types.ObjectId,
       ref: "Tutor",
    },
+   teachingRequestId: {
+      type: Schema.Types.ObjectId,
+      ref: "TeachingRequest",
+   },
    schedules: [
       {
-         dayOfWeek: Number,
          start: Date,
          end: Date,
+         _id: false,
       },
    ],
    title: String,

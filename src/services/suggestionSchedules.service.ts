@@ -1,8 +1,6 @@
 import suggestSchedulesModel from "../models/suggestSchedules.model";
-import {
-   ISuggestionSchedules,
-   SuggesstionSchedules,
-} from "../types/types/suggestionSchedules";
+import { SuggesstionSchedules } from "../types/types/suggestionSchedules";
+import { ISuggestionSchedules } from "../types/types/suggestionSchedules";
 
 class SuggestionSchedulesService {
    async saveSuggestions(
@@ -11,9 +9,19 @@ class SuggestionSchedulesService {
    ): Promise<ISuggestionSchedules> {
       const s = await suggestSchedulesModel.create({
          tutorId,
-         ...schedules,
+         schedules: schedules.schedules,
+         title: schedules.title,
+         teachingRequestId: schedules.TRId,
       });
       return s;
+   }
+
+   async getByTeachingRequest(TRid: string) {
+      const result = await suggestSchedulesModel.findOne({
+         teachingRequestId: TRid,
+      });
+
+      return result;
    }
 }
 

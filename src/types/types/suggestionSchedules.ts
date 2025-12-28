@@ -2,9 +2,9 @@ import { Document, Types } from "mongoose";
 
 export interface ISuggestionSchedules extends Document {
    tutorId: Types.ObjectId;
+   teachingRequestId: Types.ObjectId;
    title: string;
    schedules: {
-      dayOfWeek: number;
       start: Date;
       end: Date;
    }[];
@@ -12,9 +12,9 @@ export interface ISuggestionSchedules extends Document {
 
 export interface SuggesstionSchedules {
    schedules: {
-      dayOfWeek: number;
       start: Date;
       end: Date;
    }[];
+   TRId: string;
    title: string;
 }
