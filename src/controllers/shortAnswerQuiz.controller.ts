@@ -24,6 +24,8 @@ class ShortAnswerQuizController {
                 tags: createQuiz.tags,
                 quizMode: createQuiz.quizMode,
                 quizType: QuestionTypeEnum.SHORT_ANSWER,
+                subject: createQuiz.subject,
+                level: createQuiz.level,
             },
             createQuiz.questionArr
         );
@@ -64,6 +66,8 @@ class ShortAnswerQuizController {
                 tags: editQuiz.tags,
                 quizMode: editQuiz.quizMode,
                 quizType: QuestionTypeEnum.SHORT_ANSWER,
+                subject: editQuiz.subject,
+                level: editQuiz.level,
             },
             editQuiz.newShortAnswerQuizQuestionsArr ?? [],
             editQuiz.editShortAnswerQuizQuestionsArr ?? [],
@@ -82,8 +86,11 @@ class ShortAnswerQuizController {
             throw new UnauthorizedError("Chưa được xác thực");
         }
 
+        const { subject, level } = req.query;
         const quizes = await shortAnswerQuizService.getShortAnswerQuizesByTutor(
-            currentUser._id.toString()
+            currentUser._id.toString(),
+            subject as string | undefined,
+            level as string | undefined
         );
 
         new OK({

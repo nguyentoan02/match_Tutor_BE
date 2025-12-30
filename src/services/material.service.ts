@@ -5,12 +5,15 @@ import Material from "../models/material.model";
 import { Types } from "mongoose";
 import { v4 as uuidv4 } from "uuid";
 import Session from "../models/session.model";
-import { NotFoundError } from "../utils/error.response";
+import Tutor from "../models/tutor.model";
+import { BadRequestError, NotFoundError } from "../utils/error.response"; // adjust if BadRequestError exists
 
 export const uploadMaterial = async (
    file: Express.Multer.File,
    title: string,
    description: string,
+   subject: string | undefined,
+   level: string | undefined,
    userId: Types.ObjectId
 ) => {
    const fileKey = `materials/${uuidv4()}-${file.originalname}`;
@@ -32,10 +35,28 @@ export const uploadMaterial = async (
 
    const fileUrl = `${publicUrl}/${fileKey}`;
 
+   // verify subject/level belong to tutor (if provided)
+   if (subject || level) {
+      const tutor = await Tutor.findOne({ userId });
+      if (!tutor) {
+         throw new BadRequestError(
+            "User is not a tutor or tutor profile not found."
+         );
+      }
+      if (subject && !tutor.subjects?.includes(subject as any)) {
+         throw new BadRequestError("Subject not listed in tutor profile.");
+      }
+      if (level && !tutor.levels?.includes(level as any)) {
+         throw new BadRequestError("Level not listed in tutor profile.");
+      }
+   }
+
    const newMaterial = new Material({
       title,
       description,
       fileUrl,
+      subject,
+      level,
       uploadedBy: userId,
    });
 
@@ -208,5 +229,49 @@ export const deleteMaterial = async (
    return {
       message: "Material deleted successfully.",
       removedFromSessions: updateResult.modifiedCount || 0,
+   };
+};
+
+export const getMaterialsByFilters = async (
+   userId: Types.ObjectId,
+   filters?: {
+      subjects?: string[];
+      levels?: string[];
+   },
+   page = 1,
+   limit = 10
+) => {
+   const pageNum = Math.max(1, Number(page) || 1);
+   const limitNum = Math.max(1, Number(limit) || 10);
+   const skip = (pageNum - 1) * limitNum;
+
+   // Build query object
+   const query: any = { uploadedBy: userId };
+
+   if (filters?.subjects && filters.subjects.length > 0) {
+      query.subject = { $in: filters.subjects };
+   }
+
+   if (filters?.levels && filters.levels.length > 0) {
+      query.level = { $in: filters.levels };
+   }
+
+   const [materials, total] = await Promise.all([
+      Material.find(query)
+         .populate("uploadedBy", "name email")
+         .sort({ uploadedAt: -1 })
+         .skip(skip)
+         .limit(limitNum),
+      Material.countDocuments(query),
+   ]);
+
+   const totalPages = Math.ceil(total / limitNum);
+
+   return {
+      items: materials,
+      total,
+      page: pageNum,
+      totalPages,
+      limit: limitNum,
    };
 };

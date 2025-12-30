@@ -1,5 +1,5 @@
 import z from "zod";
-import { QuestionTypeEnum, QuizModeEnum } from "../types/enums";
+import { QuestionTypeEnum, QuizModeEnum, Subject, Level } from "../types/enums";
 
 const baseQuestion = z.object({
    order: z.number().int().nonnegative().optional(),
@@ -31,12 +31,15 @@ const multipleChoiceQuestion = baseQuestion.extend({
 
 const shortAnswerQuestion = baseQuestion.extend({
    questionType: z.literal(QuestionTypeEnum.SHORT_ANSWER),
-   questionText: z.string().min(1, "question text is required for short answer"),
-   acceptedAnswers: z.array(z.string()).min(1, "at least one accepted answer is required"),
+   questionText: z
+      .string()
+      .min(1, "question text is required for short answer"),
+   acceptedAnswers: z
+      .array(z.string())
+      .min(1, "at least one accepted answer is required"),
    caseSensitive: z.boolean().default(false),
    points: z.number().min(0, "points must be non-negative").optional(),
 });
-
 
 export const createQuizBodySchema = z.object({
    body: z.object({
@@ -56,6 +59,8 @@ export const createQuizBodySchema = z.object({
          })
          .optional(),
       tags: z.array(z.string()).optional(),
+      subject: z.nativeEnum(Subject).optional(),
+      level: z.nativeEnum(Level).optional(),
       // only flashcard questions allowed
       questionArr: z
          .array(flashcardQuestion)
@@ -76,6 +81,13 @@ export const quizTutorIdQuerySchema = z.object({
       tutorId: z.string().regex(/^[0-9a-fA-F]{24}$/, {
          message: "tutorId must be a valid MongoDB ObjectId",
       }),
+   }),
+});
+
+export const quizListQuerySchema = z.object({
+   query: z.object({
+      subject: z.nativeEnum(Subject).optional(),
+      level: z.nativeEnum(Level).optional(),
    }),
 });
 
@@ -116,6 +128,8 @@ export const editQuizBodySchema = z.object({
          })
          .optional(),
       tags: z.array(z.string()).optional(),
+      subject: z.nativeEnum(Subject).optional(),
+      level: z.nativeEnum(Level).optional(),
       // optional array of flashcard questions for create/update/delete handling
       editQuestionArr: z.array(editFlashcardQuestion).optional(),
       newQuestionArr: z.array(flashcardQuestion).optional(),
@@ -149,6 +163,8 @@ export const createMultipleChoiceQuizBodySchema = z.object({
          })
          .optional(),
       tags: z.array(z.string()).optional(),
+      subject: z.nativeEnum(Subject).optional(),
+      level: z.nativeEnum(Level).optional(),
       questionArr: z
          .array(multipleChoiceQuestion)
          .min(
@@ -196,6 +212,8 @@ export const editMultipleChoiceQuizBodySchema = z.object({
          })
          .optional(),
       tags: z.array(z.string()).optional(),
+      subject: z.nativeEnum(Subject).optional(),
+      level: z.nativeEnum(Level).optional(),
       // optional array of multiple choice questions for create/update/delete handling
       editMultipleChoiceQuizQuestionsArr: z
          .array(editMultipleChoiceQuestion)
@@ -208,7 +226,6 @@ export const editMultipleChoiceQuizBodySchema = z.object({
          .optional(),
    }),
 });
-
 
 export const createShortAnswerQuizBodySchema = z.object({
    body: z.object({
@@ -228,12 +245,11 @@ export const createShortAnswerQuizBodySchema = z.object({
          })
          .optional(),
       tags: z.array(z.string()).optional(),
+      subject: z.nativeEnum(Subject).optional(),
+      level: z.nativeEnum(Level).optional(),
       questionArr: z
          .array(shortAnswerQuestion)
-         .min(
-            1,
-            "questionArr must contain at least one short answer question"
-         ),
+         .min(1, "questionArr must contain at least one short answer question"),
       quizType: z.literal(QuestionTypeEnum.SHORT_ANSWER).optional(),
    }),
 });
@@ -275,12 +291,12 @@ export const editShortAnswerQuizBodySchema = z.object({
          })
          .optional(),
       tags: z.array(z.string()).optional(),
+      subject: z.nativeEnum(Subject).optional(),
+      level: z.nativeEnum(Level).optional(),
       editShortAnswerQuizQuestionsArr: z
          .array(editShortAnswerQuestion)
          .optional(),
-      newShortAnswerQuizQuestionsArr: z
-         .array(shortAnswerQuestion)
-         .optional(),
+      newShortAnswerQuizQuestionsArr: z.array(shortAnswerQuestion).optional(),
       deleteShortAnswerQuizQuestionsArr: z
          .array(deleteShortAnswerQuestion)
          .optional(),
@@ -323,9 +339,15 @@ export type editMultipleChoiceQuizBody = z.infer<
 >["body"];
 export type ShortAnswerQuestionType = z.infer<typeof shortAnswerQuestion>;
 export type EditShortAnswerQuestion = z.infer<typeof editShortAnswerQuestion>;
-export type DeleteShortAnswerQuestion = z.infer<typeof deleteShortAnswerQuestion>;
-export type CreateShortAnswerQuizBody = z.infer<typeof createShortAnswerQuizBodySchema>["body"];
-export type editShortAnswerQuizBody = z.infer<typeof editShortAnswerQuizBodySchema>["body"];
+export type DeleteShortAnswerQuestion = z.infer<
+   typeof deleteShortAnswerQuestion
+>;
+export type CreateShortAnswerQuizBody = z.infer<
+   typeof createShortAnswerQuizBodySchema
+>["body"];
+export type editShortAnswerQuizBody = z.infer<
+   typeof editShortAnswerQuizBodySchema
+>["body"];
 export type AsignQuizToSessionBody = z.infer<
    typeof asignQuizToSessionSchema
 >["body"];

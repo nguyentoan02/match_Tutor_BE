@@ -90,11 +90,22 @@ class QuizService {
       }
    }
 
-   async getFlashcardQuizesByTutor(tutorId: string): Promise<IQuiz[]> {
-      const quizes = await quizModel.find({
+   async getFlashcardQuizesByTutor(
+      tutorId: string,
+      subject?: string,
+      level?: string
+   ): Promise<IQuiz[]> {
+      const query: any = {
          createdBy: tutorId,
          quizType: QuestionTypeEnum.FLASHCARD,
-      });
+      };
+      if (subject) {
+         query.subject = subject;
+      }
+      if (level) {
+         query.level = level;
+      }
+      const quizes = await quizModel.find(query);
       if (quizes.length === 0) {
          new NotFoundError("can not find any quiz from this tutor");
       }
@@ -749,11 +760,22 @@ class QuizService {
       return savedSession as ISession;
    }
 
-   async getMultipleChoiceQuizesByTutor(tutorId: string): Promise<IQuiz[]> {
-      const quizes = await quizModel.find({
+   async getMultipleChoiceQuizesByTutor(
+      tutorId: string,
+      subject?: string,
+      level?: string
+   ): Promise<IQuiz[]> {
+      const query: any = {
          createdBy: tutorId,
          quizType: QuestionTypeEnum.MULTIPLE_CHOICE,
-      });
+      };
+      if (subject) {
+         query.subject = subject;
+      }
+      if (level) {
+         query.level = level;
+      }
+      const quizes = await quizModel.find(query);
       if (quizes.length === 0) {
          new NotFoundError("can not find any quiz from this tutor");
       }

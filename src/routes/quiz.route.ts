@@ -13,6 +13,7 @@ import {
    quizTutorIdQuerySchema,
    createShortAnswerQuizBodySchema,
    editShortAnswerQuizBodySchema,
+   quizListQuerySchema,
 } from "../schemas/quiz.schema";
 
 const router = Router();
@@ -27,6 +28,7 @@ router.post(
 router.get(
    "/getTutorFlashcardQuiz",
    authenticate,
+   validate(quizListQuerySchema),
    quizController.FlashcardQuizByTutor
 );
 
@@ -73,6 +75,7 @@ router.get(
 router.get(
    "/getMultipleChoiceQuizesByTutor",
    authenticate,
+   validate(quizListQuerySchema),
    quizController.GetMultipleChoiceQuizesByTutor
 );
 // assign quiz to session
@@ -134,6 +137,7 @@ router.put(
 router.get(
    "/short-answer/tutor",
    authenticate,
+   validate(quizListQuerySchema),
    ShortAnswerQuizController.GetShortAnswerQuizesByTutor
 );
 
