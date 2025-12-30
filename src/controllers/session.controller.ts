@@ -301,6 +301,10 @@ class SessionController {
          result = await sessionService.getBusy(
             (currentUser._id as string).toString()
          );
+      } else if (currentUser.role === "STUDENT") {
+         result = await sessionService.getBusyForStudent(
+            (currentUser._id as string).toString()
+         );
       }
 
       new OK({

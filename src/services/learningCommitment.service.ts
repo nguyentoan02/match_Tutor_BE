@@ -109,11 +109,19 @@ export const initiatePayment = async (id: string, userId: string) => {
    if (commitment.studentPaidAmount > 0)
       throw new Error("Thanh toán đã được khởi tạo hoặc thanh toán một phần");
 
+   // Validate totalAmount
+   const totalAmount = Number(commitment.totalAmount);
+   if (!totalAmount || totalAmount <= 0 || !Number.isInteger(totalAmount)) {
+      throw new BadRequestError(
+         `Số tiền không hợp lệ. Số tiền phải là một số nguyên lớn hơn 0. Giá trị hiện tại: ${commitment.totalAmount}`
+      );
+   }
+
    // Tạo payment record
    const payment = await paymentService.createLearningCommitmentPayment(
       String(commitment._id),
       userId,
-      commitment.totalAmount
+      totalAmount
    );
    return payment.paymentLink;
 };

@@ -10,6 +10,9 @@ export const SuggestionSchedulesBodySchema = z.object({
       TRId: z.string("learning request id not valid"),
       schedules: z.array(SSchedules),
       title: z.string("title not valid"),
+      proposedTotalPrice: z
+         .number("proposed total price not valid")
+         .min(0, "Giá tổng đề xuất phải lớn hơn hoặc bằng 0"),
    }),
 });
 

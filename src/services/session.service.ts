@@ -22,6 +22,8 @@ import User from "../models/user.model";
 import teachingRequestModel from "../models/teachingRequest.model";
 import { TeachingRequestStatus } from "../types/enums";
 import tutorModel from "../models/tutor.model";
+import suggestSchedulesModel from "../models/suggestSchedules.model";
+import TeachingRequest from "../models/teachingRequest.model";
 import {
    TUTOR_CHECKIN_GRACE_MINUTES,
    STUDENT_CHECKIN_GRACE_MINUTES,
@@ -681,6 +683,70 @@ class SessionService {
             );
          }
 
+         // Check conflict với suggestion schedules đang pending của tutor
+         const tutorTeachingRequests = await TeachingRequest.find({
+            tutorId: tutorId,
+         })
+            .select("_id")
+            .lean();
+         const tutorTRIds = tutorTeachingRequests.map((tr) => tr._id);
+
+         if (tutorTRIds.length > 0) {
+            const tutorPendingSuggestions = await suggestSchedulesModel
+               .find({
+                  teachingRequestId: { $in: tutorTRIds },
+                  "studentResponse.status": "PENDING",
+               })
+               .select("schedules")
+               .lean();
+
+            for (const suggestion of tutorPendingSuggestions) {
+               if (suggestion.schedules && suggestion.schedules.length > 0) {
+                  for (const schedule of suggestion.schedules) {
+                     const sStart = new Date(schedule.start);
+                     const sEnd = new Date(schedule.end);
+                     if (newStart < sEnd && newEnd > sStart) {
+                        throw new BadRequestError(
+                           "Gia sư có lịch đề xuất đang chờ phản hồi vào thời gian này."
+                        );
+                     }
+                  }
+               }
+            }
+         }
+
+         // Check conflict với suggestion schedules đang pending của student
+         const studentTeachingRequests = await TeachingRequest.find({
+            studentId: studentId,
+         })
+            .select("_id")
+            .lean();
+         const studentTRIds = studentTeachingRequests.map((tr) => tr._id);
+
+         if (studentTRIds.length > 0) {
+            const studentPendingSuggestions = await suggestSchedulesModel
+               .find({
+                  teachingRequestId: { $in: studentTRIds },
+                  "studentResponse.status": "PENDING",
+               })
+               .select("schedules")
+               .lean();
+
+            for (const suggestion of studentPendingSuggestions) {
+               if (suggestion.schedules && suggestion.schedules.length > 0) {
+                  for (const schedule of suggestion.schedules) {
+                     const sStart = new Date(schedule.start);
+                     const sEnd = new Date(schedule.end);
+                     if (newStart < sEnd && newEnd > sStart) {
+                        throw new BadRequestError(
+                           "Học sinh có lịch đề xuất đang chờ phản hồi vào thời gian này."
+                        );
+                     }
+                  }
+               }
+            }
+         }
+
          // Update attendance window
          session.attendanceWindow = {
             tutorDeadline: new Date(newEnd.getTime() + 15 * 60 * 1000),
@@ -871,7 +937,17 @@ class SessionService {
          },
       });
 
-      const remainingSlots = total - completed - currentPendingSessions;
+      // Đếm số session vắng (NOT_CONDUCTED) để cho phép tạo thêm
+      const absentSessions = await Session.countDocuments({
+         learningCommitmentId: commitment._id,
+         isDeleted: { $ne: true },
+         status: SessionStatus.NOT_CONDUCTED,
+      });
+
+      // Cho phép tạo thêm số session bằng số session vắng
+      // remainingSlots = total - completed - currentPendingSessions + absentSessions
+      const remainingSlots =
+         total - completed - currentPendingSessions + absentSessions;
       if (remainingSlots <= 0) {
          throw new BadRequestError(
             "Không thể tạo thêm buổi: đã đủ số buổi cam kết."
@@ -1072,6 +1148,74 @@ class SessionService {
             );
          }
 
+         // Check conflict với suggestion schedules đang pending của tutor
+         const tutorTeachingRequests = await TeachingRequest.find({
+            tutorId: commitment.tutor,
+         })
+            .select("_id")
+            .lean();
+         const tutorTRIds = tutorTeachingRequests.map((tr) => tr._id);
+
+         if (tutorTRIds.length > 0) {
+            const tutorPendingSuggestions = await suggestSchedulesModel
+               .find({
+                  teachingRequestId: { $in: tutorTRIds },
+                  "studentResponse.status": "PENDING",
+               })
+               .select("schedules")
+               .lean();
+
+            for (const suggestion of tutorPendingSuggestions) {
+               if (suggestion.schedules && suggestion.schedules.length > 0) {
+                  for (const schedule of suggestion.schedules) {
+                     const sStart = new Date(schedule.start);
+                     const sEnd = new Date(schedule.end);
+                     if (cand.start < sEnd && cand.end > sStart) {
+                        throw new BadRequestError(
+                           `Gia sư có lịch đề xuất đang chờ phản hồi vào lúc ${vnNewStart.format(
+                              "HH:mm DD/MM/YYYY"
+                           )}`
+                        );
+                     }
+                  }
+               }
+            }
+         }
+
+         // Check conflict với suggestion schedules đang pending của student
+         const studentTeachingRequests = await TeachingRequest.find({
+            studentId: commitment.student,
+         })
+            .select("_id")
+            .lean();
+         const studentTRIds = studentTeachingRequests.map((tr) => tr._id);
+
+         if (studentTRIds.length > 0) {
+            const studentPendingSuggestions = await suggestSchedulesModel
+               .find({
+                  teachingRequestId: { $in: studentTRIds },
+                  "studentResponse.status": "PENDING",
+               })
+               .select("schedules")
+               .lean();
+
+            for (const suggestion of studentPendingSuggestions) {
+               if (suggestion.schedules && suggestion.schedules.length > 0) {
+                  for (const schedule of suggestion.schedules) {
+                     const sStart = new Date(schedule.start);
+                     const sEnd = new Date(schedule.end);
+                     if (cand.start < sEnd && cand.end > sStart) {
+                        throw new BadRequestError(
+                           `Học sinh có lịch đề xuất đang chờ phản hồi vào lúc ${vnNewStart.format(
+                              "HH:mm DD/MM/YYYY"
+                           )}`
+                        );
+                     }
+                  }
+               }
+            }
+         }
+
          // tạo session doc
          sessionDocs.push({
             learningCommitmentId: commitment._id,
@@ -1125,6 +1269,8 @@ class SessionService {
       if (!tutorId) {
          throw new BadRequestError("no tutorId");
       }
+
+      // Lấy danh sách học sinh đang học với gia sư này
       const trStuList = await teachingRequestModel
          .find({
             tutorId: tutorId._id,
@@ -1134,21 +1280,175 @@ class SessionService {
 
       const stuIds = trStuList.map((s) => s.studentId);
 
+      // 1. Lấy các session với trạng thái SCHEDULED hoặc CONFIRMED từ learning commitments active
+      // Lấy tất cả learning commitments của các học sinh này với các gia sư KHÁC (không phải gia sư hiện tại)
       const stuLCList = await LearningCommitment.find({
          student: { $in: stuIds },
+         tutor: { $ne: tutorId._id }, // Chỉ lấy commitments với gia sư khác
          status: "active",
       }).select("_id");
 
       const stuLCIds = stuLCList.map((t) => t._id);
+
+      // Lấy các session với trạng thái SCHEDULED hoặc CONFIRMED
       const stuSessions = await Session.find({
          learningCommitmentId: { $in: stuLCIds },
-         "studentConfirmation.status": "ACCEPTED",
+         status: { $in: [SessionStatus.SCHEDULED, SessionStatus.CONFIRMED] },
+         isDeleted: { $ne: true },
       })
-         .select("startTime endTime studentConfirmation.status learningCommitmentId")
+         .select("startTime endTime status learningCommitmentId")
          .populate({
             path: "learningCommitmentId",
-            select: "teachingRequest",
+            select: "teachingRequest tutor",
             populate: [
+               {
+                  path: "student",
+                  select: "userId",
+                  populate: {
+                     path: "userId",
+                     select: "_id name avatarUrl email",
+                  },
+               },
+               {
+                  path: "tutor",
+                  select: "userId",
+                  populate: {
+                     path: "userId",
+                     select: "_id name avatarUrl email",
+                  },
+               },
+            ],
+         });
+
+      // 2. Lấy các suggestion schedules đang pending của học sinh với gia sư khác
+      // Lấy tất cả teaching requests của các học sinh này với gia sư khác
+      const otherTeachingRequests = await TeachingRequest.find({
+         studentId: { $in: stuIds },
+         tutorId: { $ne: tutorId._id }, // Chỉ lấy với gia sư khác
+      }).select("_id");
+
+      const otherTeachingRequestIds = otherTeachingRequests.map((tr) => tr._id);
+
+      let studentBusySchedules: any[] = [];
+      if (otherTeachingRequestIds.length > 0) {
+         // Lấy suggestion mới nhất của mỗi teaching request có status PENDING
+         const latestSuggestionsPromises = otherTeachingRequestIds.map((trId) =>
+            suggestSchedulesModel
+               .findOne({
+                  teachingRequestId: trId,
+                  "studentResponse.status": "PENDING", // Chỉ lấy những suggestion đang pending
+               })
+               .select("schedules teachingRequestId tutorId")
+               .populate({
+                  path: "teachingRequestId",
+                  select: "tutorId studentId",
+                  populate: [
+                     {
+                        path: "tutorId",
+                        select: "userId",
+                        populate: {
+                           path: "userId",
+                           select: "_id name avatarUrl email",
+                        },
+                     },
+                     {
+                        path: "studentId",
+                        select: "userId",
+                        populate: {
+                           path: "userId",
+                           select: "_id name avatarUrl email",
+                        },
+                     },
+                  ],
+               })
+               .sort({ createdAt: -1 }) // Lấy suggestion mới nhất
+               .limit(1)
+         );
+
+         const latestSuggestionsResults = await Promise.all(
+            latestSuggestionsPromises
+         );
+         const otherSuggestions = latestSuggestionsResults.filter(Boolean); // Loại bỏ null/undefined
+
+         // Chuyển đổi format để dễ sử dụng - chuyển schedules thành format giống session
+         studentBusySchedules = otherSuggestions.flatMap((suggestion: any) => {
+            if (!suggestion.schedules || suggestion.schedules.length === 0) {
+               return [];
+            }
+            return suggestion.schedules.map((schedule: any) => ({
+               startTime: schedule.start,
+               endTime: schedule.end,
+               status: "PENDING_SUGGESTION", // Đánh dấu là từ suggestion pending
+               type: "suggestion",
+               tutor: suggestion.teachingRequestId?.tutorId?.userId || null,
+               student: suggestion.teachingRequestId?.studentId?.userId || null,
+               teachingRequestId: suggestion.teachingRequestId?._id || null,
+            }));
+         });
+      }
+
+      // Merge sessions và suggestion schedules lại với nhau
+      const allBusyTimes = [
+         ...stuSessions.map((session: any) => ({
+            startTime: session.startTime,
+            endTime: session.endTime,
+            status: session.status,
+            type: "session",
+            learningCommitmentId: session.learningCommitmentId?._id || null,
+            student: session.learningCommitmentId?.student?.userId || null,
+            tutor: session.learningCommitmentId?.tutor?.userId || null,
+         })),
+         ...studentBusySchedules,
+      ];
+
+      return allBusyTimes;
+   }
+
+   async getBusyForStudent(userId: string) {
+      console.log(userId);
+      const student = await Student.findOne({ userId });
+      if (!student) {
+         throw new BadRequestError("no studentId");
+      }
+
+      // Lấy danh sách learning commitments của học sinh này
+      const studentLCList = await LearningCommitment.find({
+         student: student._id,
+         status: "active",
+      }).select("tutor _id");
+
+      // Lấy danh sách gia sư mà học sinh đang học
+      const tutorIds = studentLCList.map((lc) => lc.tutor);
+
+      // 1. Lấy các session với trạng thái SCHEDULED hoặc CONFIRMED từ learning commitments active
+      // Lấy tất cả learning commitments của các gia sư này với các học sinh KHÁC (không phải học sinh hiện tại)
+      const tutorLCList = await LearningCommitment.find({
+         tutor: { $in: tutorIds },
+         student: { $ne: student._id }, // Chỉ lấy commitments với học sinh khác
+         status: "active",
+      }).select("_id");
+
+      const tutorLCIds = tutorLCList.map((t) => t._id);
+
+      // Lấy các session với trạng thái SCHEDULED hoặc CONFIRMED
+      const tutorSessions = await Session.find({
+         learningCommitmentId: { $in: tutorLCIds },
+         status: { $in: [SessionStatus.SCHEDULED, SessionStatus.CONFIRMED] },
+         isDeleted: { $ne: true },
+      })
+         .select("startTime endTime status learningCommitmentId")
+         .populate({
+            path: "learningCommitmentId",
+            select: "teachingRequest tutor student",
+            populate: [
+               {
+                  path: "tutor",
+                  select: "userId",
+                  populate: {
+                     path: "userId",
+                     select: "_id name avatarUrl email",
+                  },
+               },
                {
                   path: "student",
                   select: "userId",
@@ -1159,8 +1459,95 @@ class SessionService {
                },
             ],
          });
-      console.log(stuSessions);
-      return stuSessions;
+
+      // 2. Lấy các suggestion schedules đang pending của gia sư với học sinh khác
+      // Lấy tất cả teaching requests của các gia sư này với học sinh khác
+      const otherTeachingRequests = await TeachingRequest.find({
+         tutorId: { $in: tutorIds },
+         studentId: { $ne: student._id }, // Chỉ lấy với học sinh khác
+      }).select("_id");
+
+      const otherTeachingRequestIds = otherTeachingRequests.map((tr) => tr._id);
+
+      let tutorBusySchedules: any[] = [];
+      if (otherTeachingRequestIds.length > 0) {
+         // Lấy suggestion mới nhất của mỗi teaching request có status PENDING
+         const latestSuggestionsPromises = otherTeachingRequestIds.map((trId) =>
+            suggestSchedulesModel
+               .findOne({
+                  teachingRequestId: trId,
+                  "studentResponse.status": "PENDING", // Chỉ lấy những suggestion đang pending
+               })
+               .select("schedules teachingRequestId tutorId")
+               .populate({
+                  path: "teachingRequestId",
+                  select: "tutorId studentId",
+                  populate: [
+                     {
+                        path: "tutorId",
+                        select: "userId",
+                        populate: {
+                           path: "userId",
+                           select: "_id name avatarUrl email",
+                        },
+                     },
+                     {
+                        path: "studentId",
+                        select: "userId",
+                        populate: {
+                           path: "userId",
+                           select: "_id name avatarUrl email",
+                        },
+                     },
+                  ],
+               })
+               .sort({ createdAt: -1 }) // Lấy suggestion mới nhất
+               .limit(1)
+         );
+
+         const latestSuggestionsResults = await Promise.all(
+            latestSuggestionsPromises
+         );
+         const otherSuggestions = latestSuggestionsResults.filter(Boolean); // Loại bỏ null/undefined
+
+         // Chuyển đổi format để dễ sử dụng - chuyển schedules thành format giống session
+         tutorBusySchedules = otherSuggestions.flatMap((suggestion: any) => {
+            if (!suggestion.schedules || suggestion.schedules.length === 0) {
+               return [];
+            }
+            return suggestion.schedules.map((schedule: any) => ({
+               startTime: schedule.start,
+               endTime: schedule.end,
+               status: "PENDING_SUGGESTION", // Đánh dấu là từ suggestion pending
+               type: "suggestion",
+               tutor: suggestion.teachingRequestId?.tutorId?.userId || null,
+               student: suggestion.teachingRequestId?.studentId?.userId || null,
+               teachingRequestId: suggestion.teachingRequestId?._id || null,
+            }));
+         });
+      }
+
+      // Merge sessions và suggestion schedules lại với nhau
+      const allBusyTimes = [
+         ...tutorSessions.map((session: any) => ({
+            startTime: session.startTime,
+            endTime: session.endTime,
+            status: session.status,
+            type: "session",
+            learningCommitmentId: session.learningCommitmentId?._id || null,
+            tutor: session.learningCommitmentId?.tutor?.userId || null,
+            student: session.learningCommitmentId?.student?.userId || null,
+         })),
+         ...tutorBusySchedules,
+      ];
+
+      console.log(
+         "tutorSessions:",
+         tutorSessions.length,
+         "tutorBusySchedules:",
+         tutorBusySchedules.length
+      );
+      return allBusyTimes;
    }
 }
 
