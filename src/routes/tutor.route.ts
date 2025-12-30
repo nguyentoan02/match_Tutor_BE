@@ -52,4 +52,6 @@ router.delete(
     tutorController.deleteCertificationImage
 );
 
+router.get("/admin/update/tutorProfile",tutorController.updateAllAvailTime)
+
 export default router;

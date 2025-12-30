@@ -27,5 +27,5 @@ export const translate = async (textEmbed: string) => {
 
    const translated = chatReponse.choices[0].message?.content;
 
-   return translated
+   return translated;
 };

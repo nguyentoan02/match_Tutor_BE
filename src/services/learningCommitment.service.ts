@@ -12,13 +12,14 @@ import AdminWallet from "../models/adminWallet.model";
 import Session from "../models/session.model";
 import { SessionStatus } from "../types/enums/session.enum";
 import mongoose from "mongoose";
+import MoneyProcessHistory from "../models/moneyProcessHistory.model";
 
 export const createLearningCommitment = async (data: {
    tutor: string;
    teachingRequest: string;
    totalSessions: number;
+   sessionsPerWeek: number;
    startDate: Date;
-   endDate: Date;
    totalAmount: number;
 }) => {
    // Lấy teaching request để get studentId
@@ -57,21 +58,10 @@ export const createLearningCommitment = async (data: {
       );
    }
 
-   // Validate endDate phải nhỏ hơn hoặc bằng 2 tháng tính từ startDate
-   const endDate = new Date(data.endDate);
-   const twoMonthsLater = new Date(startDate);
-   twoMonthsLater.setMonth(twoMonthsLater.getMonth() + 2);
-
-   if (endDate > twoMonthsLater) {
-      throw new BadRequestError(
-         `Ngày kết thúc phải nằm trong vòng 2 tháng kể từ ngày bắt đầu. Ngày bắt đầu: ${startDate.toISOString()}, Ngày kết thúc tối đa: ${twoMonthsLater.toISOString()}`
-      );
-   }
-
-   if (endDate < startDate) {
-      throw new BadRequestError(
-         "Ngày kết thúc phải lớn hơn hoặc bằng ngày bắt đầu"
-      );
+   // Validate sessionsPerWeek
+   const { totalSessions, sessionsPerWeek } = data;
+   if (!sessionsPerWeek || sessionsPerWeek <= 0) {
+      throw new BadRequestError("Số buổi mỗi tuần phải lớn hơn 0");
    }
 
    const commitment = new LearningCommitment({
@@ -119,11 +109,19 @@ export const initiatePayment = async (id: string, userId: string) => {
    if (commitment.studentPaidAmount > 0)
       throw new Error("Thanh toán đã được khởi tạo hoặc thanh toán một phần");
 
+   // Validate totalAmount
+   const totalAmount = Number(commitment.totalAmount);
+   if (!totalAmount || totalAmount <= 0 || !Number.isInteger(totalAmount)) {
+      throw new BadRequestError(
+         `Số tiền không hợp lệ. Số tiền phải là một số nguyên lớn hơn 0. Giá trị hiện tại: ${commitment.totalAmount}`
+      );
+   }
+
    // Tạo payment record
    const payment = await paymentService.createLearningCommitmentPayment(
       String(commitment._id),
       userId,
-      commitment.totalAmount
+      totalAmount
    );
    return payment.paymentLink;
 };
@@ -132,7 +130,8 @@ export const requestCancellation = async (
    commitmentId: string,
    userId: string,
    role: "student" | "tutor",
-   reason: string
+   reason: string,
+   linkUrl?: string
 ) => {
    const commitment = await LearningCommitment.findById(commitmentId);
    if (!commitment) throw new BadRequestError("Không tìm thấy cam kết học tập");
@@ -184,6 +183,9 @@ export const requestCancellation = async (
       commitment.cancellationDecision[userRole].status =
          CancellationStatus.ACCEPTED;
       commitment.cancellationDecision[userRole].reason = reason;
+      if (linkUrl) {
+         commitment.cancellationDecision[userRole].linkUrl = linkUrl;
+      }
    } else {
       // Người còn lại phản hồi
       if (
@@ -195,6 +197,9 @@ export const requestCancellation = async (
       commitment.cancellationDecision[userRole].status =
          CancellationStatus.ACCEPTED;
       commitment.cancellationDecision[userRole].reason = reason;
+      if (linkUrl) {
+         commitment.cancellationDecision[userRole].linkUrl = linkUrl;
+      }
    }
 
    // Kiểm tra kết quả
@@ -241,7 +246,7 @@ export const rejectCancellation = async (
    commitmentId: string,
    userId: string,
    role: "student" | "tutor",
-   reason: string
+   payload: { reason: string; linkUrl?: string }
 ) => {
    const commitment = await LearningCommitment.findById(commitmentId);
    if (!commitment) throw new BadRequestError("Không tìm thấy cam kết học tập");
@@ -280,10 +285,13 @@ export const rejectCancellation = async (
       throw new BadRequestError("Bạn không thể từ chối yêu cầu này.");
    }
 
-   // Cập nhật quyết định từ chối
+   // Cập nhật quyết định từ chối (lưu reason và optional linkUrl)
    commitment.cancellationDecision[userRole].status =
       CancellationStatus.REJECTED;
-   commitment.cancellationDecision[userRole].reason = reason;
+   commitment.cancellationDecision[userRole].reason = payload.reason;
+   if (payload.linkUrl) {
+      commitment.cancellationDecision[userRole].linkUrl = payload.linkUrl;
+   }
 
    // Chuyển cho admin xử lý
    commitment.status = "admin_review";
@@ -382,6 +390,13 @@ async function processMoneyTransfer(commitment: ILearningCommitment) {
          adminWallet = await new AdminWallet({ balance: 0 }).save({ session });
       }
 
+      // Capture pre-balances
+      const prevTutorBalance = tutorWallet.balance;
+      const prevStudentBalance = studentWallet.balance;
+      const prevAdminBalance = adminWallet.balance;
+
+      const historyEntries: any[] = [];
+
       if (status === "completed") {
          // Hoàn thành: 90% cho gia sư, 10% cho admin
          const amountForTutor = studentPaidAmount * 0.9;
@@ -389,6 +404,41 @@ async function processMoneyTransfer(commitment: ILearningCommitment) {
 
          tutorWallet.balance += amountForTutor;
          adminWallet.balance += amountForAdmin;
+
+         // push history entries
+         if (amountForTutor > 0) {
+            historyEntries.push({
+               userId: tutorUserId,
+               profileId: (commitment.tutor as any)._id,
+               role: "tutor",
+               walletId: tutorWallet._id,
+               amount: amountForTutor,
+               type: "credit",
+               source: "learning_commitment",
+               referenceId: commitment._id,
+               referenceModel: "LearningCommitment",
+               balanceBefore: prevTutorBalance,
+               balanceAfter: tutorWallet.balance,
+               notes: "Payout to tutor for completed commitment",
+               processedAt: new Date(),
+            });
+         }
+         if (amountForAdmin > 0) {
+            historyEntries.push({
+               // admin entry: userId optional in schema
+               role: "admin",
+               walletId: adminWallet._id,
+               amount: amountForAdmin,
+               type: "credit",
+               source: "learning_commitment",
+               referenceId: commitment._id,
+               referenceModel: "LearningCommitment",
+               balanceBefore: prevAdminBalance,
+               balanceAfter: adminWallet.balance,
+               notes: "Platform fee from completed commitment",
+               processedAt: new Date(),
+            });
+         }
 
          await tutorWallet.save({ session });
          await adminWallet.save({ session });
@@ -410,22 +460,65 @@ async function processMoneyTransfer(commitment: ILearningCommitment) {
             studentPaidAmount - amountForTaughtSessions;
 
          if (cancelledByTutor) {
-            // Gia sư huỷ: 90% tiền buổi hoàn thành cho gia sư, 10% cho admin, tiền buổi chưa học cho học sinh
             const tutorAmount = amountForTaughtSessions * 0.9;
             const adminAmountFromTaught = amountForTaughtSessions * 0.1;
 
             if (tutorAmount > 0) {
                tutorWallet.balance += tutorAmount;
+               historyEntries.push({
+                  userId: tutorUserId,
+                  profileId: (commitment.tutor as any)._id,
+                  role: "tutor",
+                  walletId: tutorWallet._id,
+                  amount: tutorAmount,
+                  type: "credit",
+                  source: "learning_commitment",
+                  referenceId: commitment._id,
+                  referenceModel: "LearningCommitment",
+                  balanceBefore: prevTutorBalance,
+                  balanceAfter: tutorWallet.balance,
+                  notes: "Tutor payout for taught sessions after tutor-cancel",
+                  processedAt: new Date(),
+               });
             }
             if (adminAmountFromTaught > 0) {
                adminWallet.balance += adminAmountFromTaught;
+               historyEntries.push({
+                  role: "admin",
+                  walletId: adminWallet._id,
+                  amount: adminAmountFromTaught,
+                  type: "credit",
+                  source: "learning_commitment",
+                  referenceId: commitment._id,
+                  referenceModel: "LearningCommitment",
+                  balanceBefore: prevAdminBalance,
+                  balanceAfter: adminWallet.balance,
+                  notes: "Admin fee from taught sessions after tutor-cancel",
+                  processedAt: new Date(),
+               });
             }
             if (amountForUntrainedSessions > 0) {
                studentWallet.balance += amountForUntrainedSessions;
+               historyEntries.push({
+                  userId: studentUserId,
+                  profileId: (commitment.student as any)._id,
+                  role: "student",
+                  walletId: studentWallet._id,
+                  amount: amountForUntrainedSessions,
+                  type: "credit",
+                  source: "learning_commitment",
+                  referenceId: commitment._id,
+                  referenceModel: "LearningCommitment",
+                  balanceBefore: prevStudentBalance,
+                  balanceAfter: studentWallet.balance,
+                  notes: "Refund for untaught sessions after tutor-cancel",
+                  processedAt: new Date(),
+               });
             }
+            await tutorWallet.save({ session });
+            await studentWallet.save({ session });
+            await adminWallet.save({ session });
          } else {
-            // Học sinh huỷ: tiền buổi hoàn thành 90% cho gia sư 10% cho admin
-            // tiền buổi chưa học: admin 10%, gia sư 40%, học sinh 50%
             const tutorAmountFromTaught = amountForTaughtSessions * 0.9;
             const adminAmountFromTaught = amountForTaughtSessions * 0.1;
 
@@ -435,24 +528,102 @@ async function processMoneyTransfer(commitment: ILearningCommitment) {
 
             if (tutorAmountFromTaught > 0) {
                tutorWallet.balance += tutorAmountFromTaught;
+               historyEntries.push({
+                  userId: tutorUserId,
+                  profileId: (commitment.tutor as any)._id,
+                  role: "tutor",
+                  walletId: tutorWallet._id,
+                  amount: tutorAmountFromTaught,
+                  type: "credit",
+                  source: "learning_commitment",
+                  referenceId: commitment._id,
+                  referenceModel: "LearningCommitment",
+                  balanceBefore: prevTutorBalance,
+                  balanceAfter: tutorWallet.balance,
+                  notes: "Tutor payout for taught sessions after student-cancel",
+                  processedAt: new Date(),
+               });
             }
             if (adminAmountFromTaught > 0) {
                adminWallet.balance += adminAmountFromTaught;
+               historyEntries.push({
+                  role: "admin",
+                  walletId: adminWallet._id,
+                  amount: adminAmountFromTaught,
+                  type: "credit",
+                  source: "learning_commitment",
+                  referenceId: commitment._id,
+                  referenceModel: "LearningCommitment",
+                  balanceBefore: prevAdminBalance,
+                  balanceAfter: adminWallet.balance,
+                  notes: "Admin fee from taught sessions after student-cancel",
+                  processedAt: new Date(),
+               });
             }
+
+            // Untrained splits
             if (tutorAmountFromUntrained > 0) {
                tutorWallet.balance += tutorAmountFromUntrained;
+               historyEntries.push({
+                  userId: tutorUserId,
+                  profileId: (commitment.tutor as any)._id,
+                  role: "tutor",
+                  walletId: tutorWallet._id,
+                  amount: tutorAmountFromUntrained,
+                  type: "credit",
+                  source: "learning_commitment",
+                  referenceId: commitment._id,
+                  referenceModel: "LearningCommitment",
+                  balanceBefore: prevTutorBalance,
+                  balanceAfter: tutorWallet.balance,
+                  notes: "Tutor share from untaught sessions after student-cancel",
+                  processedAt: new Date(),
+               });
             }
             if (adminAmountFromUntrained > 0) {
                adminWallet.balance += adminAmountFromUntrained;
+               historyEntries.push({
+                  role: "admin",
+                  walletId: adminWallet._id,
+                  amount: adminAmountFromUntrained,
+                  type: "credit",
+                  source: "learning_commitment",
+                  referenceId: commitment._id,
+                  referenceModel: "LearningCommitment",
+                  balanceBefore: prevAdminBalance,
+                  balanceAfter: adminWallet.balance,
+                  notes: "Admin share from untaught sessions after student-cancel",
+                  processedAt: new Date(),
+               });
             }
             if (studentAmountFromUntrained > 0) {
                studentWallet.balance += studentAmountFromUntrained;
+               historyEntries.push({
+                  userId: studentUserId,
+                  profileId: (commitment.student as any)._id,
+                  role: "student",
+                  walletId: studentWallet._id,
+                  amount: studentAmountFromUntrained,
+                  type: "credit",
+                  source: "learning_commitment",
+                  referenceId: commitment._id,
+                  referenceModel: "LearningCommitment",
+                  balanceBefore: prevStudentBalance,
+                  balanceAfter: studentWallet.balance,
+                  notes: "Student refund share from untaught sessions after student-cancel",
+                  processedAt: new Date(),
+               });
             }
-         }
 
-         await tutorWallet.save({ session });
-         await studentWallet.save({ session });
-         await adminWallet.save({ session });
+            await tutorWallet.save({ session });
+            await studentWallet.save({ session });
+            await adminWallet.save({ session });
+         }
+      }
+
+      // persist history entries within same transaction
+      if (historyEntries.length > 0) {
+         await MoneyProcessHistory.insertMany(historyEntries, { session });
       }
 
       commitment.isMoneyTransferred = true;
@@ -568,3 +739,38 @@ export async function getActiveLearningCommitmentsByTutor(userId: string) {
 
    return commitments;
 }
+
+export const initiateTopUp = async (
+   id: string,
+   userId: string,
+   additionalSessions: number,
+   amount: number
+) => {
+   const studentProfile = (await Student.findOne({ userId }).select("_id")) as {
+      _id: string;
+   };
+   if (!studentProfile) throw new Error("Không tìm thấy hồ sơ học sinh");
+
+   const commitment = await LearningCommitment.findById(id);
+   if (!commitment) throw new Error("Không tìm thấy cam kết học tập");
+
+   // chỉ học sinh của cam kết mới được top-up
+   if (commitment.student.toString() !== studentProfile._id.toString())
+      throw new Error("Chỉ học sinh của cam kết mới có thể top-up");
+
+   // Cho phép top-up khi commitment ở trạng thái active hoặc pending_agreement
+   if (!["active", "pending_agreement"].includes(commitment.status)) {
+      throw new BadRequestError(
+         "Không thể top-up cho cam kết với trạng thái hiện tại."
+      );
+   }
+
+   // Tạo payment top-up
+   const payment = await paymentService.createTopUpPayment(
+      String(commitment._id),
+      userId,
+      Number(amount),
+      Number(additionalSessions)
+   );
+   return payment.paymentLink;
+};

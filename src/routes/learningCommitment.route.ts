@@ -35,6 +35,9 @@ router.post(
    learningCommitmentController.rejectCancellation
 );
 
+// POST - Khởi tạo top-up (thêm buổi)
+router.post("/:id/topup", learningCommitmentController.initiateTopUp);
+
 // POST  - Khởi tạo thanh toán
 router.post("/:id/payment", learningCommitmentController.initiatePayment);
 
