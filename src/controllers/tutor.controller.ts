@@ -176,6 +176,19 @@ export class TutorController {
             metadata: result
         }).send(res)
     }
+
+    async getSuggestion(req:Request, res:Response) {
+        const currentUser = req.user;
+        console.log(req.user)
+        if (!currentUser || !currentUser._id) {
+            throw new UnauthorizedError("Not authenticated");
+        }
+        const result = await tutorService.getSuggestions(currentUser._id.toString());
+        new OK({
+            message: "ok",
+            metadata:result
+        }).send(res)
+    }
 }
 
 export default new TutorController();

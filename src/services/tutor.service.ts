@@ -10,6 +10,8 @@ import { ClassType, Level, Subject, TimeSlot } from "../types/enums";
 import { addEmbeddingJob } from "../queues/embedding.queue";
 import LearningCommitment from "../models/learningCommitment.model";
 import sessionModel from "../models/session.model";
+import aiRecommendationModel from "../models/aiRecommendation.model";
+import studentModel from "../models/student.model";
 
 export class TutorService {
    // Get all tutors (approved and unapproved)
@@ -778,6 +780,27 @@ export class TutorService {
       console.log(tutorIds);
 
       return sessionList;
+   }
+
+   async getSuggestions(studentId: string) {
+      const sId = await studentModel.findOne({ userId: studentId });
+      if (!sId) {
+         throw new NotFoundError("not found sId");
+      }
+      const result = await aiRecommendationModel
+         .findOne({
+            studentId: sId._id,
+         })
+         .populate({
+            path: "recommendedTutors.tutorId",
+            select: "userId subjects levels bio hourlyRate experienceYears",
+            populate: {
+               path: "userId",
+               select: "name gender address.city avatarUrl",
+            },
+         });
+
+      return result;
    }
 }
 

@@ -42,6 +42,8 @@ router.put(
 
 router.get("/search", tutorController.searchTutors);
 
+router.get("/suggestion",authenticate, tutorController.getSuggestion)
+
 router.get("/:id", tutorController.getTutorById);
 
 router.get("/",
