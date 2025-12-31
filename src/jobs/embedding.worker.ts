@@ -6,7 +6,7 @@ import mongoose from "mongoose";
 
 const MONGO_URI = process.env.MONGO_URI;
 
-if(!MONGO_URI) throw new Error("Please input mongoURI")
+if (!MONGO_URI) throw new Error("Please input mongoURI");
 
 mongoose
    .connect(MONGO_URI)
@@ -27,26 +27,17 @@ const worker = new Worker(
       const tutorData = {
          subjects: tutor.subjects,
          levels: tutor.levels,
-         education: tutor.education?.map(({...edu}) => ({
-            institution: edu.institution,
-            degree: edu.degree,
-            fieldOfStudy: edu.fieldOfStudy,
-            startDate: edu.startDate,
-            endDate: edu.endDate,
-            description: edu.description
-         })),
-         certifications: tutor.certifications?.map(({imageUrls, ...rest}) => ({
-            name: rest.name,
-            description: rest.description
-         })),
-         experienceYears: tutor.experienceYears,
+         certifications: tutor.certifications?.map(
+            ({ imageUrls, ...rest }) => ({
+               name: rest.name,
+               description: rest.description,
+            })
+         ),
          bio: tutor.bio,
-         // availability: tutor.availability,
-         ratings: tutor.ratings,
       };
       const textEmbed = JSON.stringify(tutorData);
 
-      const textEmbedTranslated = await translate(textEmbed)
+      const textEmbedTranslated = await translate(textEmbed);
 
       const embeddingVector = await embedding(textEmbedTranslated!);
 
@@ -58,7 +49,7 @@ const worker = new Worker(
 
       console.log(`Embedding completed for ${job.data.userId}`);
    },
-   { connection }
+   { connection, concurrency: 5 }
 );
 
 // Log status
