@@ -30,7 +30,6 @@ const worker = new Worker(
       }
       const userData = {
          levels: user.gradeLevel,
-         bio: user.bio,
          learningGoals: user.learningGoals,
          subjects: user.subjectsInterested,
       };
@@ -41,7 +40,7 @@ const worker = new Worker(
 
       const embeddingVector = await embedding(textEmbedTranslated!);
 
-      const tutors = await manualVectorSearch(embeddingVector, 4);
+      const tutors = await manualVectorSearch(embeddingVector, 3);
 
       const tutorIds = tutors.map((t) => {
          return { tutorId: t._id };
@@ -85,6 +84,8 @@ const manualVectorSearch = async (queryVector: number[], limit: number) => {
          ? cosineSimilarity(queryVector, tutor.embedding)
          : 0,
    }));
+
+   console.log(results)
 
    const filteredResults = results.filter((result) => result.similarity > 0.65);
 
