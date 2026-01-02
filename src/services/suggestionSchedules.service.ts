@@ -17,6 +17,8 @@ import {
 import { TeachingRequestStatus } from "../types/enums/teachingRequest.enum";
 import { SessionStatus } from "../types/enums/session.enum";
 import moment from "moment-timezone";
+import { addNotificationJob } from "../queues/notification.queue";
+import User from "../models/user.model";
 
 class SuggestionSchedulesService {
    /**
@@ -357,11 +359,35 @@ class SuggestionSchedulesService {
          title: schedules.title,
          proposedTotalPrice: schedules.proposedTotalPrice,
          teachingRequestId: schedules.TRId,
-         status: "PENDING", // Luôn bắt đầu với PENDING
+         status: "PENDING",
          studentResponse: {
-            status: "PENDING", // Luôn bắt đầu với PENDING để học sinh có thể phản hồi
+            status: "PENDING",
          },
       });
+
+      // Gửi thông báo cho học sinh về lịch đề xuất mới
+      try {
+         const studentUser = await User.findById(student.userId)
+            .select("_id name")
+            .lean();
+         const tutorUser = await User.findById(tutorUserId)
+            .select("name")
+            .lean();
+
+         if (studentUser) {
+            const tutorName = tutorUser?.name || "Gia sư";
+            const title = "Lịch học mới được đề xuất";
+            const message = `${tutorName} đã gửi đề xuất lịch học cho bạn. Vui lòng xem và phản hồi.`;
+            await addNotificationJob(
+               studentUser._id.toString(),
+               title,
+               message
+            );
+         }
+      } catch (error) {
+         console.error("Error sending notification for new suggestion:", error);
+         // Không throw error để không làm gián đoạn quá trình tạo suggestion
+      }
 
       return s;
    }
@@ -881,6 +907,41 @@ class SuggestionSchedulesService {
 
       await suggestion.save();
 
+      // Gửi thông báo cho gia sư về phản hồi của học sinh
+      try {
+         const tutorProfile = await Tutor.findById(suggestion.tutorId)
+            .populate({ path: "userId", select: "_id" })
+            .lean();
+         const studentUser = await User.findById(studentUserId)
+            .select("name")
+            .lean();
+
+         if (tutorProfile?.userId) {
+            const studentName = studentUser?.name || "Học sinh";
+            const isAccepted = payload.decision === "ACCEPT";
+            const title = isAccepted
+               ? "Lịch học đã được chấp nhận"
+               : "Lịch học bị từ chối";
+            const message = isAccepted
+               ? `${studentName} đã chấp nhận lịch học bạn đề xuất. Cam kết học tập đã được tạo.`
+               : `${studentName} đã từ chối lịch học. Lý do: ${
+                    payload.reason || "Không có lý do"
+                 }`;
+
+            await addNotificationJob(
+               (tutorProfile.userId as any)._id.toString(),
+               title,
+               message
+            );
+         }
+      } catch (error) {
+         console.error(
+            "Error sending notification for student response:",
+            error
+         );
+         // Không throw error để không làm gián đoạn quá trình phản hồi
+      }
+
       // Trả về suggestion kèm commitmentId nếu có
       const result = suggestion.toObject();
       if (commitmentId) {
@@ -1165,15 +1226,41 @@ class SuggestionSchedulesService {
 
       suggestion.schedules = data.schedules;
       suggestion.title = data.title;
-      // Cập nhật giá tổng đề xuất
       suggestion.proposedTotalPrice = data.proposedTotalPrice;
-      // Khi gia sư gửi lại thì quay lại trạng thái chờ học sinh phản hồi
       suggestion.status = "PENDING";
       suggestion.studentResponse = {
          status: "PENDING",
       } as IStudentSuggestionResponse;
 
       await suggestion.save();
+
+      // Gửi thông báo cho học sinh về lịch đề xuất được cập nhật
+      try {
+         const studentUser = await User.findById(student.userId)
+            .select("_id")
+            .lean();
+         const tutorUser = await User.findById(tutorUserId)
+            .select("name")
+            .lean();
+
+         if (studentUser) {
+            const tutorName = tutorUser?.name || "Gia sư";
+            const title = "Lịch học đã được cập nhật";
+            const message = `${tutorName} đã cập nhật lịch học đề xuất. Vui lòng xem và phản hồi lại.`;
+            await addNotificationJob(
+               studentUser._id.toString(),
+               title,
+               message
+            );
+         }
+      } catch (error) {
+         console.error(
+            "Error sending notification for updated suggestion:",
+            error
+         );
+         // Không throw error để không làm gián đoạn quá trình cập nhật
+      }
+
       return suggestion;
    }
 

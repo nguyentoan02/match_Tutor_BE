@@ -25,11 +25,18 @@ class TeachingRequestService {
       const existing = await TeachingRequest.findOne({
          studentId: student._id,
          tutorId: tutor._id,
+         subject: data.subject,
+         status: {
+            $in: [
+               TeachingRequestStatus.PENDING,
+               TeachingRequestStatus.ACCEPTED,
+            ],
+         },
       });
 
       if (existing) {
          throw new ConflictError(
-            "Đã có một yêu cầu đang hoạt động hoặc đang chờ xử lý với gia sư này."
+            "Bạn đã gửi yêu cầu cho gia sư này với môn học này trước đó."
          );
       }
 
@@ -80,6 +87,13 @@ class TeachingRequestService {
             ? TeachingRequestStatus.ACCEPTED
             : TeachingRequestStatus.REJECTED;
       await request.save();
+
+      // Nếu từ chối thì hoàn lại 1 slot cho tutor
+      if (decision === "REJECTED") {
+         tutor.maxStudents = (tutor.maxStudents || 0) + 1;
+         await tutor.save();
+      }
+
       return request;
    }
 
