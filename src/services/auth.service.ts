@@ -130,24 +130,23 @@ export class AuthService {
          .digest("hex");
 
       // Find user by token regardless of expiry so we can clear expired tokens
-      const user = await User.findOne({ passwordResetToken: hashedToken });
+      const user = await User.findOne({
+         passwordResetToken: hashedToken,
+      }).select("+passwordResetExpires");
 
       if (!user) {
          throw new BadRequestError("Token không có hiệu lực hoặc hết hạn");
       }
 
-      // If token exists but expired -> clear token fields and return error
+      // If token exists but expired -> return error WITHOUT clearing token
       if (
          !user.passwordResetExpires ||
          user.passwordResetExpires.getTime() < Date.now()
       ) {
-         user.passwordResetToken = undefined;
-         user.passwordResetExpires = undefined;
-         await user.save();
          throw new BadRequestError("Token không có hiệu lực hoặc hết hạn");
       }
 
-      // Token valid
+      // Token valid - NOW clear token and update password
       user.password = newPassword;
       user.passwordResetToken = undefined;
       user.passwordResetExpires = undefined;

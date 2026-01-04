@@ -7,6 +7,8 @@ import {
    QUIZ_MODE_VALUES,
    QuizModeEnum,
 } from "../types/enums/quiz.enum";
+import { SUBJECT_VALUES } from "../types/enums/subject.enum";
+import { LEVEL_VALUES } from "../types/enums/level.enum";
 
 const QuizSchema: Schema<IQuiz> = new Schema(
    {
@@ -40,6 +42,8 @@ const QuizSchema: Schema<IQuiz> = new Schema(
       createdBy: { type: Schema.Types.ObjectId, ref: "User" },
       tags: [{ type: String }],
       totalQuestions: { type: Number, default: 0 },
+      subject: { type: String, enum: SUBJECT_VALUES, required: false },
+      level: { type: String, enum: LEVEL_VALUES, required: false },
    },
    {
       timestamps: {
@@ -52,4 +56,9 @@ const QuizSchema: Schema<IQuiz> = new Schema(
 QuizSchema.index({ sessionId: 1 });
 // Giúp đếm số lượng quiz của user ngay lập tức
 QuizSchema.index({ createdBy: 1 });
+// Indexes for search by subject and level
+QuizSchema.index({ subject: 1 });
+QuizSchema.index({ level: 1 });
+QuizSchema.index({ subject: 1, level: 1 });
+QuizSchema.index({ createdBy: 1, quizType: 1, subject: 1, level: 1 });
 export default mongoose.model<IQuiz>("Quiz", QuizSchema);

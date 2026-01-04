@@ -12,12 +12,11 @@ const AIRecommendationSchema: Schema<IAIRecommendation> = new Schema(
       recommendedTutors: [
          {
             tutorId: { type: Schema.Types.ObjectId, ref: "Tutor" },
-            score: { type: Number },
-            reason: { type: String },
+            // score: { type: Number },
+            // reason: { type: String },
             _id: false,
          },
       ],
-      generatedAt: { type: Date, default: getVietnamTime },
    },
    {
       collection: "ai_recommendations",

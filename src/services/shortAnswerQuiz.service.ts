@@ -283,11 +283,22 @@ class ShortAnswerQuizService {
       }
    }
 
-   async getShortAnswerQuizesByTutor(tutorId: string): Promise<IQuiz[]> {
-      const quizes = await quizModel.find({
+   async getShortAnswerQuizesByTutor(
+      tutorId: string,
+      subject?: string,
+      level?: string
+   ): Promise<IQuiz[]> {
+      const query: any = {
          createdBy: tutorId,
          quizType: QuestionTypeEnum.SHORT_ANSWER,
-      });
+      };
+      if (subject) {
+         query.subject = subject;
+      }
+      if (level) {
+         query.level = level;
+      }
+      const quizes = await quizModel.find(query);
       if (quizes.length === 0) {
          new NotFoundError("can not find any quiz from this tutor");
       }
@@ -321,6 +332,11 @@ class ShortAnswerQuizService {
          }));
 
          if (deleteQueries.length) {
+            await quizSubmissionModel.updateMany(
+               { quizId },
+               { $pull: { answers: { questionId: { $in: deleteIds } } } },
+               { session: s }
+            );
             return quizQuestionModel.bulkWrite(deleteQueries, { session: s });
          }
 

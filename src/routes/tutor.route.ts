@@ -42,6 +42,8 @@ router.put(
 
 router.get("/search", tutorController.searchTutors);
 
+router.get("/suggestion",authenticate, tutorController.getSuggestion)
+
 router.get("/:id", tutorController.getTutorById);
 
 router.get("/",
@@ -51,5 +53,7 @@ router.delete(
     "/certifications/:certificationIndex/images/:imageIndex",
     tutorController.deleteCertificationImage
 );
+
+router.get("/admin/update/tutorProfile",tutorController.updateAllAvailTime)
 
 export default router;

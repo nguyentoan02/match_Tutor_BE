@@ -5,6 +5,7 @@ import { CreateStudentProfileBody } from "../schemas/StudentProfile.schema";
 import { IStudent } from "../types/types/student";
 import { UpdateStudentProfileBody } from "../schemas/StudentProfile.schema";
 import cloudinary from "../config/cloudinary";
+import { addMatchJob } from "../queues/match.queue";
 class StudentProfileService {
    async createProfile(
       userId: string,
@@ -76,6 +77,8 @@ class StudentProfileService {
          learningGoals,
          availability,
       });
+
+      addMatchJob(newProfile._id as string);
 
       return newProfile as IStudent;
    }
@@ -160,6 +163,7 @@ class StudentProfileService {
             select:
                "address _id role name email avatarUrl gender phone isBanned isVerifiedEmail",
          });
+      addMatchJob(userId);
       return updatedProfile as IStudent;
    }
 

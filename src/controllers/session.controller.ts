@@ -9,30 +9,6 @@ import adminSessionService from "../services/adminSession.service";
 // Import Role type
 
 class SessionController {
-   async create(req: Request, res: Response, next: NextFunction) {
-      try {
-         if (!req.user?._id) {
-            throw new UnauthorizedError("Authentication required");
-         }
-
-         const result = await sessionService.create(req.body, req.user);
-
-         new CREATED({
-            message: "Session created successfully by tutor",
-            metadata: {
-               ...result.toObject(),
-               createdByInfo: {
-                  userId: req.user._id,
-                  role: req.user.role,
-                  name: req.user.name,
-               },
-            },
-         }).send(res);
-      } catch (err) {
-         next(err);
-      }
-   }
-
    async getById(req: Request, res: Response, next: NextFunction) {
       try {
          if (!req.user?._id) {
@@ -168,6 +144,31 @@ class SessionController {
       }
    }
 
+   async confirmAttendanceFake(
+      req: Request,
+      res: Response,
+      next: NextFunction
+   ) {
+      try {
+         if (!req.user?._id) {
+            throw new UnauthorizedError("Authentication required");
+         }
+
+         const result = await adminSessionService.confirmAttendanceFake(
+            req.params.sessionId,
+            req.user._id.toString(),
+            req.user.role as Role
+         );
+
+         new OK({
+            message: "Attendance confirmed successfully",
+            metadata: result,
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
    // Reject attendance after session
    async rejectAttendance(req: Request, res: Response, next: NextFunction) {
       try {
@@ -176,6 +177,29 @@ class SessionController {
          }
 
          const result = await sessionService.rejectAttendance(
+            req.params.sessionId,
+            req.user._id.toString(),
+            req.user.role as Role,
+            req.body
+         );
+
+         new OK({
+            message: "Attendance rejected successfully",
+            metadata: result,
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   // Reject attendance after session
+   async rejectAttendanceFake(req: Request, res: Response, next: NextFunction) {
+      try {
+         if (!req.user?._id) {
+            throw new UnauthorizedError("Authentication required");
+         }
+
+         const result = await adminSessionService.rejectAttendanceFake(
             req.params.sessionId,
             req.user._id.toString(),
             req.user.role as Role,
@@ -241,6 +265,72 @@ class SessionController {
          );
          new OK({
             message: "Absence sessions fetched successfully",
+            metadata: result,
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   async createMany(req: Request, res: Response, next: NextFunction) {
+      try {
+         if (!req.user?._id) {
+            throw new UnauthorizedError("Authentication required");
+         }
+
+         // Gọi service createMany mà bạn vừa viết ở bước trước
+         const result = await sessionService.createMany(req.body, req.user);
+
+         new CREATED({
+            message: "Batch sessions created successfully",
+            metadata: result,
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   async getBusy(req: Request, res: Response) {
+      if (!req.user?._id) {
+         throw new UnauthorizedError("Authentication required");
+      }
+      const currentUser = req.user as IUser;
+      let result: any = [];
+      console.log(currentUser);
+      if (currentUser.role === "TUTOR") {
+         result = await sessionService.getBusy(
+            (currentUser._id as string).toString()
+         );
+      } else if (currentUser.role === "STUDENT") {
+         result = await sessionService.getBusyForStudent(
+            (currentUser._id as string).toString()
+         );
+      }
+
+      new OK({
+         message: "oke",
+         metadata: result,
+      }).send(res);
+   }
+   // NEW: Lấy tất cả session của một learning commitment
+   async getSessionsByCommitmentId(
+      req: Request,
+      res: Response,
+      next: NextFunction
+   ) {
+      try {
+         if (!req.user?._id) {
+            throw new UnauthorizedError("Authentication required");
+         }
+
+         const { commitmentId } = req.params;
+         const result = await adminSessionService.getSessionsByCommitmentId(
+            commitmentId,
+            req.user._id.toString()
+         );
+
+         new OK({
+            message: "Sessions for commitment retrieved successfully",
             metadata: result,
          }).send(res);
       } catch (err) {

@@ -9,7 +9,7 @@ export const uploadMaterial = async (
    next: NextFunction
 ) => {
    try {
-      const { title, description } = req.body;
+      const { title, description, subject, level } = req.body;
       const file = req.file;
       const userId = req.user?._id as string;
 
@@ -25,6 +25,8 @@ export const uploadMaterial = async (
          file,
          title,
          description,
+         subject,
+         level,
          new Types.ObjectId(userId)
       );
 
@@ -159,6 +161,50 @@ export const deleteMaterial = async (
       new OK({
          message: result.message,
          metadata: { removedFromSessions: result.removedFromSessions },
+      }).send(res);
+   } catch (error) {
+      next(error);
+   }
+};
+
+export const getMaterialsByFilters = async (
+   req: Request,
+   res: Response,
+   next: NextFunction
+) => {
+   try {
+      const userId = req.user?._id as string;
+
+      if (!userId) {
+         return res.status(401).json({ message: "Unauthorized." });
+      }
+
+      const page = parseInt(String(req.query.page || "1"), 10) || 1;
+      const limit = parseInt(String(req.query.limit || "10"), 10) || 10;
+
+      // Parse subjects and levels from query string
+      const subjects = req.query.subjects
+         ? Array.isArray(req.query.subjects)
+            ? req.query.subjects
+            : [req.query.subjects]
+         : undefined;
+
+      const levels = req.query.levels
+         ? Array.isArray(req.query.levels)
+            ? req.query.levels
+            : [req.query.levels]
+         : undefined;
+
+      const materialsPaginated = await materialService.getMaterialsByFilters(
+         new Types.ObjectId(userId),
+         { subjects: subjects as string[], levels: levels as string[] },
+         page,
+         limit
+      );
+
+      new OK({
+         message: "Materials retrieved successfully!",
+         metadata: materialsPaginated,
       }).send(res);
    } catch (error) {
       next(error);

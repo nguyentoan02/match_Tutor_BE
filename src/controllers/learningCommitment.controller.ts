@@ -15,10 +15,10 @@ class LearningCommitmentController {
          const {
             teachingRequest,
             totalSessions,
+            sessionsPerWeek,
             startDate,
-            endDate,
             totalAmount,
-         } = req.body; // Remove 'tutor' from destructuring
+         } = req.body; // removed endDate from destructuring
 
          const userId = req.user?.id;
          if (!userId) {
@@ -49,8 +49,8 @@ class LearningCommitmentController {
                tutor: tutorId, // Use tutorId from current user
                teachingRequest,
                totalSessions,
+               sessionsPerWeek,
                startDate,
-               endDate,
                totalAmount,
             });
 
@@ -102,7 +102,7 @@ class LearningCommitmentController {
    async requestCancellation(req: Request, res: Response, next: NextFunction) {
       try {
          const { id } = req.params;
-         const { reason } = req.body;
+         const { reason, linkUrl } = req.body;
          const userId = req.user?.id;
          const role = req.user?.role as unknown as "student" | "tutor"; // Type assertion
 
@@ -117,7 +117,8 @@ class LearningCommitmentController {
             id,
             userId,
             role,
-            reason
+            reason,
+            linkUrl
          );
 
          new OK({
@@ -132,7 +133,7 @@ class LearningCommitmentController {
    async rejectCancellation(req: Request, res: Response, next: NextFunction) {
       try {
          const { id } = req.params;
-         const { reason } = req.body;
+         const { reason, linkUrl } = req.body;
          const userId = req.user?.id;
          const role = req.user?.role as unknown as "student" | "tutor"; // Type assertion
 
@@ -147,7 +148,7 @@ class LearningCommitmentController {
             id,
             userId,
             role,
-            reason
+            { reason, linkUrl }
          );
 
          new OK({
@@ -303,6 +304,36 @@ class LearningCommitmentController {
          new OK({
             message: "Learning commitment rejected successfully",
             metadata: commitment,
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   async initiateTopUp(req: Request, res: Response, next: NextFunction) {
+      try {
+         const { id } = req.params; // LearningCommitment ID
+         const userId = req.user?.id; // Student ID
+         const { additionalSessions, amount } = req.body;
+
+         if (!userId) throw new BadRequestError("User not authenticated");
+         if (!additionalSessions || Number(additionalSessions) <= 0)
+            throw new BadRequestError(
+               "additionalSessions is required and must be > 0"
+            );
+         if (!amount || Number(amount) <= 0)
+            throw new BadRequestError("amount is required and must be > 0");
+
+         const paymentLink = await learningCommitmentService.initiateTopUp(
+            id,
+            userId,
+            Number(additionalSessions),
+            Number(amount)
+         );
+
+         new OK({
+            message: "Top-up initiated successfully",
+            metadata: { paymentLink },
          }).send(res);
       } catch (err) {
          next(err);

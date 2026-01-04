@@ -8,6 +8,10 @@ import cloudinary from "../config/cloudinary";
 import userService from "./user.service";
 import { ClassType, Level, Subject, TimeSlot } from "../types/enums";
 import { addEmbeddingJob } from "../queues/embedding.queue";
+import LearningCommitment from "../models/learningCommitment.model";
+import sessionModel from "../models/session.model";
+import aiRecommendationModel from "../models/aiRecommendation.model";
+import studentModel from "../models/student.model";
 
 export class TutorService {
    // Get all tutors (approved and unapproved)
@@ -572,7 +576,7 @@ export class TutorService {
       //chỉ tạo embed cho tutor đã được approve
       if (tutor.isApproved) {
          // add create embeding job
-         await addEmbeddingJob(userId.toString());
+         await addEmbeddingJob(tutor.userId.toString());
       }
 
       await tutor.save();
@@ -588,8 +592,9 @@ export class TutorService {
             let uploadResult: any = null;
 
             if ((file as any).buffer) {
-               const base64 = `data:${file.mimetype
-                  };base64,${file.buffer.toString("base64")}`;
+               const base64 = `data:${
+                  file.mimetype
+               };base64,${file.buffer.toString("base64")}`;
                uploadResult = await cloudinary.uploader.upload(base64, {
                   folder: "tutor-certifications",
                   resource_type: "image",
@@ -636,6 +641,166 @@ export class TutorService {
 
       await tutor.save();
       return tutor as ITutor;
+   }
+
+   async updateAllTutor() {
+      const SLOT_MAX_HOURS = 5;
+      const ALL_SLOTS = ["PRE_12", "MID_12_17", "AFTER_17"];
+
+      const buildAvailability = (usedAvailability: any) => {
+         return usedAvailability.map((day: any) => ({
+            dayOfWeek: day.dayOfWeek,
+            slots: ALL_SLOTS.map((slot) => {
+               const found = day.slots.find((s: any) => s.timeSlot === slot);
+               return {
+                  timeFrame: slot,
+                  freeHours: Math.max(
+                     SLOT_MAX_HOURS - (found?.usedHours || 0),
+                     0
+                  ),
+               };
+            }),
+         }));
+      };
+
+      const sessionList = await sessionModel.aggregate([
+         {
+            $match: {
+               status: { $in: ["SCHEDULED", "CONFIRMED"] },
+            },
+         },
+
+         {
+            $addFields: {
+               startVN: {
+                  $dateAdd: {
+                     startDate: "$startTime",
+                     unit: "hour",
+                     amount: 7,
+                  },
+               },
+               endVN: {
+                  $dateAdd: { startDate: "$endTime", unit: "hour", amount: 7 },
+               },
+            },
+         },
+
+         {
+            $addFields: {
+               dayOfWeek: { $dayOfWeek: "$startVN" },
+               startHour: { $hour: "$startVN" },
+               durationHours: {
+                  $divide: [
+                     { $subtract: ["$endVN", "$startVN"] },
+                     1000 * 60 * 60,
+                  ],
+               },
+            },
+         },
+
+         {
+            $addFields: {
+               timeSlot: {
+                  $switch: {
+                     branches: [
+                        {
+                           case: { $lt: ["$startHour", 12] },
+                           then: "PRE_12",
+                        },
+                        {
+                           case: {
+                              $and: [
+                                 { $gte: ["$startHour", 12] },
+                                 { $lt: ["$startHour", 17] },
+                              ],
+                           },
+                           then: "MID_12_17",
+                        },
+                        {
+                           case: { $gte: ["$startHour", 17] },
+                           then: "AFTER_17",
+                        },
+                     ],
+                     default: null,
+                  },
+               },
+            },
+         },
+
+         { $match: { timeSlot: { $ne: null } } },
+
+         {
+            $group: {
+               _id: {
+                  tutorId: "$learningCommitmentId",
+                  dayOfWeek: "$dayOfWeek",
+                  timeSlot: "$timeSlot",
+               },
+               usedHours: { $sum: "$durationHours" },
+            },
+         },
+
+         {
+            $group: {
+               _id: {
+                  tutorId: "$_id.tutorId",
+                  dayOfWeek: "$_id.dayOfWeek",
+               },
+               slots: {
+                  $push: {
+                     timeSlot: "$_id.timeSlot",
+                     usedHours: "$usedHours",
+                  },
+               },
+            },
+         },
+
+         {
+            $group: {
+               _id: "$_id.tutorId",
+               availabilityUsed: {
+                  $push: {
+                     dayOfWeek: "$_id.dayOfWeek",
+                     slots: "$slots",
+                  },
+               },
+            },
+         },
+      ]);
+
+      const lcIds = sessionList.map((lc) => lc._id);
+
+      const tutorIds = await LearningCommitment.find({
+         _id: { $in: lcIds },
+      }).select("tutor");
+      const tIds = tutorIds.map((t) => t.tutor);
+      // const result = await Tutor.updateMany({
+      //    _id:{$in:tIds}
+      // })
+      console.log(tutorIds);
+
+      return sessionList;
+   }
+
+   async getSuggestions(studentId: string) {
+      const sId = await studentModel.findOne({ userId: studentId });
+      if (!sId) {
+         throw new NotFoundError("not found sId");
+      }
+      const result = await aiRecommendationModel
+         .findOne({
+            studentId: sId._id,
+         })
+         .populate({
+            path: "recommendedTutors.tutorId",
+            select: "userId subjects levels bio hourlyRate experienceYears",
+            populate: {
+               path: "userId",
+               select: "name gender address.city avatarUrl",
+            },
+         });
+
+      return result;
    }
 }
 

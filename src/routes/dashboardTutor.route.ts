@@ -19,4 +19,12 @@ router.get(
 // NEW pie endpoint
 router.get("/pie", authenticate, isRole(Role.TUTOR), controller.getPieData);
 
+// Thêm route mới cho thống kê session theo tháng/năm
+router.get(
+   "/stats-month-year",
+   authenticate,
+   isRole(Role.TUTOR),
+   controller.getSessionStats
+);
+
 export default router;

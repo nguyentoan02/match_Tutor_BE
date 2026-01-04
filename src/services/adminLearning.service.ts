@@ -31,11 +31,19 @@ export class AdminLearningService {
          action: IAdminDisputeLog["action"];
          adminId: string;
          notes?: string;
+         linkUrl?: string; // <-- added
       }
    ) {
       if (!commitment.adminDisputeLogs) {
          commitment.adminDisputeLogs = [];
       }
+
+      const snapshot = this.snapshotDecision(commitment.cancellationDecision);
+      const extractedLink =
+         log.linkUrl ||
+         snapshot?.student?.linkUrl ||
+         snapshot?.tutor?.linkUrl ||
+         undefined;
 
       commitment.adminDisputeLogs.push({
          action: log.action,
@@ -43,9 +51,8 @@ export class AdminLearningService {
          notes: log.notes,
          handledAt: new Date(),
          statusAfter: commitment.status,
-         cancellationDecisionSnapshot: this.snapshotDecision(
-            commitment.cancellationDecision
-         ),
+         cancellationDecisionSnapshot: snapshot,
+         linkUrl: extractedLink,
       });
    }
 
@@ -126,10 +133,28 @@ export class AdminLearningService {
             session.status !== SessionStatus.CONFIRMED
       );
 
-      // Override totalSessions with the actual count of relevant sessions found
-      if (commitment) {
-         (commitment as any).totalSessions = relevantSessions.length;
-      }
+      // Totals: keep planned (from commitment) and actuals from DB
+      const plannedTotal = (commitment as any)?.totalSessions ?? 0; // planned from commitment
+      const recordedTotal = sessions.length; // all sessions found in DB
+      const relevantTotal = relevantSessions.length; // sessions with final statuses
+      const upcomingCount = sessions.filter(
+         (s) =>
+            s.status === SessionStatus.SCHEDULED ||
+            s.status === SessionStatus.CONFIRMED
+      ).length;
+      const completedCount = relevantSessions.filter(
+         (s: any) => s.status === SessionStatus.COMPLETED
+      ).length;
+
+      // Expose both planned and recorded totals instead of overwriting
+      (commitment as any).plannedTotal = plannedTotal;
+      (commitment as any).recordedTotal = recordedTotal;
+      (commitment as any).relevantTotal = relevantTotal;
+      (commitment as any).upcomingCount = upcomingCount;
+      (commitment as any).remainingSessions = Math.max(
+         0,
+         plannedTotal - completedCount
+      );
 
       // Initialize statistics object
       const stats = {
@@ -558,7 +583,7 @@ export class AdminLearningService {
             session.status = SessionStatus.CANCELLED;
             session.cancellation = {
                cancelledBy: new Types.ObjectId(), // System cancellation
-               reason: "Learning commitment was cancelled",
+               reason: "Cam kết đã bị huỷ",
                cancelledAt: now,
             };
          }

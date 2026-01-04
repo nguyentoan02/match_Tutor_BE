@@ -25,9 +25,6 @@ class TeachingRequestService {
       const existing = await TeachingRequest.findOne({
          studentId: student._id,
          tutorId: tutor._id,
-         status: {
-            $nin: [TeachingRequestStatus.REJECTED],
-         },
       });
 
       if (existing) {

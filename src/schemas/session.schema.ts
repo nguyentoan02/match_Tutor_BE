@@ -108,5 +108,21 @@ export const cancelSessionSchema = z.object({
    }),
 });
 
+export const createManySessionSchema = z.object({
+   body: z.object({
+      learningCommitmentId: z.string().nonempty(),
+      location: z.string().optional(),
+      notes: z.string().optional(),
+      sessions: z
+         .array(
+            z.object({
+               startTime: z.string().datetime(), // hoặc z.date() tùy config
+               endTime: z.string().datetime(),
+            })
+         )
+         .min(1, "Phải có ít nhất 1 buổi học"),
+   }),
+});
+
 export type CreateSessionBody = z.infer<typeof createSessionSchema>["body"];
 export type UpdateSessionBody = z.infer<typeof updateSessionSchema>["body"];
