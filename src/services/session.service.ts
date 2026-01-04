@@ -937,17 +937,10 @@ class SessionService {
          },
       });
 
-      // Đếm số session vắng (NOT_CONDUCTED) để cho phép tạo thêm
-      const absentSessions = await Session.countDocuments({
-         learningCommitmentId: commitment._id,
-         isDeleted: { $ne: true },
-         status: SessionStatus.NOT_CONDUCTED,
-      });
+      // Tính số slot còn lại: chỉ dựa vào completed và pending
+      // Các buổi NOT_CONDUCTED không được tính vào completed nên tự động được tính là "còn lại"
+      const remainingSlots = total - completed - currentPendingSessions;
 
-      // Cho phép tạo thêm số session bằng số session vắng
-      // remainingSlots = total - completed - currentPendingSessions + absentSessions
-      const remainingSlots =
-         total - completed - currentPendingSessions + absentSessions;
       if (remainingSlots <= 0) {
          throw new BadRequestError(
             "Không thể tạo thêm buổi: đã đủ số buổi cam kết."
