@@ -156,6 +156,18 @@ export const requestCancellation = async (
       );
    }
 
+   // Kiểm tra xem có buổi học nào đang ở trạng thái DISPUTED không
+   const disputedSession = await Session.findOne({
+      learningCommitmentId: commitmentId,
+      status: SessionStatus.DISPUTED,
+   });
+
+   if (disputedSession) {
+      throw new BadRequestError(
+         "Không thể gửi yêu cầu hủy cam kết khi có buổi học đang chờ admin xem xét (tranh chấp). Vui lòng chờ admin giải quyết tranh chấp trước."
+      );
+   }
+
    // Chỉ cho phép hủy khi ở trạng thái active hoặc cancellation_pending
    if (
       commitment.status !== "active" &&
