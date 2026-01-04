@@ -785,7 +785,8 @@ export class TutorService {
    async getSuggestions(studentId: string) {
       const sId = await studentModel.findOne({ userId: studentId });
       if (!sId) {
-         throw new NotFoundError("not found sId");
+         // throw new NotFoundError("not found sId");
+         return []
       }
       const result = await aiRecommendationModel
          .findOne({

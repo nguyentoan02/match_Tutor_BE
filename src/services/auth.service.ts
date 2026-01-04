@@ -16,6 +16,8 @@ import {
 } from "../utils/emailTemplateAuth";
 import { CreateUserBody } from "../schemas/user.schema";
 import { IUser } from "../types/types/user";
+import studentProfileService from "./studentProfile.service";
+import { addMatchJob } from "../queues/match.queue";
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -182,6 +184,11 @@ export class AuthService {
 
       if (!user.isVerifiedEmail) {
          throw new UnauthorizedError("Vui lòng xác nhận email của bạn trước");
+      }
+
+      const userIdStr = user._id?.toString();
+      if (userIdStr) {
+         addMatchJob(userIdStr);
       }
 
       if (user.isBanned) {
