@@ -20,7 +20,7 @@ import { SessionStatus } from "../../types/enums/session.enum";
 import { TeachingRequestStatus } from "../../types/enums/teachingRequest.enum";
 import { ViolationStatusEnum } from "../../types/enums/violationReport.enum";
 import { Types } from "mongoose";
-
+import AIRecommendation from "../../models/aiRecommendation.model";
 export class AdminTutorService {
    // Accept tutor profile (cho phép accept lại ngay cả khi đã bị report)
    async acceptTutor(
@@ -562,6 +562,12 @@ export class AdminTutorService {
       tutor.reportCount = totalReports; // Cập nhật số lượng reports thực tế
       tutor.embedding = [];
       await tutor.save();
+
+      // 7.5. Xóa tutor khỏi tất cả AI recommendations
+      await AIRecommendation.updateMany(
+         { "recommendedTutors.tutorId": tutor._id },
+         { $pull: { recommendedTutors: { tutorId: tutor._id } } }
+      );
 
       // 8. Gửi email thông báo cho tất cả students đã report tutor này
       const resolvedAt = getVietnamTime().toLocaleString("vi-VN", {
