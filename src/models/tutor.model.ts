@@ -45,13 +45,7 @@ const TutorSchema: Schema<ITutor> = new Schema(
       availability: [
          {
             dayOfWeek: { type: Number, min: 0, max: 7 },
-            slots: [
-               {
-                  timeFrame: { type: String, enum: TIME_SLOT_VALUES },
-                  freeHours: Number,
-               },
-            ],
-            default: [],
+            slots: [{ type: String, enum: TIME_SLOT_VALUES, default: [] }],
             _id: false,
          },
       ],

@@ -1,6 +1,8 @@
 import express from "express";
 import tutorController from "../controllers/tutor.controller";
+import tutorScheduleController from "../controllers/tutorSchedule.controller";
 import { createTutorProfileSchema, updateTutorProfileSchema } from "../schemas/tutor.schema";
+import { getTutorSessionsPublicSchema } from "../schemas/tutorSchedule.schema";
 import { authenticate, isRole } from "../middlewares/auth.middleware";
 import { validate } from "../middlewares/validation.middleware";
 import { uploadFields } from "../middlewares/upload.middleware";
@@ -43,6 +45,14 @@ router.put(
 router.get("/search", tutorController.searchTutors);
 
 router.get("/suggestion",authenticate, tutorController.getSuggestion)
+
+// Get tutor sessions (public - for students to view tutor schedule)
+// Must be placed BEFORE /:id route to avoid conflict
+router.get(
+   "/:tutorId/sessions",
+   validate(getTutorSessionsPublicSchema),
+   tutorScheduleController.getTutorSessions
+);
 
 router.get("/:id", tutorController.getTutorById);
 
