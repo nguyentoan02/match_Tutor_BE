@@ -1,6 +1,7 @@
 import TeachingRequest from "../models/teachingRequest.model";
 import Student from "../models/student.model";
 import Tutor from "../models/tutor.model";
+import SuggestionSchedules from "../models/suggestSchedules.model";
 import {
    ConflictError,
    ForbiddenError,
@@ -12,6 +13,13 @@ import { TeachingRequestStatus } from "../types/enums/teachingRequest.enum";
 import { CreateTeachingRequestBody } from "../schemas/teachingRequest.schema";
 
 class TeachingRequestService {
+   /**
+    * Tính thời gian cách đây X phút
+    */
+   private getTimeAgo(minutes: number): Date {
+      return new Date(Date.now() - minutes * 60 * 1000);
+   }
+
    async create(studentUserId: string, data: CreateTeachingRequestBody) {
       const student = await Student.findOne({ userId: studentUserId });
       if (!student)
@@ -113,6 +121,43 @@ class TeachingRequestService {
       return request;
    }
 
+   /**
+    * Kiểm tra và tự động từ chối các suggestion schedules
+    * nếu học sinh không phản hồi sau 1 ngày
+    */
+   async autoRejectExpiredSuggestions(teachingRequestId: string) {
+      const oneDayAgo = this.getTimeAgo(24 * 60); // 1 ngày
+
+      const expiredSuggestions = await SuggestionSchedules.find({
+         teachingRequestId,
+         status: "PENDING",
+         "studentResponse.status": "PENDING",
+         createdAt: { $lte: oneDayAgo },
+      });
+
+      if (expiredSuggestions.length > 0) {
+         await SuggestionSchedules.updateMany(
+            {
+               teachingRequestId,
+               status: "PENDING",
+               "studentResponse.status": "PENDING",
+               createdAt: { $lte: oneDayAgo },
+            },
+            {
+               $set: {
+                  status: "REJECTED",
+                  "studentResponse.status": "REJECTED",
+                  "studentResponse.reason":
+                     "Tự động từ chối do không phản hồi sau 1 ngày",
+                  "studentResponse.respondedAt": new Date(),
+               },
+            }
+         );
+      }
+
+      return expiredSuggestions.length;
+   }
+
    async listForStudent(studentUserId: string, page = 1, limit = 10) {
       const student = await Student.findOne({ userId: studentUserId }).select(
          "_id"
@@ -136,6 +181,11 @@ class TeachingRequestService {
          .sort({ createdAt: -1 })
          .skip(skip)
          .limit(safeLimit);
+
+      // Tự động từ chối các suggestion schedules hết hạn cho mỗi teaching request
+      for (const request of data) {
+         await this.autoRejectExpiredSuggestions(String(request._id));
+      }
 
       const totalPages = Math.max(1, Math.ceil(total / safeLimit));
 
@@ -171,6 +221,11 @@ class TeachingRequestService {
          .sort({ createdAt: -1 })
          .skip(skip)
          .limit(safeLimit);
+
+      // Tự động từ chối các suggestion schedules hết hạn cho mỗi teaching request
+      for (const request of data) {
+         await this.autoRejectExpiredSuggestions(String(request._id));
+      }
 
       const totalPages = Math.max(1, Math.ceil(total / safeLimit));
 
