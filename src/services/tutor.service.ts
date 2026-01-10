@@ -794,7 +794,7 @@ export class TutorService {
          })
          .populate({
             path: "recommendedTutors.tutorId",
-            select: "userId subjects levels bio hourlyRate experienceYears",
+            select: "userId subjects levels bio hourlyRate experienceYears classType availability ratings",
             populate: {
                path: "userId",
                select: "name gender address.city avatarUrl",
