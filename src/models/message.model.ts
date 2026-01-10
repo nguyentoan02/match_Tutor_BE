@@ -10,7 +10,9 @@ const MessageSchema: Schema<IMessage> = new Schema(
          required: true,
       },
       senderId: { type: Schema.Types.ObjectId, ref: "User", required: true },
-      content: { type: String, required: true },
+      content: { type: String, required: false },
+      imageUrl: { type: String, required: false }, // Giữ để backward compatible
+      imageUrls: [{ type: String }], // Thêm array cho nhiều ảnh
       isReadBy: [{ type: Schema.Types.ObjectId, ref: "User" }],
    },
    {

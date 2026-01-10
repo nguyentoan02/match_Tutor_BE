@@ -18,7 +18,9 @@ declare module "socket.io" {
 
 interface SendMessageData {
    chatId: string;
-   content: string;
+   content?: string;
+   imageUrl?: string; // Giữ để backward compatible
+   imageUrls?: string[]; // Thêm array
 }
 
 class SocketService {
@@ -214,7 +216,30 @@ class SocketService {
             return;
          }
 
-         const { chatId, content } = data;
+         const { chatId, content, imageUrl, imageUrls } = data;
+
+         // Validate: phải có ít nhất content hoặc ảnh
+         if (!content && !imageUrl && (!imageUrls || imageUrls.length === 0)) {
+            socket.emit("message_error", {
+               message: "Message must contain text or image",
+            });
+            return;
+         }
+
+         // Validate content length nếu có
+         if (content && content.trim().length === 0) {
+            socket.emit("message_error", {
+               message: "Message content cannot be empty",
+            });
+            return;
+         }
+
+         if (content && content.length > 5000) {
+            socket.emit("message_error", {
+               message: "Message content too long (max 5000 characters)",
+            });
+            return;
+         }
 
          const chat = await conversationModel
             .findById<IConversation>(chatId)
@@ -235,7 +260,9 @@ class SocketService {
          const message = new Message({
             conversationId: new Types.ObjectId(chatId),
             senderId: new Types.ObjectId(socket.userId),
-            content,
+            content: content?.trim(),
+            imageUrl: imageUrl, // Backward compatible
+            imageUrls: imageUrls || [], // Array mới
             isReadBy: [new Types.ObjectId(socket.userId)],
          } as Partial<IMessage>);
          await message.save();

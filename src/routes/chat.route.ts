@@ -1,10 +1,26 @@
 import { Router } from "express";
 import chatController from "../controllers/chat.controller";
 import { authenticate } from "../middlewares/auth.middleware";
+import multer from "multer";
 
 const router = Router();
+const upload = multer({ storage: multer.memoryStorage() });
 
 router.use(authenticate);
+
+// POST /api/chat/upload-image - Upload ảnh chat
+router.post(
+   "/upload-image",
+   upload.single("image"),
+   chatController.uploadImage
+);
+
+// Upload nhiều ảnh (mới)
+router.post(
+   "/upload-images",
+   upload.array("images", 5), // Max 5 ảnh
+   chatController.uploadImages
+);
 
 // GET /api/chat/conversations - Lấy danh sách conversations
 router.get("/conversations", chatController.getConversations);
@@ -20,12 +36,6 @@ router.get(
    "/conversations/:conversationId/messages",
    chatController.getMessages
 );
-
-// POST /api/chat/conversations/:conversationId/messages - Gửi message
-// router.post(
-//    "/conversations/:conversationId/messages",
-//    chatController.sendMessage
-// );
 
 // DELETE /api/chat/conversations/:conversationId - Xóa conversation
 router.delete(

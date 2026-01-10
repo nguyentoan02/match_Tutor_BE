@@ -5,8 +5,41 @@ import User from "../models/user.model";
 import { IConversation } from "../types/types/conversation";
 import { IMessage } from "../types/types/message";
 import { IUser } from "../types/types/user";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
+import s3Client from "../config/r2";
+import { v4 as uuidv4 } from "uuid";
 
 class ChatService {
+   /**
+    * Upload ảnh lên R2
+    */
+   async uploadChatImage(file: Express.Multer.File): Promise<string> {
+      const fileExtension = file.originalname.split(".").pop();
+      const fileName = `chat/${uuidv4()}.${fileExtension}`;
+
+      const uploadParams = {
+         Bucket: process.env.R2_BUCKET_NAME!,
+         Key: fileName,
+         Body: file.buffer,
+         ContentType: file.mimetype,
+      };
+
+      await s3Client.send(new PutObjectCommand(uploadParams));
+
+      const publicUrl = `${process.env.R2_PUBLIC_URL}/${fileName}`;
+      return publicUrl;
+   }
+
+   /**
+    * Upload nhiều ảnh lên R2
+    */
+   async uploadMultipleChatImages(
+      files: Express.Multer.File[]
+   ): Promise<string[]> {
+      const uploadPromises = files.map((file) => this.uploadChatImage(file));
+      return await Promise.all(uploadPromises);
+   }
+
    /**
     * Lấy hoặc tạo conversation giữa 2 users
     */
@@ -179,51 +212,6 @@ class ChatService {
          },
       };
    }
-
-   /**
-    * Gửi message (qua REST API, không qua socket)
-    */
-   // async sendMessage(
-   //    conversationId: string,
-   //    senderId: string,
-   //    content: string
-   // ): Promise<IMessage> {
-   //    if (!content || content.trim().length === 0) {
-   //       throw new Error("Message content cannot be empty");
-   //    }
-
-   //    if (content.length > 5000) {
-   //       throw new Error("Message content too long (max 5000 characters)");
-   //    }
-
-   //    const conversation = await conversationModel.findById(conversationId);
-   //    if (!conversation) {
-   //       throw new Error("Conversation not found");
-   //    }
-
-   //    const isParticipant = conversation.participants.some(
-   //       (id) => id.toString() === senderId
-   //    );
-   //    if (!isParticipant) {
-   //       throw new Error("Unauthorized to send message in this conversation");
-   //    }
-
-   //    const message = await messageModel.create({
-   //       conversationId: new Types.ObjectId(conversationId),
-   //       senderId: new Types.ObjectId(senderId),
-   //       content: content.trim(),
-   //       isReadBy: [new Types.ObjectId(senderId)],
-   //    });
-
-   //    conversation.lastMessage = message._id as Types.ObjectId;
-   //    conversation.lastMessageAt = new Date();
-
-   //    await conversation.save();
-
-   //    await message.populate("senderId", "name avatarUrl email role");
-
-   //    return message;
-   // }
 
    /**
     * Tìm kiếm conversations
