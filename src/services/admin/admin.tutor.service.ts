@@ -432,6 +432,17 @@ export class AdminTutorService {
             commitment.cancellationDecision.requestedAt = getVietnamTime();
             commitment.cancellationDecision.reason = "Gia sư bị report";
          }
+
+         // QUAN TRỌNG: Push vào history trước khi save
+         if (commitment.cancellationDecision) {
+            commitment.cancellationDecisionHistory =
+               commitment.cancellationDecisionHistory || [];
+            commitment.cancellationDecisionHistory.push({
+               ...commitment.cancellationDecision,
+               resolvedDate: getVietnamTime(),
+            });
+         }
+
          await commitment.save();
       }
 
@@ -460,6 +471,14 @@ export class AdminTutorService {
             commitment.cancellationDecision.tutor.status = "ACCEPTED" as any;
             commitment.cancellationDecision.tutor.reason = "Gia sư bị report";
             commitment.cancellationDecision.reason = "Gia sư bị report";
+
+            // QUAN TRỌNG: Push vào history trước khi save
+            commitment.cancellationDecisionHistory =
+               commitment.cancellationDecisionHistory || [];
+            commitment.cancellationDecisionHistory.push({
+               ...commitment.cancellationDecision,
+               resolvedDate: getVietnamTime(),
+            });
          }
          await commitment.save();
       }
