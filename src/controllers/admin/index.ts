@@ -63,6 +63,7 @@ class AdminController {
    // Transactions
    getTransactionHistory = adminTransactionController.getTransactionHistory;
    getPackageTransactions = adminTransactionController.getPackageTransactions;
+   getCommitmentTransactions = adminTransactionController.getCommitmentTransactions;
    getAdminWalletBalance = adminTransactionController.getAdminWalletBalance;
 }
 

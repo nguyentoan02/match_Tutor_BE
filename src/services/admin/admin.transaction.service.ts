@@ -185,24 +185,41 @@ class AdminTransactionService {
    private async fetchLearningCommitments(
       payments: LeanPayment[]
    ): Promise<Map<string, LeanCommitment>> {
-      const learningCommitmentIds = payments
+      // Extract all unique commitment IDs from payments
+      const commitmentIdStrings = payments
          .filter(
             (payment) =>
                payment.type === "learningCommitment" && payment.referenceId
          )
-         .map((payment) => payment.referenceId!.toString());
+         .map((payment) => {
+            const refId = payment.referenceId;
+            if (!refId) return null;
+            // Convert to string for consistent key format
+            return refId.toString();
+         })
+         .filter((id): id is string => id !== null && Types.ObjectId.isValid(id));
 
-      const uniqueCommitmentIds = Array.from(new Set(learningCommitmentIds));
+      if (!commitmentIdStrings.length) {
+         return new Map<string, LeanCommitment>();
+      }
 
-      if (!uniqueCommitmentIds.length) {
+      // Remove duplicates
+      const uniqueCommitmentIdStrings = Array.from(new Set(commitmentIdStrings));
+      
+      // Convert to ObjectId for query
+      const commitmentObjectIds = uniqueCommitmentIdStrings
+         .map((id) => new Types.ObjectId(id))
+         .filter((id) => Types.ObjectId.isValid(id));
+
+      if (!commitmentObjectIds.length) {
          return new Map<string, LeanCommitment>();
       }
 
       const commitments = await LearningCommitment.find({
-         _id: { $in: uniqueCommitmentIds },
+         _id: { $in: commitmentObjectIds },
       })
          .select(
-            "status totalAmount studentPaidAmount completedSessions totalSessions cancellationDecisionHistory isMoneyTransferred"
+            "status totalAmount studentPaidAmount completedSessions totalSessions cancellationDecisionHistory isMoneyTransferred tutor student"
          )
          .populate({
             path: "student",
@@ -211,6 +228,7 @@ class AdminTransactionService {
                path: "userId",
                select: "name email phone role",
             },
+            strictPopulate: false, // Don't fail if student doesn't exist
          })
          .populate({
             path: "tutor",
@@ -219,9 +237,11 @@ class AdminTransactionService {
                path: "userId",
                select: "name email phone role",
             },
+            strictPopulate: false, // Don't fail if tutor doesn't exist
          })
          .lean();
 
+      // Create map with string keys for consistent lookup
       return new Map<string, LeanCommitment>(
          commitments.map((commitment: any) => [
             commitment._id.toString(),
@@ -426,6 +446,118 @@ class AdminTransactionService {
          totalPages: limit ? Math.ceil(total / limit) : 0,
          transactions: formattedTransactions,
          totalAmount,
+      };
+   }
+
+   /**
+    * Lấy danh sách giao dịch learning commitment với phân trang
+    */
+   async getCommitmentTransactions(
+      filters: GetAdminTransactionHistoryQuery
+   ): Promise<{
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+      transactions: Array<Record<string, unknown>>;
+      totalAmount: number;
+      totalAdminAmount: number;
+   }> {
+      const page = filters.page ?? 1;
+      const limit = filters.limit ?? 20;
+      const skip = (page - 1) * limit;
+
+      // Tái sử dụng buildFilterQuery và chỉ thêm type: learningCommitment
+      const baseQuery = await this.buildFilterQuery(filters);
+      const query: FilterQuery<IPayment> = {
+         ...baseQuery,
+         type: "learningCommitment",
+      };
+
+      const [transactions, total, totalAmountResult] = await Promise.all([
+         Payment.find(query)
+            .populate({ path: "userId", select: "name email phone role" })
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .lean<LeanPayment[]>(),
+         Payment.countDocuments(query),
+         Payment.aggregate([
+            { $match: query },
+            {
+               $group: {
+                  _id: null,
+                  totalAmount: { $sum: "$amount" },
+               },
+            },
+         ]),
+      ]);
+
+      const commitmentMap = await this.fetchLearningCommitments(transactions);
+
+      const formattedTransactions = transactions.map((payment) => {
+         const adminAmount = this.calculateAdminAmount(payment, commitmentMap);
+         return {
+            id: payment._id,
+            orderCode: payment.orderCode,
+            amount: payment.amount, // Tổng tiền giao dịch
+            adminAmount: adminAmount, // Số tiền admin thực sự nhận được
+            status: payment.status,
+            transactionId: payment.transactionId,
+            createdAt: payment.createdAt,
+            updatedAt: payment.updatedAt,
+            user: this.formatUser(payment.userId),
+            commitment: this.buildCommitmentSource(payment, commitmentMap),
+         };
+      });
+
+      // Tính tổng adminAmount
+      const totalAdminAmount = formattedTransactions.reduce(
+         (sum, transaction) => sum + (transaction.adminAmount as number),
+         0
+      );
+
+      const totalAmount = totalAmountResult[0]?.totalAmount || 0;
+
+      return {
+         page,
+         limit,
+         total,
+         totalPages: limit ? Math.ceil(total / limit) : 0,
+         transactions: formattedTransactions,
+         totalAmount,
+         totalAdminAmount,
+      };
+   }
+
+   private buildCommitmentSource(
+      payment: LeanPayment,
+      commitmentMap: Map<string, LeanCommitment>
+   ) {
+      if (payment.type !== "learningCommitment" || !payment.referenceId) {
+         return null;
+      }
+
+      // Ensure consistent string format for Map key lookup
+      const commitmentIdKey = payment.referenceId.toString();
+      const commitment = commitmentMap.get(commitmentIdKey);
+
+      if (!commitment) {
+         return {
+            commitmentId: payment.referenceId,
+         };
+      }
+
+      return {
+         commitmentId: commitment._id,
+         status: commitment.status,
+         totalAmount: commitment.totalAmount || 0,
+         studentPaidAmount: commitment.studentPaidAmount || 0,
+         completedSessions: commitment.completedSessions || 0,
+         totalSessions: commitment.totalSessions || 0,
+         isMoneyTransferred: commitment.isMoneyTransferred || false,
+         tutor: this.formatUser(commitment.tutor?.userId),
+         student: this.formatUser(commitment.student?.userId),
       };
    }
 

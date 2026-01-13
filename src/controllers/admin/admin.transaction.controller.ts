@@ -43,6 +43,25 @@ class AdminTransactionController {
       }
    }
 
+   async getCommitmentTransactions(
+      req: Request,
+      res: Response,
+      next: NextFunction
+   ) {
+      try {
+         const filters = req.query as unknown as GetAdminTransactionHistoryQuery;
+         const result =
+            await adminTransactionService.getCommitmentTransactions(filters);
+
+         new OK({
+            message: "Learning commitment transactions retrieved successfully",
+            metadata: result,
+         }).send(res);
+      } catch (error) {
+         next(error);
+      }
+   }
+
    async getAdminWalletBalance(
       req: Request,
       res: Response,

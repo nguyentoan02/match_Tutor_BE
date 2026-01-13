@@ -59,6 +59,11 @@ router.get(
    adminController.getPackageTransactions
 );
 router.get(
+   "/transactions/commitments",
+   validate(getTransactionHistorySchema),
+   adminController.getCommitmentTransactions
+);
+router.get(
    "/wallet/balance",
    validate(getAdminWalletBalanceSchema),
    adminController.getAdminWalletBalance
