@@ -85,9 +85,9 @@ const manualVectorSearch = async (queryVector: number[], limit: number) => {
          : 0,
    }));
 
-   console.log(results)
+   console.log(results);
 
-   const filteredResults = results.filter((result) => result.similarity > 0.65);
+   const filteredResults = results.filter((result) => result.similarity > 0.62);
 
    // Sắp xếp theo similarity và lấy top results
    const sortedResult = filteredResults

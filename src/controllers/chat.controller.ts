@@ -4,6 +4,117 @@ import socketService from "../socket/chatSocket";
 
 class ChatController {
    /**
+    * POST /api/chat/upload-image
+    * Upload ảnh trước khi gửi message
+    */
+   async uploadImage(req: Request, res: Response, next: NextFunction) {
+      try {
+         if (!req.file) {
+            return res.status(400).json({
+               success: false,
+               message: "No image file provided",
+            });
+         }
+
+         // Validate file type
+         const allowedMimeTypes = [
+            "image/jpeg",
+            "image/png",
+            "image/jpg",
+            "image/gif",
+            "image/webp",
+         ];
+         if (!allowedMimeTypes.includes(req.file.mimetype)) {
+            return res.status(400).json({
+               success: false,
+               message: "Invalid file type. Only images are allowed",
+            });
+         }
+
+         // Validate file size (max 5MB)
+         const maxSize = 5 * 1024 * 1024;
+         if (req.file.size > maxSize) {
+            return res.status(400).json({
+               success: false,
+               message: "File too large. Maximum size is 5MB",
+            });
+         }
+
+         const imageUrl = await chatService.uploadChatImage(req.file);
+
+         res.status(200).json({
+            success: true,
+            data: { imageUrl },
+         });
+      } catch (error) {
+         next(error);
+      }
+   }
+
+   /**
+    * POST /api/chat/upload-images
+    * Upload nhiều ảnh cùng lúc (max 5 ảnh)
+    */
+   async uploadImages(req: Request, res: Response, next: NextFunction) {
+      try {
+         if (
+            !req.files ||
+            !Array.isArray(req.files) ||
+            req.files.length === 0
+         ) {
+            return res.status(400).json({
+               success: false,
+               message: "No image files provided",
+            });
+         }
+
+         // Giới hạn số lượng ảnh
+         if (req.files.length > 5) {
+            return res.status(400).json({
+               success: false,
+               message: "Maximum 5 images allowed",
+            });
+         }
+
+         // Validate từng file
+         const allowedMimeTypes = [
+            "image/jpeg",
+            "image/png",
+            "image/jpg",
+            "image/gif",
+            "image/webp",
+         ];
+         const maxSize = 5 * 1024 * 1024;
+
+         for (const file of req.files) {
+            if (!allowedMimeTypes.includes(file.mimetype)) {
+               return res.status(400).json({
+                  success: false,
+                  message: "Invalid file type. Only images are allowed",
+               });
+            }
+            if (file.size > maxSize) {
+               return res.status(400).json({
+                  success: false,
+                  message: "File too large. Maximum size is 5MB per image",
+               });
+            }
+         }
+
+         const imageUrls = await chatService.uploadMultipleChatImages(
+            req.files
+         );
+
+         res.status(200).json({
+            success: true,
+            data: { imageUrls },
+         });
+      } catch (error) {
+         next(error);
+      }
+   }
+
+   /**
     * GET /api/chat/conversations
     * Lấy danh sách conversations
     */
@@ -105,48 +216,6 @@ class ChatController {
          next(error);
       }
    }
-
-   /**
-    * POST /api/chat/conversations/:conversationId/messages
-    * Gửi message
-    */
-   // async sendMessage(req: Request, res: Response, next: NextFunction) {
-   //    try {
-   //       const userId = (req as any).userId;
-   //       const { conversationId } = req.params;
-   //       const { content } = req.body;
-
-   //       if (!content) {
-   //          return res.status(400).json({
-   //             success: false,
-   //             message: "Content is required",
-   //          });
-   //       }
-
-   //       const message = await chatService.sendMessage(
-   //          conversationId,
-   //          userId,
-   //          content
-   //       );
-
-   //       // Emit socket event - Safe optional call
-   //       try {
-   //          socketService?.emitNewMessage(conversationId, message);
-   //       } catch (socketError) {
-   //          console.warn(
-   //             "Socket emit failed, but REST response sent:",
-   //             socketError
-   //          );
-   //       }
-
-   //       res.status(201).json({
-   //          success: true,
-   //          data: message,
-   //       });
-   //    } catch (error) {
-   //       next(error);
-   //    }
-   // }
 
    /**
     * GET /api/chat/search

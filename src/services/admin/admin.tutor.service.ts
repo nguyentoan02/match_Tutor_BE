@@ -4,13 +4,14 @@ import LearningCommitment from "../../models/learningCommitment.model";
 import Session from "../../models/session.model";
 import TeachingRequest from "../../models/teachingRequest.model";
 import ViolationReport from "../../models/violationReport.model";
+import SuggestionSchedules from "../../models/suggestSchedules.model";
 import { NotFoundError, BadRequestError } from "../../utils/error.response";
 import { ITutor } from "../../types/types/tutor";
-import { 
+import {
    getTutorAcceptanceEmailTemplate,
    getTutorRejectionEmailTemplate,
    getReportResolvedEmailTemplateForStudent,
-   getReportResolvedEmailTemplateForTutor
+   getReportResolvedEmailTemplateForTutor,
 } from "../../template/adminEmail";
 import { addEmailJob } from "../../queues/email.queue";
 import { getVietnamTime } from "../../utils/date.util";
@@ -19,11 +20,17 @@ import { SessionStatus } from "../../types/enums/session.enum";
 import { TeachingRequestStatus } from "../../types/enums/teachingRequest.enum";
 import { ViolationStatusEnum } from "../../types/enums/violationReport.enum";
 import { Types } from "mongoose";
-
+import AIRecommendation from "../../models/aiRecommendation.model";
 export class AdminTutorService {
    // Accept tutor profile (cho phép accept lại ngay cả khi đã bị report)
-   async acceptTutor(tutorId: string, adminId: string): Promise<{ tutor: ITutor; approvedAt: Date; message?: string }> {
-      const tutor = await Tutor.findById(tutorId).populate('userId', 'name email isBanned');
+   async acceptTutor(
+      tutorId: string,
+      adminId: string
+   ): Promise<{ tutor: ITutor; approvedAt: Date; message?: string }> {
+      const tutor = await Tutor.findById(tutorId).populate(
+         "userId",
+         "name email isBanned"
+      );
       if (!tutor) {
          throw new NotFoundError("Tutor not found");
       }
@@ -33,8 +40,10 @@ export class AdminTutorService {
       // Check if user is banned
       const user = tutor.userId as any;
       if (user && user.isBanned) {
-         throw new BadRequestError("Cannot approve tutor profile for banned user");
-      }  
+         throw new BadRequestError(
+            "Cannot approve tutor profile for banned user"
+         );
+      }
 
       // Update tutor approval status (cho phép approve lại ngay cả khi đã bị report)
       // Nếu chưa approved thì approve; nếu đã approved nhưng thiếu approvedAt (dữ liệu cũ) thì bổ sung và lưu
@@ -87,13 +96,22 @@ export class AdminTutorService {
          tutor: tutor.toObject() as ITutor,
          approvedAt,
          // Giữ idempotent: không ném lỗi nếu đã approved trước đó
-         message: alreadyApproved ? "Tutor already approved" : "Tutor approved successfully"
+         message: alreadyApproved
+            ? "Tutor already approved"
+            : "Tutor approved successfully",
       };
    }
 
    // Reject tutor profile
-   async rejectTutor(tutorId: string, reason: string, adminId: string): Promise<{ tutor: ITutor; reason: string; rejectedAt: Date }> {
-      const tutor = await Tutor.findById(tutorId).populate('userId', 'name email');
+   async rejectTutor(
+      tutorId: string,
+      reason: string,
+      adminId: string
+   ): Promise<{ tutor: ITutor; reason: string; rejectedAt: Date }> {
+      const tutor = await Tutor.findById(tutorId).populate(
+         "userId",
+         "name email"
+      );
       if (!tutor) {
          throw new NotFoundError("Tutor not found");
       }
@@ -103,9 +121,9 @@ export class AdminTutorService {
       tutor.rejectedReason = reason;
       tutor.rejectedAt = getVietnamTime();
       tutor.approvedAt = undefined; // Xóa thời gian duyệt cũ (nếu có)
-      
+
       // bỏ embed đi khi mà đã bị reject profile
-      tutor.embedding = []
+      tutor.embedding = [];
       await tutor.save();
 
       // Send rejection notification email
@@ -141,24 +159,28 @@ export class AdminTutorService {
       return {
          tutor: tutor.toObject() as ITutor,
          reason,
-         rejectedAt: tutor.rejectedAt!
+         rejectedAt: tutor.rejectedAt!,
       };
    }
 
    // Get pending tutors (not approved yet)
    // Loại trừ: tutor có user bị banned, tutor đã bị report và xử lý, tutor đã bị reject
-   async getPendingTutors(query: { page: number; limit: number; search?: string }) {
+   async getPendingTutors(query: {
+      page: number;
+      limit: number;
+      search?: string;
+   }) {
       const { page, limit, search } = query;
       const skip = (page - 1) * limit;
 
       // Build search filter for pending tutors
       // Chỉ lấy tutor chưa approved, chưa bị reject, chưa bị report
-      const searchFilter: any = { 
+      const searchFilter: any = {
          isApproved: false,
          rejectedAt: { $exists: false }, // Chưa bị reject
          hasBeenReported: { $ne: true }, // Chưa bị report và xử lý
       };
-      
+
       if (search) {
          searchFilter.$or = [
             { bio: { $regex: search, $options: "i" } },
@@ -169,7 +191,7 @@ export class AdminTutorService {
 
       // Lấy tất cả tutors matching filter
       const allTutors = await Tutor.find(searchFilter)
-         .populate('userId', 'name email role isBanned')
+         .populate("userId", "name email role isBanned")
          .sort({ createdAt: -1 })
          .lean();
 
@@ -195,43 +217,53 @@ export class AdminTutorService {
    }
 
    // Get tutor profile by ID (for admin)
-   async getTutorProfile(tutorId: string): Promise<{ tutor: ITutor | null; hasProfile: boolean; message: string }> {
+   async getTutorProfile(
+      tutorId: string
+   ): Promise<{ tutor: ITutor | null; hasProfile: boolean; message: string }> {
       const tutor = await Tutor.findById(tutorId)
-         .populate('userId', 'name email avatarUrl phone gender address role isBanned bannedAt banReason')
+         .populate(
+            "userId",
+            "name email avatarUrl phone gender address role isBanned bannedAt banReason"
+         )
          .lean();
 
       if (!tutor) {
          return {
             tutor: null,
             hasProfile: false,
-            message: "Tutor profile not found"
+            message: "Tutor profile not found",
          };
       }
 
       return {
          tutor: tutor as ITutor,
          hasProfile: true,
-         message: "Tutor profile retrieved successfully"
+         message: "Tutor profile retrieved successfully",
       };
    }
 
    // Get tutors with userId and tutorId mapping (for frontend)
-   async getTutorsWithMapping(query: { page: number; limit: number; search?: string; status?: 'all' | 'pending' | 'approved' | 'banned' }) {
-      const { page, limit, search, status = 'all' } = query;
+   async getTutorsWithMapping(query: {
+      page: number;
+      limit: number;
+      search?: string;
+      status?: "all" | "pending" | "approved" | "banned";
+   }) {
+      const { page, limit, search, status = "all" } = query;
       const skip = (page - 1) * limit;
 
       // Build search filter
       let searchFilter: any = { role: "TUTOR" };
-      
+
       // Status filter
-      if (status === 'pending') {
+      if (status === "pending") {
          searchFilter.isBanned = { $ne: true };
-      } else if (status === 'approved') {
+      } else if (status === "approved") {
          // Approved: không bị ban, không bị report
          searchFilter.isBanned = { $ne: true };
-      } else if (status === 'banned') {
+      } else if (status === "banned") {
          searchFilter.isBanned = true;
-      } else if (status === 'all') {
+      } else if (status === "all") {
          // All: mặc định loại trừ banned và reported tutors
          searchFilter.isBanned = { $ne: true };
       }
@@ -246,7 +278,9 @@ export class AdminTutorService {
       // Get users first
       const [users, totalUsers] = await Promise.all([
          User.find(searchFilter)
-            .select('_id name email avatarUrl phone gender address role isBanned bannedAt banReason createdAt')
+            .select(
+               "_id name email avatarUrl phone gender address role isBanned bannedAt banReason createdAt"
+            )
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit)
@@ -255,19 +289,21 @@ export class AdminTutorService {
       ]);
 
       // Get tutor profiles for these users
-      const userIds = users.map(user => user._id);
+      const userIds = users.map((user) => user._id);
       const tutors = await Tutor.find({ userId: { $in: userIds } })
-         .select('_id userId isApproved bio subjects levels hourlyRate hasBeenReported reportedAt reportCount createdAt updatedAt')
+         .select(
+            "_id userId isApproved bio subjects levels hourlyRate hasBeenReported reportedAt reportCount createdAt updatedAt"
+         )
          .lean();
 
       // Create mapping
       const tutorMap = new Map();
-      tutors.forEach(tutor => {
+      tutors.forEach((tutor) => {
          tutorMap.set(tutor.userId.toString(), tutor);
       });
 
       // Combine user and tutor data
-      let tutorsWithMapping = users.map(user => {
+      let tutorsWithMapping = users.map((user) => {
          const tutor = tutorMap.get(user._id.toString());
          return {
             userId: user._id,
@@ -284,21 +320,23 @@ export class AdminTutorService {
                isBanned: user.isBanned,
                bannedAt: user.bannedAt,
                banReason: user.banReason,
-               createdAt: user.createdAt
+               createdAt: user.createdAt,
             },
-            tutor: tutor ? {
-               _id: tutor._id,
-               isApproved: tutor.isApproved,
-               bio: tutor.bio,
-               subjects: tutor.subjects,
-               levels: tutor.levels,
-               hourlyRate: tutor.hourlyRate,
-               hasBeenReported: tutor.hasBeenReported || false,
-               reportedAt: tutor.reportedAt || null,
-               reportCount: tutor.reportCount || 0,
-               createdAt: tutor.createdAt,
-               updatedAt: tutor.updatedAt
-            } : null
+            tutor: tutor
+               ? {
+                    _id: tutor._id,
+                    isApproved: tutor.isApproved,
+                    bio: tutor.bio,
+                    subjects: tutor.subjects,
+                    levels: tutor.levels,
+                    hourlyRate: tutor.hourlyRate,
+                    hasBeenReported: tutor.hasBeenReported || false,
+                    reportedAt: tutor.reportedAt || null,
+                    reportCount: tutor.reportCount || 0,
+                    createdAt: tutor.createdAt,
+                    updatedAt: tutor.updatedAt,
+                 }
+               : null,
          };
       });
       // Recalculate total after filtering
@@ -316,8 +354,14 @@ export class AdminTutorService {
    }
 
    // Hide tutor (ban tutor profile due to report)
-   async hideTutor(tutorId: string, adminId: string): Promise<{ tutor: ITutor; message: string }> {
-      const tutor = await Tutor.findById(tutorId).populate('userId', 'name email');
+   async hideTutor(
+      tutorId: string,
+      adminId: string
+   ): Promise<{ tutor: ITutor; message: string }> {
+      const tutor = await Tutor.findById(tutorId).populate(
+         "userId",
+         "name email"
+      );
       if (!tutor) {
          throw new NotFoundError("Tutor not found");
       }
@@ -330,10 +374,43 @@ export class AdminTutorService {
          throw new NotFoundError("Tutor user not found");
       }
 
+      // Tìm tất cả learning commitments của tutor này
+      const allCommitments = await LearningCommitment.find({
+         tutor: tutor._id,
+      }).select("_id");
+
+      const commitmentIds = allCommitments.map((c) => c._id);
+
+      // Kiểm tra xem có buổi học nào đang ở trạng thái DISPUTED không
+      const disputedSession = await Session.findOne({
+         learningCommitmentId: { $in: commitmentIds },
+         status: SessionStatus.DISPUTED,
+      });
+
+      if (disputedSession) {
+         throw new BadRequestError(
+            "Không thể ẩn hồ sơ gia sư khi có buổi học đang chờ admin xem xét (tranh chấp). Vui lòng giải quyết tranh chấp trước."
+         );
+      }
+
+      // 0. Hủy tất cả suggestion schedules của tutor (PENDING)
+      await SuggestionSchedules.updateMany(
+         {
+            tutorId: tutor._id,
+            status: "PENDING",
+         },
+         {
+            status: "REJECTED",
+            "studentResponse.status": "REJECTED",
+            "studentResponse.reason": "Gia sư bị admin ẩn profile",
+            "studentResponse.respondedAt": getVietnamTime(),
+         }
+      );
+
       // 1. Xử lý learning commitments đang active -> cancelled
       const activeCommitments = await LearningCommitment.find({
          tutor: tutor._id,
-         status: "active"
+         status: "active",
       });
 
       for (const commitment of activeCommitments) {
@@ -346,7 +423,7 @@ export class AdminTutorService {
                tutor: { status: "ACCEPTED" as any },
                requestedBy: "tutor",
                requestedAt: getVietnamTime(),
-               reason: "Gia sư bị report"
+               reason: "Gia sư bị report",
             };
          } else {
             commitment.cancellationDecision.requestedBy = "tutor";
@@ -355,6 +432,17 @@ export class AdminTutorService {
             commitment.cancellationDecision.requestedAt = getVietnamTime();
             commitment.cancellationDecision.reason = "Gia sư bị report";
          }
+
+         // QUAN TRỌNG: Push vào history trước khi save
+         if (commitment.cancellationDecision) {
+            commitment.cancellationDecisionHistory =
+               commitment.cancellationDecisionHistory || [];
+            commitment.cancellationDecisionHistory.push({
+               ...commitment.cancellationDecision,
+               resolvedDate: getVietnamTime(),
+            });
+         }
+
          await commitment.save();
       }
 
@@ -362,17 +450,17 @@ export class AdminTutorService {
       await LearningCommitment.updateMany(
          {
             tutor: tutor._id,
-            status: "pending_agreement"
+            status: "pending_agreement",
          },
          {
-            status: "rejected"
+            status: "rejected",
          }
       );
 
       // 3. Xử lý learning commitments cancellation_pending -> cancelled
       const cancellationPendingCommitments = await LearningCommitment.find({
          tutor: tutor._id,
-         status: "cancellation_pending"
+         status: "cancellation_pending",
       });
 
       for (const commitment of cancellationPendingCommitments) {
@@ -383,6 +471,14 @@ export class AdminTutorService {
             commitment.cancellationDecision.tutor.status = "ACCEPTED" as any;
             commitment.cancellationDecision.tutor.reason = "Gia sư bị report";
             commitment.cancellationDecision.reason = "Gia sư bị report";
+
+            // QUAN TRỌNG: Push vào history trước khi save
+            commitment.cancellationDecisionHistory =
+               commitment.cancellationDecisionHistory || [];
+            commitment.cancellationDecisionHistory.push({
+               ...commitment.cancellationDecision,
+               resolvedDate: getVietnamTime(),
+            });
          }
          await commitment.save();
       }
@@ -393,30 +489,26 @@ export class AdminTutorService {
          throw new NotFoundError("Tutor user not found");
       }
 
-      // Tìm tất cả learning commitments của tutor này
-      const allCommitments = await LearningCommitment.find({
-         tutor: tutor._id
-      }).select("_id");
-
-      const commitmentIds = allCommitments.map(c => c._id);
-
       // Tìm sessions chưa học (chưa completed, chưa not_conducted, chưa cancelled, chưa rejected)
       const upcomingSessions = await Session.find({
          learningCommitmentId: { $in: commitmentIds },
          status: { $in: [SessionStatus.SCHEDULED, SessionStatus.CONFIRMED] },
          startTime: { $gt: getVietnamTime() }, // Chưa diễn ra
-         isDeleted: { $ne: true } // Chưa bị xóa
+         isDeleted: { $ne: true }, // Chưa bị xóa
       });
 
       const now = getVietnamTime();
       for (const session of upcomingSessions) {
          // Nếu session ở status CONFIRMED (student đã ACCEPT) -> CANCELLED
-         if (session.status === SessionStatus.CONFIRMED && session.studentConfirmation?.status === "ACCEPTED") {
+         if (
+            session.status === SessionStatus.CONFIRMED &&
+            session.studentConfirmation?.status === "ACCEPTED"
+         ) {
             session.status = SessionStatus.CANCELLED;
             session.cancellation = {
                cancelledBy: new Types.ObjectId(tutorUserId),
                reason: "Gia sư bị admin ẩn profile",
-               cancelledAt: now
+               cancelledAt: now,
             };
          }
          // Nếu session ở status SCHEDULED (student chưa confirm hoặc PENDING) -> REJECTED
@@ -427,122 +519,141 @@ export class AdminTutorService {
             session.deletedAt = now;
             session.deletedBy = new Types.ObjectId(tutorUserId);
             // Cập nhật studentConfirmation nếu chưa có hoặc đang PENDING
-            if (!session.studentConfirmation || session.studentConfirmation.status === "PENDING") {
+            if (
+               !session.studentConfirmation ||
+               session.studentConfirmation.status === "PENDING"
+            ) {
                session.studentConfirmation = {
                   status: "REJECTED",
-                  confirmedAt: now
+                  confirmedAt: now,
                };
             }
          }
          await session.save();
       }
 
-    // 5. Đánh dấu mọi teaching request chưa bị từ chối thành REJECTED
-    await TeachingRequest.updateMany(
-      {
-        tutorId: tutor._id,
-        status: { $in: [TeachingRequestStatus.PENDING, TeachingRequestStatus.ACCEPTED] },
-      },
-      {
-        status: TeachingRequestStatus.REJECTED,
-      }
-    );
-
-    // 6. Tự động cập nhật tất cả reports PENDING của tutor này thành RESOLVED
-    // (Khi nhiều student report cùng 1 tutor, tất cả reports sẽ được xử lý cùng lúc)
-    const pendingReports = await ViolationReport.find({
-      reportedUserId: new Types.ObjectId(tutorUserId),
-      status: ViolationStatusEnum.PENDING
-    }).populate("reporterId", "name email");
-
-    await ViolationReport.updateMany(
-      {
-        reportedUserId: new Types.ObjectId(tutorUserId),
-        status: ViolationStatusEnum.PENDING
-      },
-      {
-        status: ViolationStatusEnum.RESOLVED
-      }
-    );
-
-    // 7. Ẩn tutor (set isApproved = false, xóa embedding, lưu lịch sử report)
-    // Đếm tổng số reports (PENDING + RESOLVED) để cập nhật reportCount chính xác
-    const totalReports = await ViolationReport.countDocuments({
-      reportedUserId: new Types.ObjectId(tutorUserId),
-      status: { $in: [ViolationStatusEnum.PENDING, ViolationStatusEnum.RESOLVED] }
-    });
-
-    tutor.isApproved = false;
-    tutor.embedding = [];
-    tutor.hasBeenReported = true; // Đánh dấu đã bị report
-    tutor.reportedAt = getVietnamTime(); // Lưu thời điểm bị report
-    tutor.reportCount = totalReports; // Cập nhật số lượng reports thực tế
-    tutor.embedding = [];
-    await tutor.save();
-
-    // 8. Gửi email thông báo cho tất cả students đã report tutor này
-    const resolvedAt = getVietnamTime().toLocaleString("vi-VN", {
-      timeZone: "Asia/Ho_Chi_Minh",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-
-    const tutorUserForEmail = await User.findById(tutorUserId).select("name email");
-    const tutorName = tutorUserForEmail?.name || "Gia sư";
-    const action = "Hồ sơ gia sư đã bị ẩn và các cam kết học tập liên quan đã được xử lý.";
-
-    // Gửi email cho từng student đã report
-    for (const report of pendingReports) {
-      const reporter = report.reporterId as any;
-      if (reporter && reporter.email) {
-        const emailTemplate = getReportResolvedEmailTemplateForStudent(
-          reporter.name || "Học sinh",
-          tutorName,
-          report.reason || "Không có lý do cụ thể",
-          resolvedAt,
-          action
-        );
-
-        // Sử dụng queue để gửi email nhanh chóng (không block request)
-        await addEmailJob({
-          from: `"MatchTutor" <${process.env.EMAIL_USER}>`,
-          to: reporter.email,
-          subject: "Báo cáo vi phạm đã được xử lý - MatchTutor",
-          html: emailTemplate,
-        });
-      }
-    }
-
-    // Gửi email cho tutor
-    if (tutorUserForEmail && tutorUserForEmail.email) {
-      const tutorAction = "Hồ sơ của bạn đã bị ẩn do vi phạm quy tắc cộng đồng. Các cam kết học tập và buổi học liên quan đã được hủy.";
-      const emailTemplate = getReportResolvedEmailTemplateForTutor(
-        tutorName,
-        `Có ${totalReports} báo cáo vi phạm về tài khoản của bạn`,
-        resolvedAt,
-        tutorAction
+      // 5. Đánh dấu mọi teaching request chưa bị từ chối thành REJECTED
+      await TeachingRequest.updateMany(
+         {
+            tutorId: tutor._id,
+            status: {
+               $in: [
+                  TeachingRequestStatus.PENDING,
+                  TeachingRequestStatus.ACCEPTED,
+               ],
+            },
+         },
+         {
+            status: TeachingRequestStatus.REJECTED,
+         }
       );
 
-      // Sử dụng queue để gửi email nhanh chóng (không block request)
-      await addEmailJob({
-        from: `"MatchTutor" <${process.env.EMAIL_USER}>`,
-        to: tutorUserForEmail.email,
-        subject: "Thông báo về báo cáo vi phạm - MatchTutor",
-        html: emailTemplate,
+      // 6. Tự động cập nhật tất cả reports PENDING của tutor này thành RESOLVED
+      // (Khi nhiều student report cùng 1 tutor, tất cả reports sẽ được xử lý cùng lúc)
+      const pendingReports = await ViolationReport.find({
+         reportedUserId: new Types.ObjectId(tutorUserId),
+         status: ViolationStatusEnum.PENDING,
+      }).populate("reporterId", "name email");
+
+      await ViolationReport.updateMany(
+         {
+            reportedUserId: new Types.ObjectId(tutorUserId),
+            status: ViolationStatusEnum.PENDING,
+         },
+         {
+            status: ViolationStatusEnum.RESOLVED,
+         }
+      );
+
+      // 7. Ẩn tutor (set isApproved = false, xóa embedding, lưu lịch sử report)
+      // Đếm tổng số reports (PENDING + RESOLVED) để cập nhật reportCount chính xác
+      const totalReports = await ViolationReport.countDocuments({
+         reportedUserId: new Types.ObjectId(tutorUserId),
+         status: {
+            $in: [ViolationStatusEnum.PENDING, ViolationStatusEnum.RESOLVED],
+         },
       });
-    }
+
+      tutor.isApproved = false;
+      tutor.embedding = [];
+      tutor.hasBeenReported = true; // Đánh dấu đã bị report
+      tutor.reportedAt = getVietnamTime(); // Lưu thời điểm bị report
+      tutor.reportCount = totalReports; // Cập nhật số lượng reports thực tế
+      tutor.embedding = [];
+      await tutor.save();
+
+      // 7.5. Xóa tutor khỏi tất cả AI recommendations
+      await AIRecommendation.updateMany(
+         { "recommendedTutors.tutorId": tutor._id },
+         { $pull: { recommendedTutors: { tutorId: tutor._id } } }
+      );
+
+      // 8. Gửi email thông báo cho tất cả students đã report tutor này
+      const resolvedAt = getVietnamTime().toLocaleString("vi-VN", {
+         timeZone: "Asia/Ho_Chi_Minh",
+         year: "numeric",
+         month: "long",
+         day: "numeric",
+         hour: "2-digit",
+         minute: "2-digit",
+      });
+
+      const tutorUserForEmail = await User.findById(tutorUserId).select(
+         "name email"
+      );
+      const tutorName = tutorUserForEmail?.name || "Gia sư";
+      const action =
+         "Hồ sơ gia sư đã bị ẩn và các cam kết học tập liên quan đã được xử lý.";
+
+      // Gửi email cho từng student đã report
+      for (const report of pendingReports) {
+         const reporter = report.reporterId as any;
+         if (reporter && reporter.email) {
+            const emailTemplate = getReportResolvedEmailTemplateForStudent(
+               reporter.name || "Học sinh",
+               tutorName,
+               report.reason || "Không có lý do cụ thể",
+               resolvedAt,
+               action
+            );
+
+            // Sử dụng queue để gửi email nhanh chóng (không block request)
+            await addEmailJob({
+               from: `"MatchTutor" <${process.env.EMAIL_USER}>`,
+               to: reporter.email,
+               subject: "Báo cáo vi phạm đã được xử lý - MatchTutor",
+               html: emailTemplate,
+            });
+         }
+      }
+
+      // Gửi email cho tutor
+      if (tutorUserForEmail && tutorUserForEmail.email) {
+         const tutorAction =
+            "Hồ sơ của bạn đã bị ẩn do vi phạm quy tắc cộng đồng. Các cam kết học tập và buổi học liên quan đã được hủy.";
+         const emailTemplate = getReportResolvedEmailTemplateForTutor(
+            tutorName,
+            `Có ${totalReports} báo cáo vi phạm về tài khoản của bạn`,
+            resolvedAt,
+            tutorAction
+         );
+
+         // Sử dụng queue để gửi email nhanh chóng (không block request)
+         await addEmailJob({
+            from: `"MatchTutor" <${process.env.EMAIL_USER}>`,
+            to: tutorUserForEmail.email,
+            subject: "Thông báo về báo cáo vi phạm - MatchTutor",
+            html: emailTemplate,
+         });
+      }
 
       return {
-    tutor: tutor.toObject() as ITutor,
-    message: wasAlreadyHidden
-       ? "Tutor was already hidden; reports and related commitments/sessions processed"
-       : "Tutor hidden successfully and all related commitments/sessions processed"
+         tutor: tutor.toObject() as ITutor,
+         message: wasAlreadyHidden
+            ? "Tutor was already hidden; reports and related commitments/sessions processed"
+            : "Tutor hidden successfully and all related commitments/sessions processed",
       };
    }
 }
 
 export default new AdminTutorService();
-

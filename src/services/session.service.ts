@@ -550,9 +550,16 @@ class SessionService {
       if (session.status === SessionStatus.COMPLETED) {
          throw new BadRequestError("Không thể cập nhật buổi học đã hoàn thành");
       }
-      // Allow updating confirmed sessions — but after update revert to SCHEDULED
+
+      // Check if only location/notes are being updated
+      const onlyMetadataUpdate =
+         !data.startTime &&
+         !data.endTime &&
+         (data.location !== undefined || data.notes !== undefined);
+
+      // Allow updating confirmed sessions — but after update revert to SCHEDULED (unless only metadata)
       const wasConfirmed = session.status === SessionStatus.CONFIRMED;
-      if (wasConfirmed) {
+      if (wasConfirmed && !onlyMetadataUpdate) {
          session.status = SessionStatus.SCHEDULED;
          session.studentConfirmation = { status: "PENDING" } as any;
          // clear soft-delete flags if set
@@ -756,7 +763,7 @@ class SessionService {
 
       Object.assign(session, data);
 
-      if (wasConfirmed) {
+      if (wasConfirmed && !onlyMetadataUpdate) {
          // revert to scheduled so student must confirm again
          session.status = SessionStatus.SCHEDULED;
          session.studentConfirmation = { status: "PENDING" } as any;
@@ -768,35 +775,40 @@ class SessionService {
 
       await session.save();
 
-      // Notify the other participant about the update
-      try {
-         const comm = await LearningCommitment.findById(
-            session.learningCommitmentId
-         )
-            .populate({ path: "student", select: "userId" })
-            .populate({ path: "tutor", select: "userId" })
-            .lean();
+      // Notify the other participant about the update (only if time changed)
+      if (!onlyMetadataUpdate) {
+         try {
+            const comm = await LearningCommitment.findById(
+               session.learningCommitmentId
+            )
+               .populate({ path: "student", select: "userId" })
+               .populate({ path: "tutor", select: "userId" })
+               .lean();
 
-         if (comm) {
-            const studentUserId = (comm as any).student?.userId?.toString();
-            const tutorUserId = (comm as any).tutor?.userId?.toString();
-            const isUpdatedByStudent =
-               (currentUser._id as any).toString() === studentUserId;
-            const targetUserId = isUpdatedByStudent
-               ? tutorUserId
-               : studentUserId;
-            if (targetUserId) {
-               const updaterName = currentUser.name || "Một người dùng";
-               const timeStr = moment(session.startTime)
-                  .tz("Asia/Ho_Chi_Minh")
-                  .format("HH:mm DD/MM/YYYY");
-               const title = "Buổi học đã được cập nhật";
-               const message = `${updaterName} đã cập nhật buổi học vào ${timeStr}. Vui lòng kiểm tra chi tiết.`;
-               await addNotificationJob(targetUserId, title, message);
+            if (comm) {
+               const studentUserId = (comm as any).student?.userId?.toString();
+               const tutorUserId = (comm as any).tutor?.userId?.toString();
+               const isUpdatedByStudent =
+                  (currentUser._id as any).toString() === studentUserId;
+               const targetUserId = isUpdatedByStudent
+                  ? tutorUserId
+                  : studentUserId;
+               if (targetUserId) {
+                  const updaterName = currentUser.name || "Một người dùng";
+                  const timeStr = moment(session.startTime)
+                     .tz("Asia/Ho_Chi_Minh")
+                     .format("HH:mm DD/MM/YYYY");
+                  const title = "Buổi học đã được cập nhật";
+                  const message = `${updaterName} đã cập nhật buổi học vào ${timeStr}. Vui lòng kiểm tra chi tiết.`;
+                  await addNotificationJob(targetUserId, title, message);
+               }
             }
+         } catch (e) {
+            console.error(
+               "Failed to notify participant about session update:",
+               e
+            );
          }
-      } catch (e) {
-         console.error("Failed to notify participant about session update:", e);
       }
 
       return session;
@@ -937,17 +949,10 @@ class SessionService {
          },
       });
 
-      // Đếm số session vắng (NOT_CONDUCTED) để cho phép tạo thêm
-      const absentSessions = await Session.countDocuments({
-         learningCommitmentId: commitment._id,
-         isDeleted: { $ne: true },
-         status: SessionStatus.NOT_CONDUCTED,
-      });
+      // Tính số slot còn lại: chỉ dựa vào completed và pending
+      // Các buổi NOT_CONDUCTED không được tính vào completed nên tự động được tính là "còn lại"
+      const remainingSlots = total - completed - currentPendingSessions;
 
-      // Cho phép tạo thêm số session bằng số session vắng
-      // remainingSlots = total - completed - currentPendingSessions + absentSessions
-      const remainingSlots =
-         total - completed - currentPendingSessions + absentSessions;
       if (remainingSlots <= 0) {
          throw new BadRequestError(
             "Không thể tạo thêm buổi: đã đủ số buổi cam kết."

@@ -785,7 +785,8 @@ export class TutorService {
    async getSuggestions(studentId: string) {
       const sId = await studentModel.findOne({ userId: studentId });
       if (!sId) {
-         throw new NotFoundError("not found sId");
+         // throw new NotFoundError("not found sId");
+         return []
       }
       const result = await aiRecommendationModel
          .findOne({
@@ -793,7 +794,7 @@ export class TutorService {
          })
          .populate({
             path: "recommendedTutors.tutorId",
-            select: "userId subjects levels bio hourlyRate experienceYears",
+            select: "userId subjects levels bio hourlyRate experienceYears classType availability ratings",
             populate: {
                path: "userId",
                select: "name gender address.city avatarUrl",

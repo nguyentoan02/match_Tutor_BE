@@ -78,7 +78,7 @@ class StudentProfileService {
          availability,
       });
 
-      addMatchJob(newProfile._id as string);
+      addMatchJob(userId);
 
       return newProfile as IStudent;
    }
