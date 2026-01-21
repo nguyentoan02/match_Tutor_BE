@@ -262,6 +262,7 @@ export const webHook = async (webhookData: { data: any }) => {
                                  },
                                  createdBy: tutorUserId,
                                  isTrial: false,
+                                 location: schedule.location || undefined,
                               };
                            }
                         );

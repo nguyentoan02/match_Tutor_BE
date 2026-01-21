@@ -3,6 +3,7 @@ import z from "zod";
 export const SSchedules = z.object({
    start: z.date("start time not valid"),
    end: z.date("end time not valid"),
+   location: z.string().optional(),
 });
 
 export const SuggestionSchedulesBodySchema = z.object({
