@@ -15,6 +15,7 @@ const SuggestionSchedulesSchema: Schema<ISuggestionSchedules> = new Schema(
          {
             start: Date,
             end: Date,
+            location: { type: String },
             _id: false,
          },
       ],
