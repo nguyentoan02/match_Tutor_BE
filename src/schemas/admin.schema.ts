@@ -149,6 +149,13 @@ export const getActiveStudentsSchema = z.object({
    }),
 });
 
+// Schema for getting student profile (admin)
+export const getStudentProfileSchema = z.object({
+   params: z.object({
+      id: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid student ID format"),
+   }),
+});
+
 export const getTransactionHistorySchema = z.object({
    query: z
       .object({
@@ -317,6 +324,9 @@ export type GetBannedStudentsQuery = z.infer<
 export type GetActiveStudentsQuery = z.infer<
    typeof getActiveStudentsSchema
 >["query"];
+export type GetStudentProfileParams = z.infer<
+   typeof getStudentProfileSchema
+>["params"];
 export type AcceptTutorParams = z.infer<typeof acceptTutorSchema>["params"];
 export type RejectTutorParams = z.infer<typeof rejectTutorSchema>["params"];
 export type RejectTutorBody = z.infer<typeof rejectTutorSchema>["body"];

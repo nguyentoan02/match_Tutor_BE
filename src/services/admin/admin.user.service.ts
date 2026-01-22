@@ -2,11 +2,13 @@ import User from "../../models/user.model";
 import Package from "../../models/package.model";
 import Payment from "../../models/payment.model";
 import Tutor from "../../models/tutor.model";
+import Student from "../../models/student.model";
 import ViolationReport from "../../models/violationReport.model";
 import { PaymentStatusEnum } from "../../types/enums/payment.enum";
 import { NotFoundError, BadRequestError } from "../../utils/error.response";
 import { Types } from "mongoose";
 import { ViolationStatusEnum } from "../../types/enums/violationReport.enum";
+import { IStudent } from "../../types/types/student";
 // No time-based util needed; packages have no time limit
 
 export class AdminUserService {
@@ -225,6 +227,46 @@ export class AdminUserService {
             total,
             pages: Math.ceil(total / limit),
          },
+      };
+   }
+
+   // Get student profile by studentId or userId (for admin)
+   async getStudentProfile(
+      studentIdOrUserId: string
+   ): Promise<{ student: IStudent | null; hasProfile: boolean; message: string }> {
+      let student: IStudent | null = null;
+
+      if (Types.ObjectId.isValid(studentIdOrUserId)) {
+         const objectId = new Types.ObjectId(studentIdOrUserId);
+         student = (await Student.findById(objectId)
+            .populate(
+               "userId",
+               "name email avatarUrl phone gender address role isBanned bannedAt banReason"
+            )
+            .lean()) as IStudent | null;
+
+         if (!student) {
+            student = (await Student.findOne({ userId: objectId })
+               .populate(
+                  "userId",
+                  "name email avatarUrl phone gender address role isBanned bannedAt banReason"
+               )
+               .lean()) as IStudent | null;
+         }
+      }
+
+      if (!student) {
+         return {
+            student: null,
+            hasProfile: false,
+            message: "Student profile not found",
+         };
+      }
+
+      return {
+         student,
+         hasProfile: true,
+         message: "Student profile retrieved successfully",
       };
    }
 
