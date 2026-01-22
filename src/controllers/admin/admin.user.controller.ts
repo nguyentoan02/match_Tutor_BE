@@ -2,11 +2,12 @@ import { Request, Response, NextFunction } from "express";
 import adminUserService from "../../services/admin/admin.user.service";
 import { OK } from "../../utils/success.response";
 import { UnauthorizedError } from "../../utils/error.response";
-import { 
+import {
    GetBannedTutorsQuery,
    GetActiveTutorsQuery,
    GetBannedStudentsQuery,
-   GetActiveStudentsQuery
+   GetActiveStudentsQuery,
+   GetStudentProfileParams,
 } from "../../schemas/admin.schema";
 
 class AdminUserController {
@@ -108,6 +109,30 @@ class AdminUserController {
 
          new OK({
             message: "Active students retrieved successfully",
+            metadata: result,
+         }).send(res);
+      } catch (err) {
+         next(err);
+      }
+   }
+
+   // GET /api/admin/student/:id - Get student profile (Admin only)
+   async getStudentProfile(
+      req: Request<GetStudentProfileParams>,
+      res: Response,
+      next: NextFunction
+   ) {
+      try {
+         const currentUser = req.user;
+         if (!currentUser || !currentUser._id) {
+            throw new UnauthorizedError("Not authenticated");
+         }
+
+         const { id } = req.params;
+         const result = await adminUserService.getStudentProfile(id);
+
+         new OK({
+            message: result.message,
             metadata: result,
          }).send(res);
       } catch (err) {

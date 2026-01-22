@@ -25,6 +25,7 @@ class AdminController {
    getActiveTutors = adminUserController.getActiveTutors;
    getBannedStudents = adminUserController.getBannedStudents;
    getActiveStudents = adminUserController.getActiveStudents;
+   getStudentProfile = adminUserController.getStudentProfile;
 
    // Tutor Management
    acceptTutor = adminTutorController.acceptTutor;

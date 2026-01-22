@@ -12,6 +12,7 @@ import {
    getActiveTutorsSchema,
    getBannedStudentsSchema,
    getActiveStudentsSchema,
+   getStudentProfileSchema,
    acceptTutorSchema,
    rejectTutorSchema,
    getPendingTutorsSchema,
@@ -108,6 +109,11 @@ router.get(
    "/students/active",
    validate(getActiveStudentsSchema),
    adminController.getActiveStudents
+);
+router.get(
+   "/student/:id",
+   validate(getStudentProfileSchema),
+   adminController.getStudentProfile
 );
 
 // ========== TUTOR MANAGEMENT ==========
