@@ -16,6 +16,7 @@ export interface ISuggestionSchedules extends Document {
    schedules: {
       start: Date;
       end: Date;
+      location?: string;
    }[];
    status: SuggestionStatus;
    studentResponse?: IStudentSuggestionResponse;
@@ -27,6 +28,7 @@ export interface SuggesstionSchedules {
    schedules: {
       start: Date;
       end: Date;
+      location?: string;
    }[];
    TRId: string;
    title: string;

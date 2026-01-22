@@ -29,7 +29,7 @@ class SuggestionSchedulesService {
     */
    async saveSuggestions(
       schedules: SuggesstionSchedules,
-      tutorUserId: string
+      tutorUserId: string,
    ): Promise<ISuggestionSchedules> {
       const teachingRequest = await TeachingRequest.findById(schedules.TRId);
       if (!teachingRequest) {
@@ -39,7 +39,7 @@ class SuggestionSchedulesService {
       const tutor = await Tutor.findOne({ userId: tutorUserId });
       if (!tutor || String(teachingRequest.tutorId) !== String(tutor._id)) {
          throw new ForbiddenError(
-            "You are not the tutor of this teaching request"
+            "You are not the tutor of this teaching request",
          );
       }
 
@@ -63,7 +63,7 @@ class SuggestionSchedulesService {
 
       if (activeCommitment) {
          throw new BadRequestError(
-            "Đã có một cam kết học tập đang hoạt động cho yêu cầu dạy học này. Vui lòng chờ cho đến khi nó được hoàn thành hoặc hủy bỏ."
+            "Đã có một cam kết học tập đang hoạt động cho yêu cầu dạy học này. Vui lòng chờ cho đến khi nó được hoàn thành hoặc hủy bỏ.",
          );
       }
 
@@ -74,7 +74,7 @@ class SuggestionSchedulesService {
       });
       if (completedCommitment) {
          console.log(
-            `✅ Allowing new suggestion after completed commitment ${completedCommitment._id} for teachingRequest ${schedules.TRId}`
+            `✅ Allowing new suggestion after completed commitment ${completedCommitment._id} for teachingRequest ${schedules.TRId}`,
          );
       }
 
@@ -107,7 +107,7 @@ class SuggestionSchedulesService {
       } catch (error) {
          console.error(
             "Error cleaning up old sessions/commitments on save suggestions:",
-            error
+            error,
          );
          // Không throw error để không làm gián đoạn quá trình lưu
       }
@@ -166,12 +166,12 @@ class SuggestionSchedulesService {
             if (tutorSessionConflict) {
                throw new BadRequestError(
                   `Gia sư có buổi học đã được lên lịch vào thời gian ${moment(
-                     sStart
+                     sStart,
                   )
                      .tz("Asia/Ho_Chi_Minh")
                      .format(
-                        "HH:mm DD/MM/YYYY"
-                     )}. Vui lòng chọn thời gian khác.`
+                        "HH:mm DD/MM/YYYY",
+                     )}. Vui lòng chọn thời gian khác.`,
                );
             }
          }
@@ -195,12 +195,12 @@ class SuggestionSchedulesService {
             if (studentSessionConflict) {
                throw new BadRequestError(
                   `Học sinh có buổi học đã được lên lịch vào thời gian ${moment(
-                     sStart
+                     sStart,
                   )
                      .tz("Asia/Ho_Chi_Minh")
                      .format(
-                        "HH:mm DD/MM/YYYY"
-                     )}. Vui lòng chọn thời gian khác.`
+                        "HH:mm DD/MM/YYYY",
+                     )}. Vui lòng chọn thời gian khác.`,
                );
             }
          }
@@ -225,11 +225,11 @@ class SuggestionSchedulesService {
                })
                .select("schedules teachingRequestId")
                .sort({ createdAt: -1 }) // Lấy suggestion mới nhất
-               .limit(1)
+               .limit(1),
          );
 
          const latestSuggestionsResults = await Promise.all(
-            latestSuggestionsPromises
+            latestSuggestionsPromises,
          );
          const otherPendingSuggestions =
             latestSuggestionsResults.filter(Boolean); // Loại bỏ null/undefined
@@ -254,12 +254,12 @@ class SuggestionSchedulesService {
                      if (pStart < sEnd && pEnd > sStart) {
                         throw new BadRequestError(
                            `Gia sư đang có lịch đề xuất đang chờ phản hồi vào thời gian ${moment(
-                              sStart
+                              sStart,
                            )
                               .tz("Asia/Ho_Chi_Minh")
                               .format(
-                                 "HH:mm DD/MM/YYYY"
-                              )}. Vui lòng chọn thời gian khác.`
+                                 "HH:mm DD/MM/YYYY",
+                              )}. Vui lòng chọn thời gian khác.`,
                         );
                      }
                   }
@@ -276,7 +276,7 @@ class SuggestionSchedulesService {
       }).select("_id");
 
       const studentOtherTeachingRequestIds = studentOtherTeachingRequests.map(
-         (tr) => tr._id
+         (tr) => tr._id,
       );
 
       if (studentOtherTeachingRequestIds.length > 0) {
@@ -302,11 +302,11 @@ class SuggestionSchedulesService {
                      },
                   })
                   .sort({ createdAt: -1 }) // Lấy suggestion mới nhất
-                  .limit(1)
+                  .limit(1),
             );
 
          const studentLatestSuggestionsResults = await Promise.all(
-            studentLatestSuggestionsPromises
+            studentLatestSuggestionsPromises,
          );
          const studentOtherPendingSuggestions =
             studentLatestSuggestionsResults.filter(Boolean); // Loại bỏ null/undefined
@@ -334,12 +334,12 @@ class SuggestionSchedulesService {
                               ?.userId?.name || "gia sư khác";
                         throw new BadRequestError(
                            `Học sinh đang có lịch đề xuất đang chờ phản hồi với ${tutorName} vào thời gian ${moment(
-                              sStart
+                              sStart,
                            )
                               .tz("Asia/Ho_Chi_Minh")
                               .format(
-                                 "HH:mm DD/MM/YYYY"
-                              )}. Vui lòng chọn thời gian khác.`
+                                 "HH:mm DD/MM/YYYY",
+                              )}. Vui lòng chọn thời gian khác.`,
                         );
                      }
                   }
@@ -381,7 +381,7 @@ class SuggestionSchedulesService {
             await addNotificationJob(
                studentUser._id.toString(),
                title,
-               message
+               message,
             );
          }
       } catch (error) {
@@ -415,7 +415,7 @@ class SuggestionSchedulesService {
 
       if (!isStudent && !isTutor) {
          throw new ForbiddenError(
-            "Bạn không có quyền xem lịch đề xuất này. Chỉ học sinh và gia sư liên quan mới có thể xem."
+            "Bạn không có quyền xem lịch đề xuất này. Chỉ học sinh và gia sư liên quan mới có thể xem.",
          );
       }
 
@@ -444,7 +444,7 @@ class SuggestionSchedulesService {
          }).select("_id");
 
          const otherTeachingRequestIds = otherTeachingRequests.map(
-            (tr) => tr._id
+            (tr) => tr._id,
          );
 
          // Lấy các suggestion schedules có studentResponse.status = "PENDING" (chưa được học sinh accept/reject)
@@ -475,11 +475,11 @@ class SuggestionSchedulesService {
                         ],
                      })
                      .sort({ createdAt: -1 }) // Lấy suggestion mới nhất
-                     .limit(1)
+                     .limit(1),
             );
 
             const latestSuggestionsResults = await Promise.all(
-               latestSuggestionsPromises
+               latestSuggestionsPromises,
             );
             const otherSuggestions = latestSuggestionsResults.filter(Boolean); // Loại bỏ null/undefined
 
@@ -558,7 +558,7 @@ class SuggestionSchedulesService {
          }).select("_id");
 
          const otherTeachingRequestIds = otherTeachingRequests.map(
-            (tr) => tr._id
+            (tr) => tr._id,
          );
 
          // Lấy các suggestion schedules có studentResponse.status = "PENDING" (chưa được học sinh accept/reject)
@@ -589,11 +589,11 @@ class SuggestionSchedulesService {
                         ],
                      })
                      .sort({ createdAt: -1 }) // Lấy suggestion mới nhất
-                     .limit(1)
+                     .limit(1),
             );
 
             const latestSuggestionsResults = await Promise.all(
-               latestSuggestionsPromises
+               latestSuggestionsPromises,
             );
             const otherSuggestions = latestSuggestionsResults.filter(Boolean); // Loại bỏ null/undefined
 
@@ -703,11 +703,11 @@ class SuggestionSchedulesService {
                      },
                   })
                   .sort({ createdAt: -1 })
-                  .limit(1)
+                  .limit(1),
             );
 
             const studentPendingResults = await Promise.all(
-               studentPendingPromises
+               studentPendingPromises,
             );
             const studentPendingSuggestions =
                studentPendingResults.filter(Boolean);
@@ -718,7 +718,7 @@ class SuggestionSchedulesService {
                   tutor: suggestion.teachingRequestId?.tutorId?.userId || null,
                   teachingRequestId: suggestion.teachingRequestId?._id || null,
                   type: "suggestion", // Đánh dấu là từ suggestion
-               })
+               }),
             );
          }
       }
@@ -738,7 +738,7 @@ class SuggestionSchedulesService {
    async studentRespond(
       suggestionId: string,
       studentUserId: string,
-      payload: { decision: "ACCEPT" | "REJECT"; reason?: string }
+      payload: { decision: "ACCEPT" | "REJECT"; reason?: string },
    ): Promise<ISuggestionSchedules & { commitmentId?: string }> {
       const suggestion = await suggestSchedulesModel
          .findById(suggestionId)
@@ -760,7 +760,7 @@ class SuggestionSchedulesService {
          String(teachingRequest.studentId) !== String(studentProfile._id)
       ) {
          throw new ForbiddenError(
-            "You are not the owner of this teaching request"
+            "You are not the owner of this teaching request",
          );
       }
 
@@ -810,7 +810,7 @@ class SuggestionSchedulesService {
          } catch (error) {
             console.error(
                "Error cleaning up sessions and commitments on reject:",
-               error
+               error,
             );
             // Không throw error để không làm gián đoạn quá trình từ chối
          }
@@ -834,7 +834,7 @@ class SuggestionSchedulesService {
 
          if (existingCommitment) {
             throw new BadRequestError(
-               "Đã có một cam kết học tập đang hoạt động cho yêu cầu dạy học này."
+               "Đã có một cam kết học tập đang hoạt động cho yêu cầu dạy học này.",
             );
          }
 
@@ -842,7 +842,7 @@ class SuggestionSchedulesService {
          const schedules = suggestion.schedules || [];
          if (schedules.length === 0) {
             throw new BadRequestError(
-               "Lịch học không hợp lệ (không có buổi học)"
+               "Lịch học không hợp lệ (không có buổi học)",
             );
          }
 
@@ -862,7 +862,7 @@ class SuggestionSchedulesService {
          const proposedTotalPrice = suggestion.proposedTotalPrice || 0;
          if (proposedTotalPrice <= 0) {
             throw new BadRequestError(
-               "Giá tổng đề xuất không hợp lệ. Vui lòng kiểm tra lại."
+               "Giá tổng đề xuất không hợp lệ. Vui lòng kiểm tra lại.",
             );
          }
          const totalAmount = proposedTotalPrice;
@@ -882,7 +882,7 @@ class SuggestionSchedulesService {
          // Tìm startDate (ngày sớm nhất trong schedules)
          const startDates = schedules.map((s) => new Date(s.start));
          const startDate = new Date(
-            Math.min(...startDates.map((d) => d.getTime()))
+            Math.min(...startDates.map((d) => d.getTime())),
          );
 
          // Tạo LearningCommitment
@@ -931,13 +931,13 @@ class SuggestionSchedulesService {
             await addNotificationJob(
                (tutorProfile.userId as any)._id.toString(),
                title,
-               message
+               message,
             );
          }
       } catch (error) {
          console.error(
             "Error sending notification for student response:",
-            error
+            error,
          );
          // Không throw error để không làm gián đoạn quá trình phản hồi
       }
@@ -959,7 +959,7 @@ class SuggestionSchedulesService {
       data: Pick<
          SuggesstionSchedules,
          "schedules" | "title" | "proposedTotalPrice"
-      >
+      >,
    ): Promise<ISuggestionSchedules> {
       const suggestion = await suggestSchedulesModel
          .findById(suggestionId)
@@ -974,7 +974,7 @@ class SuggestionSchedulesService {
       const tutor = await Tutor.findOne({ userId: tutorUserId });
       if (!tutor || String(teachingRequest.tutorId) !== String(tutor._id)) {
          throw new ForbiddenError(
-            "You are not the tutor of this teaching request"
+            "You are not the tutor of this teaching request",
          );
       }
 
@@ -1019,12 +1019,12 @@ class SuggestionSchedulesService {
             if (tutorSessionConflict) {
                throw new BadRequestError(
                   `Gia sư có buổi học đã được lên lịch vào thời gian ${moment(
-                     sStart
+                     sStart,
                   )
                      .tz("Asia/Ho_Chi_Minh")
                      .format(
-                        "HH:mm DD/MM/YYYY"
-                     )}. Vui lòng chọn thời gian khác.`
+                        "HH:mm DD/MM/YYYY",
+                     )}. Vui lòng chọn thời gian khác.`,
                );
             }
          }
@@ -1048,12 +1048,12 @@ class SuggestionSchedulesService {
             if (studentSessionConflict) {
                throw new BadRequestError(
                   `Học sinh có buổi học đã được lên lịch vào thời gian ${moment(
-                     sStart
+                     sStart,
                   )
                      .tz("Asia/Ho_Chi_Minh")
                      .format(
-                        "HH:mm DD/MM/YYYY"
-                     )}. Vui lòng chọn thời gian khác.`
+                        "HH:mm DD/MM/YYYY",
+                     )}. Vui lòng chọn thời gian khác.`,
                );
             }
          }
@@ -1077,11 +1077,11 @@ class SuggestionSchedulesService {
                })
                .select("schedules teachingRequestId")
                .sort({ createdAt: -1 }) // Lấy suggestion mới nhất
-               .limit(1)
+               .limit(1),
          );
 
          const latestSuggestionsResults = await Promise.all(
-            latestSuggestionsPromises
+            latestSuggestionsPromises,
          );
          const otherPendingSuggestions =
             latestSuggestionsResults.filter(Boolean);
@@ -1103,12 +1103,12 @@ class SuggestionSchedulesService {
                      if (pStart < sEnd && pEnd > sStart) {
                         throw new BadRequestError(
                            `Gia sư đang có lịch đề xuất đang chờ phản hồi vào thời gian ${moment(
-                              sStart
+                              sStart,
                            )
                               .tz("Asia/Ho_Chi_Minh")
                               .format(
-                                 "HH:mm DD/MM/YYYY"
-                              )}. Vui lòng chọn thời gian khác.`
+                                 "HH:mm DD/MM/YYYY",
+                              )}. Vui lòng chọn thời gian khác.`,
                         );
                      }
                   }
@@ -1124,7 +1124,7 @@ class SuggestionSchedulesService {
       }).select("_id");
 
       const studentOtherTeachingRequestIds = studentOtherTeachingRequests.map(
-         (tr) => tr._id
+         (tr) => tr._id,
       );
 
       if (studentOtherTeachingRequestIds.length > 0) {
@@ -1149,11 +1149,11 @@ class SuggestionSchedulesService {
                      },
                   })
                   .sort({ createdAt: -1 }) // Lấy suggestion mới nhất
-                  .limit(1)
+                  .limit(1),
             );
 
          const studentLatestSuggestionsResults = await Promise.all(
-            studentLatestSuggestionsPromises
+            studentLatestSuggestionsPromises,
          );
          const studentOtherPendingSuggestions =
             studentLatestSuggestionsResults.filter(Boolean);
@@ -1178,12 +1178,12 @@ class SuggestionSchedulesService {
                               ?.userId?.name || "gia sư khác";
                         throw new BadRequestError(
                            `Học sinh đang có lịch đề xuất đang chờ phản hồi với ${tutorName} vào thời gian ${moment(
-                              sStart
+                              sStart,
                            )
                               .tz("Asia/Ho_Chi_Minh")
                               .format(
-                                 "HH:mm DD/MM/YYYY"
-                              )}. Vui lòng chọn thời gian khác.`
+                                 "HH:mm DD/MM/YYYY",
+                              )}. Vui lòng chọn thời gian khác.`,
                         );
                      }
                   }
@@ -1219,7 +1219,7 @@ class SuggestionSchedulesService {
       } catch (error) {
          console.error(
             "Error cleaning up old sessions/commitments on tutor update:",
-            error
+            error,
          );
          // Không throw error để không làm gián đoạn quá trình cập nhật
       }
@@ -1250,13 +1250,13 @@ class SuggestionSchedulesService {
             await addNotificationJob(
                studentUser._id.toString(),
                title,
-               message
+               message,
             );
          }
       } catch (error) {
          console.error(
             "Error sending notification for updated suggestion:",
-            error
+            error,
          );
          // Không throw error để không làm gián đoạn quá trình cập nhật
       }
